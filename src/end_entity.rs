@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use crate::subject_name::GeneralDnsNameRef;
 use crate::{
     cert, signed_data, subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef, Time,
     TlsClientTrustAnchors, TlsServerTrustAnchors,
@@ -173,5 +175,18 @@ impl<'a> EndEntityCert<'a> {
             untrusted::Input::from(msg),
             untrusted::Input::from(signature),
         )
+    }
+
+    /// Returns a list of the DNS names provided in the subject alternative names extension
+    ///
+    /// This function must not be used to implement custom DNS name verification.
+    /// Verification functions are already provided as `verify_is_valid_for_dns_name`
+    /// and `verify_is_valid_for_at_least_one_dns_name`.
+    ///
+    /// Requires the `alloc` default feature; i.e. this isn't available in
+    /// `#![no_std]` configurations.
+    #[cfg(feature = "alloc")]
+    pub fn dns_names(&'a self) -> Result<impl Iterator<Item = GeneralDnsNameRef<'a>>, Error> {
+        subject_name::list_cert_dns_names(self)
     }
 }
