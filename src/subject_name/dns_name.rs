@@ -14,6 +14,7 @@
 
 #[cfg(feature = "alloc")]
 use alloc::string::String;
+use core::fmt::Write;
 
 /// A DNS Name suitable for use in the TLS Server Name Indication (SNI)
 /// extension and/or for use as the reference hostname for which to verify a
@@ -21,14 +22,10 @@ use alloc::string::String;
 ///
 /// A `DnsName` is guaranteed to be syntactically valid. The validity rules are
 /// specified in [RFC 5280 Section 7.2], except that underscores are also
-/// allowed.
+/// allowed. `DnsName`s do not include wildcard labels.
 ///
 /// `DnsName` stores a copy of the input it was constructed from in a `String`
-/// and so it is only available when the `std` default feature is enabled.
-///
-/// `Eq`, `PartialEq`, etc. are not implemented because name comparison
-/// frequently should be done case-insensitively and/or with other caveats that
-/// depend on the specific circumstances in which the comparison is done.
+/// and so it is only available when the `alloc` default feature is enabled.
 ///
 /// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
 ///
@@ -69,14 +66,10 @@ impl From<DnsNameRef<'_>> for DnsName {
 ///
 /// A `DnsNameRef` is guaranteed to be syntactically valid. The validity rules
 /// are specified in [RFC 5280 Section 7.2], except that underscores are also
-/// allowed.
-///
-/// `Eq`, `PartialEq`, etc. are not implemented because name comparison
-/// frequently should be done case-insensitively and/or with other caveats that
-/// depend on the specific circumstances in which the comparison is done.
+/// allowed. `DnsNameRef`s do not include wildcard labels.
 ///
 /// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct DnsNameRef<'a>(pub(crate) &'a [u8]);
 
 impl AsRef<[u8]> for DnsNameRef<'_> {
@@ -105,7 +98,11 @@ impl<'a> DnsNameRef<'a> {
     /// Constructs a `DnsNameRef` from the given input if the input is a
     /// syntactically-valid DNS name.
     pub fn try_from_ascii(dns_name: &'a [u8]) -> Result<Self, InvalidDnsNameError> {
-        if !is_valid_reference_dns_id(untrusted::Input::from(dns_name)) {
+        if !is_valid_dns_id(
+            untrusted::Input::from(dns_name),
+            IdRole::Reference,
+            AllowWildcards::No,
+        ) {
             return Err(InvalidDnsNameError);
         }
 
@@ -130,19 +127,18 @@ impl<'a> DnsNameRef<'a> {
     }
 }
 
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
 impl core::fmt::Debug for DnsNameRef<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-        let lowercase = self.clone().to_owned();
-        f.debug_tuple("DnsNameRef").field(&lowercase.0).finish()
-    }
-}
+        f.write_str("DnsNameRef(\"")?;
 
-#[cfg(not(feature = "alloc"))]
-impl core::fmt::Debug for DnsNameRef<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-        f.debug_tuple("DnsNameRef").field(&self.0).finish()
+        // Convert each byte of the underlying ASCII string to a `char` and
+        // downcase it prior to formatting it. We avoid self.clone().to_owned()
+        // since it requires allocation.
+        for &ch in self.0 {
+            f.write_char(char::from(ch).to_ascii_lowercase())?;
+        }
+
+        f.write_str("\")")
     }
 }
 
@@ -151,6 +147,94 @@ impl<'a> From<DnsNameRef<'a>> for &'a str {
         // The unwrap won't fail because DnsNameRefs are guaranteed to be ASCII
         // and ASCII is a subset of UTF-8.
         core::str::from_utf8(d).unwrap()
+    }
+}
+
+/// A DNS name that may be either a DNS name identifier presented by a server (which may include
+/// wildcards), or a DNS name identifier referenced by a client for matching purposes (wildcards
+/// not permitted).
+pub enum GeneralDnsNameRef<'name> {
+    /// a reference to a DNS name that may be used for matching purposes.
+    DnsName(DnsNameRef<'name>),
+    /// a reference to a presented DNS name that may include a wildcard.
+    Wildcard(WildcardDnsNameRef<'name>),
+}
+
+impl<'a> From<GeneralDnsNameRef<'a>> for &'a str {
+    fn from(d: GeneralDnsNameRef<'a>) -> Self {
+        match d {
+            GeneralDnsNameRef::DnsName(name) => name.into(),
+            GeneralDnsNameRef::Wildcard(name) => name.into(),
+        }
+    }
+}
+
+/// A reference to a DNS Name presented by a server that may include a wildcard.
+///
+/// A `WildcardDnsNameRef` is guaranteed to be syntactically valid. The validity rules
+/// are specified in [RFC 5280 Section 7.2], except that underscores are also
+/// allowed.
+///
+/// Additionally, while [RFC6125 Section 4.1] says that a wildcard label may be of the form
+/// `<x>*<y>.<DNSID>`, where `<x>` and/or `<y>` may be empty, we follow a stricter policy common
+/// to most validation libraries (e.g. NSS) and only accept wildcard labels that are exactly `*`.
+///
+/// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
+/// [RFC 6125 Section 4.1]: https://www.rfc-editor.org/rfc/rfc6125#section-4.1
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+pub struct WildcardDnsNameRef<'a>(&'a [u8]);
+
+impl<'a> WildcardDnsNameRef<'a> {
+    /// Constructs a `WildcardDnsNameRef` from the given input if the input is a
+    /// syntactically-valid DNS name.
+    pub fn try_from_ascii(dns_name: &'a [u8]) -> Result<Self, InvalidDnsNameError> {
+        if !is_valid_dns_id(
+            untrusted::Input::from(dns_name),
+            IdRole::Reference,
+            AllowWildcards::Yes,
+        ) {
+            return Err(InvalidDnsNameError);
+        }
+
+        Ok(Self(dns_name))
+    }
+
+    /// Constructs a `WildcardDnsNameRef` from the given input if the input is a
+    /// syntactically-valid DNS name.
+    pub fn try_from_ascii_str(dns_name: &'a str) -> Result<Self, InvalidDnsNameError> {
+        Self::try_from_ascii(dns_name.as_bytes())
+    }
+}
+
+impl core::fmt::Debug for WildcardDnsNameRef<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+        f.write_str("WildcardDnsNameRef(\"")?;
+
+        // Convert each byte of the underlying ASCII string to a `char` and
+        // downcase it prior to formatting it. We avoid self.to_owned() since
+        // it requires allocation.
+        for &ch in self.0 {
+            f.write_char(char::from(ch).to_ascii_lowercase())?;
+        }
+
+        f.write_str("\")")
+    }
+}
+
+impl<'a> From<WildcardDnsNameRef<'a>> for &'a str {
+    fn from(WildcardDnsNameRef(d): WildcardDnsNameRef<'a>) -> Self {
+        // The unwrap won't fail because WildcardDnsNameRef are guaranteed to be ASCII
+        // and ASCII is a subset of UTF-8.
+        core::str::from_utf8(d).unwrap()
+    }
+}
+
+impl AsRef<str> for WildcardDnsNameRef<'_> {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        // The unwrap won't fail because WildcardDnsNameRef are guaranteed to be ASCII
+        // and ASCII is a subset of UTF-8.
+        core::str::from_utf8(self.0).unwrap()
     }
 }
 
@@ -443,10 +527,6 @@ enum IdRole {
     Reference,
     Presented,
     NameConstraint,
-}
-
-fn is_valid_reference_dns_id(hostname: untrusted::Input) -> bool {
-    is_valid_dns_id(hostname, IdRole::Reference, AllowWildcards::No)
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.6:

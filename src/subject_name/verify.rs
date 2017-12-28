@@ -21,6 +21,11 @@ use crate::{
     cert::{Cert, EndEntityOrCa},
     der, Error,
 };
+#[cfg(feature = "alloc")]
+use {
+    alloc::vec::Vec,
+    dns_name::{GeneralDnsNameRef, WildcardDnsNameRef},
+};
 
 pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
@@ -33,7 +38,7 @@ pub(crate) fn verify_cert_dns_name(
         cert.subject_alt_name,
         SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
-        &|name| {
+        &mut |name| {
             if let GeneralName::DnsName(presented_id) = name {
                 match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
                     Some(true) => return NameIteration::Stop(Ok(())),
@@ -67,7 +72,7 @@ pub(crate) fn verify_cert_subject_name(
         cert.inner().subject_alt_name,
         SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
-        &|name| {
+        &mut |name| {
             if let GeneralName::IpAddress(presented_id) = name {
                 match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
                     Ok(true) => return NameIteration::Stop(Ok(())),
@@ -115,7 +120,7 @@ pub(crate) fn check_name_constraints(
             child.subject_alt_name,
             subject_common_name_contents,
             Ok(()),
-            &|name| {
+            &mut |name| {
                 check_presented_id_conforms_to_constraints(
                     name,
                     permitted_subtrees,
@@ -302,12 +307,12 @@ pub(crate) enum SubjectCommonNameContents {
     Ignore,
 }
 
-fn iterate_names(
-    subject: Option<untrusted::Input>,
-    subject_alt_name: Option<untrusted::Input>,
+fn iterate_names<'names>(
+    subject: Option<untrusted::Input<'names>>,
+    subject_alt_name: Option<untrusted::Input<'names>>,
     subject_common_name_contents: SubjectCommonNameContents,
     result_if_never_stopped_early: Result<(), Error>,
-    f: &dyn Fn(GeneralName) -> NameIteration,
+    f: &mut impl FnMut(GeneralName<'names>) -> NameIteration,
 ) -> Result<(), Error> {
     if let Some(subject_alt_name) = subject_alt_name {
         let mut subject_alt_name = untrusted::Reader::new(subject_alt_name);
@@ -349,6 +354,39 @@ fn iterate_names(
     } else {
         result_if_never_stopped_early
     }
+}
+
+#[cfg(feature = "alloc")]
+pub(crate) fn list_cert_dns_names<'names>(
+    cert: &'names crate::EndEntityCert<'names>,
+) -> Result<impl Iterator<Item = GeneralDnsNameRef<'names>>, Error> {
+    let cert = &cert.inner();
+    let mut names = Vec::new();
+
+    iterate_names(
+        Some(cert.subject),
+        cert.subject_alt_name,
+        SubjectCommonNameContents::DnsName,
+        Ok(()),
+        &mut |name| {
+            if let GeneralName::DnsName(presented_id) = name {
+                let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                    .map(GeneralDnsNameRef::DnsName)
+                    .or_else(|_| {
+                        WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                            .map(GeneralDnsNameRef::Wildcard)
+                    });
+
+                // if the name could be converted to a DNS name, add it; otherwise,
+                // keep going.
+                if let Ok(name) = dns_name {
+                    names.push(name)
+                }
+            }
+            NameIteration::KeepGoing
+        },
+    )
+    .map(|_| names.into_iter())
 }
 
 // It is *not* valid to derive `Eq`, `PartialEq, etc. for this type. In
