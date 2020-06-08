@@ -97,6 +97,11 @@ pub enum Error {
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
     UnsupportedSignatureAlgorithm,
+
+    /// A iPAddress name constraint was invalid:
+    /// - it had a sparse network mask (ie, cannot be written in CIDR form).
+    /// - it was too long or short
+    InvalidNetworkMaskConstraint,
 }
 
 impl fmt::Display for Error {
