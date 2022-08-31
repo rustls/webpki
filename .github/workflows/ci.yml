@@ -35,33 +35,6 @@ jobs:
 
       - run: mk/clippy.sh
 
-  audit:
-    runs-on: ubuntu-20.04
-
-    steps:
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/cargo-audit
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-          key: ${{ runner.os }}-v2-cargo-audit-0.13.1
-
-      - run: cargo install cargo-audit --vers "0.13.1"
-
-      - uses: actions/checkout@v2
-        with:
-          persist-credentials: false
-
-      - run: cargo generate-lockfile
-
-      - run: cargo audit --deny warnings
-
   deny:
     runs-on: ubuntu-20.04
 
