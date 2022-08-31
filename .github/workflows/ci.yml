@@ -166,11 +166,57 @@ jobs:
           - beta
 
         exclude:
-          # 1.46.0 doesn't support `-Clink-self-contained`.
-          - target: x86_64-unknown-linux-musl
+          - features: # Default
+          - features: --features=alloc
+          - features: --all-features
+            mode: --release
+          - features: --all-features
+            mode: # debug
+            rust_channel: nightly
+          - features: --all-features
+            mode: # debug
             rust_channel: 1.46.0
+          - features: --all-features
+            mode: # debug
+            rust_channel: beta
 
         include:
+          - features: # Default
+            target: x86_64-unknown-linux-gnu
+            mode: # debug
+            rust_channel: stable
+            host_os: ubuntu-20.04
+
+          - features: --features=alloc
+            target: x86_64-unknown-linux-gnu
+            mode: # debug
+            rust_channel: stable
+            host_os: ubuntu-20.04
+
+          - features: --all-features
+            target: x86_64-unknown-linux-gnu
+            mode: --release
+            rust_channel: stable
+            host_os: ubuntu-20.04
+
+          - features: --all-features
+            target: x86_64-unknown-linux-gnu
+            mode: # debug
+            rust_channel: nightly
+            host_os: ubuntu-20.04
+
+          - features: --all-features
+            target: x86_64-unknown-linux-gnu
+            mode: # debug
+            rust_channel: 1.46.0
+            host_os: ubuntu-20.04
+
+          - features: --all-features
+            target: x86_64-unknown-linux-gnu
+            mode: # debug
+            rust_channel: beta
+            host_os: ubuntu-20.04
+
           - target: arm-unknown-linux-gnueabihf
             host_os: ubuntu-20.04
 
