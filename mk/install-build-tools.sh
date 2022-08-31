@@ -84,7 +84,7 @@ esac
 if [ -n "$use_clang" ]; then
   # https://github.com/rust-lang/rust/pull/79365 upgraded the coverage file
   # format to one that only LLVM 11+ can use
-  llvm_version=12
+  llvm_version=15
   sudo apt-key add mk/llvm-snapshot.gpg.key
   sudo add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-$llvm_version main"
   sudo apt-get update
