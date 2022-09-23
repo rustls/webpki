@@ -279,9 +279,9 @@ fn iterate_names<'names>(
 
 #[cfg(feature = "alloc")]
 pub fn list_cert_dns_names<'names>(
-    cert: &crate::EndEntityCert<'names>,
+    cert: &'names crate::EndEntityCert<'names>,
 ) -> Result<Vec<GeneralDnsNameRef<'names>>, Error> {
-    let cert = &cert.inner;
+    let cert = &cert.inner();
     let names = core::cell::RefCell::new(Vec::new());
 
     iterate_names(cert.subject, cert.subject_alt_name, Ok(()), &|name| {

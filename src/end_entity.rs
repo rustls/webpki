@@ -191,7 +191,7 @@ impl<'a> EndEntityCert<'a> {
     /// Requires the `alloc` default feature; i.e. this isn't available in
     /// `#![no_std]` configurations.
     #[cfg(feature = "alloc")]
-    pub fn dns_names(&self) -> Result<Vec<GeneralDnsNameRef<'a>>, Error> {
-        name::list_cert_dns_names(&self)
+    pub fn dns_names(&'a self) -> Result<Vec<GeneralDnsNameRef<'a>>, Error> {
+        name::list_cert_dns_names(self)
     }
 }

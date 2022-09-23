@@ -703,7 +703,7 @@ fn is_valid_dns_id(
 }
 
 fn is_valid_wildcard_dns_id(hostname: untrusted::Input) -> bool {
-    is_valid_dns_id(hostname, IDRole::ReferenceID, AllowWildcards::Yes)
+    is_valid_dns_id(hostname, IdRole::Reference, AllowWildcards::Yes)
 }
 
 #[cfg(test)]
