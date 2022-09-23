@@ -13,8 +13,10 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{
-    cert, name, signed_data, verify_cert, DnsNameRef, Error, SignatureAlgorithm,
-    TLSClientTrustAnchors, TLSServerTrustAnchors, Time,
+    cert,
+    name::{self, GeneralDnsNameRef},
+    signed_data, verify_cert, DnsNameRef, Error, SignatureAlgorithm, TLSClientTrustAnchors,
+    TLSServerTrustAnchors, Time,
 };
 use core::convert::TryFrom;
 
