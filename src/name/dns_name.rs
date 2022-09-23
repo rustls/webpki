@@ -246,10 +246,10 @@ impl<'a> WildcardDnsNameRef<'a> {
 
     /// Constructs a `WildcardDnsName` from this `WildcardDnsNameRef`
     #[cfg(feature = "alloc")]
-    pub fn to_owned(&self) -> WildcardDnsName {
+    pub fn to_owned(self) -> WildcardDnsName {
         // WildcardDnsNameRef is already guaranteed to be valid ASCII, which is a
         // subset of UTF-8.
-        let s: &str = self.clone().into();
+        let s: &str = self.into();
         WildcardDnsName(s.to_ascii_lowercase())
     }
 }
@@ -257,7 +257,7 @@ impl<'a> WildcardDnsNameRef<'a> {
 #[cfg(feature = "alloc")]
 impl core::fmt::Debug for WildcardDnsNameRef<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-        let lowercase = self.clone().to_owned();
+        let lowercase = self.to_owned();
         f.debug_tuple("WildcardDnsNameRef")
             .field(&lowercase.0)
             .finish()
