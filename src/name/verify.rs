@@ -285,19 +285,19 @@ pub fn list_cert_dns_names<'names>(
     let names = core::cell::RefCell::new(Vec::new());
 
     iterate_names(cert.subject, cert.subject_alt_name, Ok(()), &|name| {
-        match name {
-            GeneralName::DnsName(presented_id) => {
-                match DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                    .map(GeneralDnsNameRef::DnsName)
-                    .or_else(|_| {
-                        WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                            .map(GeneralDnsNameRef::Wildcard)
-                    }) {
-                    Ok(name) => names.borrow_mut().push(name),
-                    Err(_) => { /* keep going */ }
-                };
+        if let GeneralName::DnsName(presented_id) = name {
+            let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                .map(GeneralDnsNameRef::DnsName)
+                .or_else(|_| {
+                    WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                        .map(GeneralDnsNameRef::Wildcard)
+                });
+
+            // if the name could be converted to a DNS name, add it; otherwise,
+            // keep going.
+            if let Ok(name) = dns_name {
+                names.borrow_mut().push(name)
             }
-            _ => (),
         }
         NameIteration::KeepGoing
     })
