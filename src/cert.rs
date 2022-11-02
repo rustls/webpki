@@ -13,6 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{der, signed_data, Error};
+use ring::io::der::Tag;
 
 pub enum EndEntityOrCa<'a> {
     EndEntity,
@@ -38,17 +39,6 @@ pub fn parse_cert<'a>(
     cert_der: untrusted::Input<'a>,
     ee_or_ca: EndEntityOrCa<'a>,
 ) -> Result<Cert<'a>, Error> {
-    parse_cert_internal(cert_der, ee_or_ca, certificate_serial_number)
-}
-
-/// Used by `parse_cert` for regular certificates (end-entity and intermediate)
-/// and by `cert_der_as_trust_anchor` for trust anchors encoded as
-/// certificates.
-pub(crate) fn parse_cert_internal<'a>(
-    cert_der: untrusted::Input<'a>,
-    ee_or_ca: EndEntityOrCa<'a>,
-    serial_number: fn(input: &mut untrusted::Reader<'_>) -> Result<(), Error>,
-) -> Result<Cert<'a>, Error> {
     let (tbs, signed_data) = cert_der.read_all(Error::BadDER, |cert_der| {
         der::nested(
             cert_der,
@@ -60,7 +50,7 @@ pub(crate) fn parse_cert_internal<'a>(
 
     tbs.read_all(Error::BadDER, |tbs| {
         version3(tbs)?;
-        serial_number(tbs)?;
+        lenient_certificate_serial_number(tbs)?;
 
         let signature = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
         // TODO: In mozilla::pkix, the comparison is done based on the
@@ -147,16 +137,14 @@ fn version3(input: &mut untrusted::Reader) -> Result<(), Error> {
     )
 }
 
-pub fn certificate_serial_number(input: &mut untrusted::Reader) -> Result<(), Error> {
+pub fn lenient_certificate_serial_number(input: &mut untrusted::Reader) -> Result<(), Error> {
     // https://tools.ietf.org/html/rfc5280#section-4.1.2.2:
     // * Conforming CAs MUST NOT use serialNumber values longer than 20 octets."
     // * "The serial number MUST be a positive integer [...]"
-
-    let value = der::positive_integer(input)?;
-    if value.big_endian_without_leading_zero().len() > 20 {
-        return Err(Error::BadDER);
-    }
-    Ok(())
+    //
+    // However, we don't enforce these constraints, as there are widely-deployed trust anchors
+    // and many X.509 implementations in common use that violate these constraints.
+    der::expect_tag_and_get_value(input, Tag::Integer).map(|_| ())
 }
 
 enum Understood {

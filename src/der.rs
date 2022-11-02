@@ -102,10 +102,6 @@ pub fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
     })
 }
 
-pub fn positive_integer<'a>(input: &'a mut untrusted::Reader) -> Result<Positive<'a>, Error> {
-    ring::io::der::positive_integer(input).map_err(|_| Error::BadDER)
-}
-
 pub fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {
     ring::io::der::small_nonnegative_integer(input).map_err(|_| Error::BadDER)
 }
