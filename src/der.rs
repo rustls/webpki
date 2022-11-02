@@ -15,7 +15,6 @@
 use crate::{calendar, time, Error};
 pub(crate) use ring::io::{
     der::{CONSTRUCTED, CONTEXT_SPECIFIC},
-    Positive,
 };
 
 // Copied (and extended) from ring's src/der.rs
@@ -158,12 +157,6 @@ pub(crate) fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Er
             _ => Err(Error::BadDer),
         }
     })
-}
-
-pub(crate) fn positive_integer<'a>(
-    input: &'a mut untrusted::Reader,
-) -> Result<Positive<'a>, Error> {
-    ring::io::der::positive_integer(input).map_err(|_| Error::BadDer)
 }
 
 pub(crate) fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {

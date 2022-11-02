@@ -1,6 +1,6 @@
-use crate::cert::{certificate_serial_number, Cert};
+use crate::cert::{lenient_certificate_serial_number, Cert};
 use crate::{
-    cert::{parse_cert_internal, EndEntityOrCa},
+    cert::{parse_cert, EndEntityOrCa},
     der, Error,
 };
 
@@ -51,26 +51,12 @@ impl<'a> TrustAnchor<'a> {
         // certificate using a special parser for v1 certificates. Notably, that
         // parser doesn't allow extensions, so there's no need to worry about
         // embedded name constraints in a v1 certificate.
-        match parse_cert_internal(
-            cert_der,
-            EndEntityOrCa::EndEntity,
-            possibly_invalid_certificate_serial_number,
-        ) {
+        match parse_cert(cert_der, EndEntityOrCa::EndEntity) {
             Ok(cert) => Ok(Self::from(cert)),
             Err(Error::UnsupportedCertVersion) => parse_cert_v1(cert_der).or(Err(Error::BadDer)),
             Err(err) => Err(err),
         }
     }
-}
-
-fn possibly_invalid_certificate_serial_number(input: &mut untrusted::Reader) -> Result<(), Error> {
-    // https://tools.ietf.org/html/rfc5280#section-4.1.2.2:
-    // * Conforming CAs MUST NOT use serialNumber values longer than 20 octets."
-    // * "The serial number MUST be a positive integer [...]"
-    //
-    // However, we don't enforce these constraints on trust anchors, as there
-    // are widely-deployed trust anchors that violate these constraints.
-    skip(input, der::Tag::Integer)
 }
 
 impl<'a> From<Cert<'a>> for TrustAnchor<'a> {
@@ -90,7 +76,7 @@ fn parse_cert_v1(cert_der: untrusted::Input) -> Result<TrustAnchor, Error> {
         der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |cert_der| {
             let anchor = der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |tbs| {
                 // The version number field does not appear in v1 certificates.
-                certificate_serial_number(tbs)?;
+                lenient_certificate_serial_number(tbs)?;
 
                 skip(tbs, der::Tag::Sequence)?; // signature.
                 skip(tbs, der::Tag::Sequence)?; // issuer.
