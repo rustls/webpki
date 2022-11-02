@@ -50,6 +50,8 @@ include = [
     "tests/integration.rs",
     "tests/misc/serial_neg.der",
     "tests/misc/serial_zero.der",
+    "tests/misc/serial_neg_ca.der",
+    "tests/misc/serial_neg_ee.der",
     "tests/netflix/ca.der",
     "tests/netflix/ee.der",
     "tests/netflix/inter.der",

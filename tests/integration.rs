@@ -84,6 +84,24 @@ fn read_root_with_neg_serial() {
     let _ = webpki::TrustAnchor::try_from_cert_der(ca).expect("idcat cert should parse as anchor");
 }
 
+#[test]
+fn read_ee_with_neg_serial() {
+    let ca: &[u8] = include_bytes!("misc/serial_neg_ca.der");
+    let ee: &[u8] = include_bytes!("misc/serial_neg_ee.der");
+
+    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+
+    //#[allow(clippy::unreadable_literal)] // TODO: Make this clear.
+    let time = webpki::Time::from_seconds_since_unix_epoch(1667401500);
+
+    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    assert_eq!(
+        Ok(()),
+        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)
+    );
+}
+
 #[cfg(feature = "std")]
 #[test]
 fn time_constructor() {
