@@ -54,6 +54,29 @@ pub fn netflix() {
 }
 
 #[test]
+pub fn spiffe() {
+    let ca = include_bytes!("spiffe/bundle.0.der");
+    let inter = include_bytes!("spiffe/inter.0.der");
+    let ee: &[u8] = include_bytes!("spiffe/service.0.der");
+    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let server_anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let client_anchors = webpki::TLSClientTrustAnchors(&anchors);
+
+    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
+        let time = webpki::Time::from_seconds_since_unix_epoch(1667749202);
+
+    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    assert_eq!(
+        Ok(()),
+        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &server_anchors, &[inter], time)
+    );
+    assert_eq!(
+        Ok(()),
+        cert.verify_is_valid_tls_client_cert(ALL_SIGALGS, &client_anchors, &[inter], time)
+    );
+}
+
+#[test]
 pub fn ed25519() {
     let ee: &[u8] = include_bytes!("ed25519/ee.der");
     let ca = include_bytes!("ed25519/ca.der");
