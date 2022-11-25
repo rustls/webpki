@@ -591,30 +591,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "std")]
-    #[test]
-    fn ipv6_to_uncompressed_string_test() {
-        let ip_addresses = vec![
-            (
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
-            ),
-            (
-                [
-                    0x2a, 0x05, 0xd0, 0x18, 0x07, 0x6c, 0xb6, 0x84, 0x8e, 0x48, 0x47, 0xc9, 0x84,
-                    0xaa, 0xb3, 0x4d,
-                ],
-                String::from("2a05:d018:076c:b684:8e48:47c9:84aa:b34d"),
-            ),
-        ];
-        for (ip_address_octets, expected_result) in ip_addresses {
-            assert_eq!(
-                ipv6_to_uncompressed_string(ip_address_octets),
-                expected_result,
-            )
-        }
-    }
-
     #[test]
     fn try_from_ascii_ip_address_test() {
         const IP_ADDRESSES: &[(&[u8], Result<IpAddressRef, InvalidIpAddressError>)] = &[
@@ -865,6 +841,29 @@ mod alloc_tests {
         ];
         for (ip_address, expected_ip_address) in ip_addresses {
             assert_eq!(IpAddress::from(ip_address), expected_ip_address,)
+        }
+    }
+
+    #[test]
+    fn ipv6_to_uncompressed_string_test() {
+        let ip_addresses = vec![
+            (
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
+            ),
+            (
+                [
+                    0x2a, 0x05, 0xd0, 0x18, 0x07, 0x6c, 0xb6, 0x84, 0x8e, 0x48, 0x47, 0xc9, 0x84,
+                    0xaa, 0xb3, 0x4d,
+                ],
+                String::from("2a05:d018:076c:b684:8e48:47c9:84aa:b34d"),
+            ),
+        ];
+        for (ip_address_octets, expected_result) in ip_addresses {
+            assert_eq!(
+                ipv6_to_uncompressed_string(ip_address_octets),
+                expected_result,
+            )
         }
     }
 }
