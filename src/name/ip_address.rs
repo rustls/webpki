@@ -19,7 +19,7 @@ use alloc::string::String;
 
 const VALID_IP_BY_CONSTRUCTION: &str = "IP address is a valid string by construction";
 
-/// Either a Ipv4 or Ipv6 address, plus its owned string representation
+/// Either a IPv4 or IPv6 address, plus its owned string representation
 #[cfg(feature = "alloc")]
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum IpAddress {
@@ -40,12 +40,12 @@ impl AsRef<str> for IpAddress {
     }
 }
 
-/// Either a ipv4 or ipv6 address, plus its borrowed string representation
-#[derive(Debug, Clone, Copy)]
+/// Either a IPv4 or IPv6 address, plus its borrowed string representation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IpAddressRef<'a> {
-    /// An ipv4 address and its borrowed string representation
+    /// An IPv4 address and its borrowed string representation
     IpV4AddressRef(&'a [u8], [u8; 4]),
-    /// An ipv6 address and its borrowed string representation
+    /// An IPv6 address and its borrowed string representation
     IpV6AddressRef(&'a [u8], [u8; 16]),
 }
 
@@ -179,15 +179,32 @@ impl<'a> IpAddressRef<'a> {
 }
 
 #[cfg(feature = "std")]
+fn ipv6_to_uncompressed_string(octets: [u8; 16]) -> String {
+    octets
+        .chunks(2)
+        .map(|octet| format!("{:02x?}{:02x?}", octet[0], octet[1]))
+        .collect::<Vec<String>>()
+        .join(":")
+}
+
+#[cfg(feature = "std")]
 impl From<std::net::IpAddr> for IpAddress {
     fn from(ip_address: std::net::IpAddr) -> IpAddress {
         match ip_address {
             std::net::IpAddr::V4(ip_address) => {
                 IpAddress::IpV4Address(ip_address.to_string(), ip_address.octets())
             }
-            std::net::IpAddr::V6(ip_address) => {
-                IpAddress::IpV6Address(ip_address.to_string(), ip_address.octets())
-            }
+            std::net::IpAddr::V6(ip_address) => IpAddress::IpV6Address(
+                // We cannot rely on the Display implementation of
+                // std::net::Ipv6Addr given that it might return
+                // compressed IPv6 addresses if the address can be
+                // expressed in such form. However, given we don't
+                // support the IPv6 compressed form, we should not
+                // generate such format either when converting from a
+                // type that supports it.
+                ipv6_to_uncompressed_string(ip_address.octets()),
+                ip_address.octets(),
+            ),
         }
     }
 }
@@ -300,18 +317,18 @@ pub(crate) fn is_valid_ipv4_address(ip_address: untrusted::Input) -> bool {
     let mut current_size = 0;
     let mut dot_count = 0;
 
-    loop {
-        // Returns a u32 so it's possible to identify (and error) when
-        // provided textual octets > 255, not representable by u8.
-        fn radix10_to_octet(textual_octets: &[u8]) -> u32 {
-            let mut result: u32 = 0;
-            for digit in textual_octets.iter() {
-                result *= 10;
-                result += u32::from(*digit);
-            }
-            result
+    // Returns a u32 so it's possible to identify (and error) when
+    // provided textual octets > 255, not representable by u8.
+    fn radix10_to_octet(textual_octets: &[u8]) -> u32 {
+        let mut result: u32 = 0;
+        for digit in textual_octets.iter() {
+            result *= 10;
+            result += u32::from(*digit);
         }
+        result
+    }
 
+    loop {
         match ip_address.read_byte() {
             Ok(b'.') => {
                 if is_first_byte {
@@ -482,6 +499,10 @@ mod tests {
     fn ipv4_octets_test() {
         assert_eq!(ipv4_octets(b"0.0.0.0"), Ok([0, 0, 0, 0]));
         assert_eq!(ipv4_octets(b"54.155.246.232"), Ok([54, 155, 246, 232]));
+        // Invalid UTF-8 encoding
+        assert_eq!(ipv4_octets(b"0.\xc3\x28.0.0"), Err(InvalidIpAddressError));
+        // Invalid number for a u8
+        assert_eq!(ipv4_octets(b"0.0.0.256"), Err(InvalidIpAddressError));
     }
 
     const IPV6_ADDRESSES_VALIDITY: &[(&[u8], bool)] = &[
@@ -521,7 +542,28 @@ mod tests {
         // More colons than allowed
         (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:", false),
         (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        // This is a valid IPv6 address, but we don't support compressed addresses
+        // v Invalid UTF-8 encoding
+        (b"\xc3\x28a05:d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        // v Invalid hexadecimal
+        (b"ga05:d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        // Cannot start with colon
+        (b":a05:d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        // Cannot end with colon
+        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3ae:", false),
+        // Cannot have more than seven colons
+        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3a::", false),
+        // Cannot contain two colons in a row
+        (b"2a05::018:076c:b685:e8ab:afd3:af51:3aed", false),
+        // v Textual block size is longer
+        (b"2a056:d018:076c:b685:e8ab:afd3:af51:3ae", false),
+        // v Textual block size is shorter
+        (b"2a0:d018:076c:b685:e8ab:afd3:af51:3aed ", false),
+        // Shorter IPv6 address
+        (b"d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        // Longer IPv6 address
+        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3aed3aed", false),
+        // These are valid IPv6 addresses, but we don't support compressed addresses
+        (b"0:0:0:0:0:0:0:1", false),
         (b"2a05:d018:76c:b685:e8ab:afd3:af51:3aed", false),
     ];
 
@@ -537,12 +579,292 @@ mod tests {
 
     #[test]
     fn ipv6_octets_test() {
+        // Invalid UTF-8 encoding
         assert_eq!(
-            ipv6_octets(b"2a05:d018:076c:b684:8e48:47c9:84aa:b34d"),
-            Ok([
-                0x2a, 0x05, 0xd0, 0x18, 0x07, 0x6c, 0xb6, 0x84, 0x8e, 0x48, 0x47, 0xc9, 0x84, 0xaa,
-                0xb3, 0x4d
-            ])
+            ipv6_octets(b"\xc3\x28a05:d018:076c:b684:8e48:47c9:84aa:b34d"),
+            Err(InvalidIpAddressError),
         );
+        // Invalid hexadecimal
+        assert_eq!(
+            ipv6_octets(b"ga05:d018:076c:b684:8e48:47c9:84aa:b34d"),
+            Err(InvalidIpAddressError),
+        );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn ipv6_to_uncompressed_string_test() {
+        let ip_addresses = vec![
+            (
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
+            ),
+            (
+                [
+                    0x2a, 0x05, 0xd0, 0x18, 0x07, 0x6c, 0xb6, 0x84, 0x8e, 0x48, 0x47, 0xc9, 0x84,
+                    0xaa, 0xb3, 0x4d,
+                ],
+                String::from("2a05:d018:076c:b684:8e48:47c9:84aa:b34d"),
+            ),
+        ];
+        for (ip_address_octets, expected_result) in ip_addresses {
+            assert_eq!(
+                ipv6_to_uncompressed_string(ip_address_octets),
+                expected_result,
+            )
+        }
+    }
+
+    #[test]
+    fn try_from_ascii_ip_address_test() {
+        const IP_ADDRESSES: &[(&[u8], Result<IpAddressRef, InvalidIpAddressError>)] = &[
+            // Valid IPv4 addresses
+            (
+                b"127.0.0.1",
+                Ok(IpAddressRef::IpV4AddressRef(b"127.0.0.1", [127, 0, 0, 1])),
+            ),
+            // Invalid IPv4 addresses
+            (
+                // Ends with a dot; misses one octet
+                b"127.0.0.",
+                Err(InvalidIpAddressError),
+            ),
+            // Valid IPv6 addresses
+            (
+                b"0000:0000:0000:0000:0000:0000:0000:0001",
+                Ok(IpAddressRef::IpV6AddressRef(
+                    b"0000:0000:0000:0000:0000:0000:0000:0001",
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                )),
+            ),
+            // Invalid IPv6 addresses
+            (
+                // IPv6 addresses in compressed form are not supported
+                b"0:0:0:0:0:0:0:1",
+                Err(InvalidIpAddressError),
+            ),
+            // Something else
+            (
+                // A hostname
+                b"example.com",
+                Err(InvalidIpAddressError),
+            ),
+        ];
+        for &(ip_address, expected_result) in IP_ADDRESSES {
+            assert_eq!(IpAddressRef::try_from_ascii(ip_address), expected_result)
+        }
+    }
+
+    #[test]
+    fn try_from_ascii_str_ip_address_test() {
+        const IP_ADDRESSES: &[(&str, Result<IpAddressRef, InvalidIpAddressError>)] = &[
+            // Valid IPv4 addresses
+            (
+                "127.0.0.1",
+                Ok(IpAddressRef::IpV4AddressRef(b"127.0.0.1", [127, 0, 0, 1])),
+            ),
+            // Invalid IPv4 addresses
+            (
+                // Ends with a dot; misses one octet
+                "127.0.0.",
+                Err(InvalidIpAddressError),
+            ),
+            // Valid IPv6 addresses
+            (
+                "0000:0000:0000:0000:0000:0000:0000:0001",
+                Ok(IpAddressRef::IpV6AddressRef(
+                    b"0000:0000:0000:0000:0000:0000:0000:0001",
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                )),
+            ),
+            // Invalid IPv6 addresses
+            (
+                // IPv6 addresses in compressed form are not supported
+                "0:0:0:0:0:0:0:1",
+                Err(InvalidIpAddressError),
+            ),
+            // Something else
+            (
+                // A hostname
+                "example.com",
+                Err(InvalidIpAddressError),
+            ),
+        ];
+        for &(ip_address, expected_result) in IP_ADDRESSES {
+            assert_eq!(
+                IpAddressRef::try_from_ascii_str(ip_address),
+                expected_result
+            )
+        }
+    }
+
+    #[test]
+    fn str_from_ip_address_ref_test() {
+        let ip_addresses = vec![
+            // IPv4 addresses
+            (
+                IpAddressRef::IpV4AddressRef(b"127.0.0.1", [127, 0, 0, 1]),
+                "127.0.0.1",
+            ),
+            // IPv6 addresses
+            (
+                IpAddressRef::IpV6AddressRef(
+                    b"0000:0000:0000:0000:0000:0000:0000:0001",
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                ),
+                "0000:0000:0000:0000:0000:0000:0000:0001",
+            ),
+        ];
+        for (ip_address, expected_ip_address) in ip_addresses {
+            assert_eq!(Into::<&str>::into(ip_address), expected_ip_address,)
+        }
+    }
+
+    #[test]
+    fn u8_array_from_ip_address_ref_test() {
+        let ip_addresses = vec![
+            // IPv4 addresses
+            (
+                IpAddressRef::IpV4AddressRef(b"127.0.0.1", [127, 0, 0, 1]),
+                "127.0.0.1",
+            ),
+            // IPv6 addresses
+            (
+                IpAddressRef::IpV6AddressRef(
+                    b"0000:0000:0000:0000:0000:0000:0000:0001",
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                ),
+                "0000:0000:0000:0000:0000:0000:0000:0001",
+            ),
+        ];
+        for (ip_address, expected_ip_address) in ip_addresses {
+            assert_eq!(
+                Into::<&[u8]>::into(ip_address),
+                expected_ip_address.as_bytes()
+            )
+        }
+    }
+}
+
+#[cfg(all(test, feature = "alloc"))]
+mod alloc_tests {
+    use super::*;
+
+    #[test]
+    fn as_ref_ip_address_test() {
+        assert_eq!(
+            IpAddress::IpV4Address(String::from("127.0.0.1"), [127, 0, 0, 1]).as_ref(),
+            "127.0.0.1",
+        );
+        assert_eq!(
+            IpAddress::IpV6Address(
+                String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+            )
+            .as_ref(),
+            "0000:0000:0000:0000:0000:0000:0000:0001",
+        );
+    }
+
+    #[test]
+    fn from_ip_address_ref_for_ip_address_test() {
+        {
+            let (ip_address, ip_address_octets) = ("127.0.0.1", [127, 0, 0, 1]);
+            assert_eq!(
+                IpAddress::from(IpAddressRef::IpV4AddressRef(
+                    ip_address.as_bytes(),
+                    ip_address_octets
+                )),
+                IpAddress::IpV4Address(String::from(ip_address), ip_address_octets),
+            )
+        }
+        {
+            let (ip_address, ip_address_octets) = (
+                "0000:0000:0000:0000:0000:0000:0000:0001",
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            );
+            assert_eq!(
+                IpAddress::from(IpAddressRef::IpV6AddressRef(
+                    ip_address.as_bytes(),
+                    ip_address_octets
+                )),
+                IpAddress::IpV6Address(String::from(ip_address), ip_address_octets),
+            )
+        }
+    }
+
+    #[test]
+    fn from_ip_address_for_ip_address_ref_test() {
+        {
+            let ip_address = IpAddress::IpV4Address(String::from("127.0.0.1"), [127, 0, 0, 1]);
+            assert_eq!(
+                IpAddressRef::from(&ip_address),
+                IpAddressRef::IpV4AddressRef(b"127.0.0.1", [127, 0, 0, 1]),
+            )
+        }
+        {
+            let ip_address = IpAddress::IpV6Address(
+                String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            );
+            assert_eq!(
+                IpAddressRef::from(&ip_address),
+                IpAddressRef::IpV6AddressRef(
+                    b"0000:0000:0000:0000:0000:0000:0000:0001",
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+                ),
+            )
+        }
+    }
+
+    #[test]
+    fn display_invalid_ip_address_error_test() {
+        assert_eq!(
+            InvalidIpAddressError.to_string(),
+            String::from("InvalidIpAddressError"),
+        )
+    }
+
+    #[test]
+    fn ip_address_ref_to_owned_test() {
+        {
+            assert_eq!(
+                IpAddressRef::IpV4AddressRef(b"127.0.0.1", [127, 0, 0, 1]).to_owned(),
+                IpAddress::IpV4Address(String::from("127.0.0.1"), [127, 0, 0, 1]),
+            )
+        }
+        {
+            assert_eq!(
+                IpAddressRef::IpV6AddressRef(
+                    b"0000:0000:0000:0000:0000:0000:0000:0001",
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                )
+                .to_owned(),
+                IpAddress::IpV6Address(
+                    String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                ),
+            )
+        }
+    }
+
+    #[test]
+    fn ip_address_from_std_net_ipaddr_test() {
+        let ip_addresses = vec![
+            (
+                std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+                IpAddress::IpV4Address(String::from("127.0.0.1"), [127, 0, 0, 1]),
+            ),
+            (
+                std::net::IpAddr::V6(std::net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
+                IpAddress::IpV6Address(
+                    String::from("0000:0000:0000:0000:0000:0000:0000:0001"),
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                ),
+            ),
+        ];
+        for (ip_address, expected_ip_address) in ip_addresses {
+            assert_eq!(IpAddress::from(ip_address), expected_ip_address,)
+        }
     }
 }
