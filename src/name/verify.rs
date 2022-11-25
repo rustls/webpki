@@ -299,26 +299,23 @@ fn iterate_names(
     result_if_never_stopped_early: Result<(), Error>,
     f: &dyn Fn(GeneralName) -> NameIteration,
 ) -> Result<(), Error> {
-    match subject_alt_name {
-        Some(subject_alt_name) => {
-            let mut subject_alt_name = untrusted::Reader::new(subject_alt_name);
-            // https://bugzilla.mozilla.org/show_bug.cgi?id=1143085: An empty
-            // subjectAltName is not legal, but some certificates have an empty
-            // subjectAltName. Since we don't support CN-IDs, the certificate
-            // will be rejected either way, but checking `at_end` before
-            // attempting to parse the first entry allows us to return a better
-            // error code.
-            while !subject_alt_name.at_end() {
-                let name = general_name(&mut subject_alt_name)?;
-                match f(name) {
-                    NameIteration::Stop(result) => {
-                        return result;
-                    }
-                    NameIteration::KeepGoing => (),
+    if let Some(subject_alt_name) = subject_alt_name {
+        let mut subject_alt_name = untrusted::Reader::new(subject_alt_name);
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1143085: An empty
+        // subjectAltName is not legal, but some certificates have an empty
+        // subjectAltName. Since we don't support CN-IDs, the certificate
+        // will be rejected either way, but checking `at_end` before
+        // attempting to parse the first entry allows us to return a better
+        // error code.
+        while !subject_alt_name.at_end() {
+            let name = general_name(&mut subject_alt_name)?;
+            match f(name) {
+                NameIteration::Stop(result) => {
+                    return result;
                 }
+                NameIteration::KeepGoing => (),
             }
         }
-        None => (),
     }
 
     if let Some(subject) = subject {
