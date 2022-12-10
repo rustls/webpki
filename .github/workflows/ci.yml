@@ -231,7 +231,7 @@ jobs:
           cargo test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
 
   coverage:
-    runs-on: ${{ matrix.host_os }}
+    runs-on: ubuntu-20.04
 
     strategy:
       matrix:
@@ -255,31 +255,23 @@ jobs:
             host_os: ubuntu-20.04
 
     steps:
-      - if: ${{ contains(matrix.host_os, 'ubuntu') }}
-        run: sudo apt-get update -y
-
       - uses: actions/checkout@v2
         with:
           persist-credentials: false
 
-      - if: ${{ !contains(matrix.host_os, 'windows') }}
-        run: RING_COVERAGE=1 mk/install-build-tools.sh --target=${{ matrix.target }} ${{ matrix.features }}
+      - run: cargo install cargo-llvm-cov
 
       - uses: actions-rs/toolchain@v1
         with:
           override: true
           target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust_channel }}
+          components: llvm-tools
 
-      - if: ${{ matrix.target == 'aarch64-apple-darwin' }}
-        run: echo "DEVELOPER_DIR=/Applications/Xcode_12.2.app/Contents/Developer" >> $GITHUB_ENV
-
-      - if: ${{ !contains(matrix.host_os, 'windows') }}
-        run: |
-          RING_COVERAGE=1 mk/cargo.sh +${{ matrix.rust_channel }} test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
+      - run: cargo llvm-cov ${{ matrix.features }} --lcov --output-path ./lcov.info
 
       - uses: codecov/codecov-action@v1
         with:
-          directory: ./target/${{ matrix.target }}/debug/coverage/reports
+          files: ./lcov.info
           fail_ci_if_error: true
           verbose: true
