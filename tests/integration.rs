@@ -72,11 +72,12 @@ pub fn ed25519() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn critical_extensions() {
     let root = include_bytes!("critical_extensions/root-cert.der");
     let ca = include_bytes!("critical_extensions/ca-cert.der");
 
-    let time = webpki::Time::try_from(std::time::SystemTime::now()).unwrap();
+    let time = webpki::Time::from_seconds_since_unix_epoch(1_670_779_098);
     let anchors = [webpki::TrustAnchor::try_from_cert_der(root).unwrap()];
     let anchors = webpki::TLSServerTrustAnchors(&anchors);
 
