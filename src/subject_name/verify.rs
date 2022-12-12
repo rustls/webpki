@@ -31,6 +31,7 @@ pub(crate) fn verify_cert_dns_name(
     iterate_names(
         Some(cert.subject),
         cert.subject_alt_name,
+        SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
         &|name| {
             if let GeneralName::DnsName(presented_id) = name {
@@ -64,6 +65,7 @@ pub(crate) fn verify_cert_subject_name(
         // only against Subject Alternative Names.
         None,
         cert.inner().subject_alt_name,
+        SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
         &|name| {
             if let GeneralName::IpAddress(presented_id) = name {
@@ -84,6 +86,7 @@ pub(crate) fn verify_cert_subject_name(
 pub(crate) fn check_name_constraints(
     input: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
+    subject_common_name_contents: SubjectCommonNameContents,
 ) -> Result<(), Error> {
     let input = match input {
         Some(input) => input,
@@ -110,6 +113,7 @@ pub(crate) fn check_name_constraints(
         iterate_names(
             Some(child.subject),
             child.subject_alt_name,
+            subject_common_name_contents,
             Ok(()),
             &|name| {
                 check_presented_id_conforms_to_constraints(
@@ -175,7 +179,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
     let mut has_permitted_subtrees_match = false;
     let mut has_permitted_subtrees_mismatch = false;
 
-    loop {
+    while !constraints.at_end() {
         // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
         // profile, the minimum and maximum fields are not used with any name
         // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
@@ -202,10 +206,6 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
                 dns_name::presented_id_matches_constraint(name, base).ok_or(Error::BadDER)
             }
 
-            (GeneralName::DirectoryName(name), GeneralName::DnsName(base)) => {
-                common_name(name).map(|cn| cn == Some(base))
-            }
-
             (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => Ok(
                 presented_directory_name_matches_constraint(name, base, subtrees),
             ),
@@ -228,7 +228,11 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
                 Err(Error::NameConstraintViolation)
             }
 
-            _ => Ok(false),
+            _ => {
+                // mismatch between constraint and name types; continue with current
+                // name and next constraint
+                continue;
+            }
         };
 
         match (subtrees, matches) {
@@ -249,10 +253,6 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
             (_, Err(err)) => {
                 return NameIteration::Stop(Err(err));
             }
-        }
-
-        if constraints.at_end() {
-            break;
         }
     }
 
@@ -284,9 +284,16 @@ enum NameIteration {
     Stop(Result<(), Error>),
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum SubjectCommonNameContents {
+    DnsName,
+    Ignore,
+}
+
 fn iterate_names(
     subject: Option<untrusted::Input>,
     subject_alt_name: Option<untrusted::Input>,
+    subject_common_name_contents: SubjectCommonNameContents,
     result_if_never_stopped_early: Result<(), Error>,
     f: &dyn Fn(GeneralName) -> NameIteration,
 ) -> Result<(), Error> {
@@ -311,8 +318,21 @@ fn iterate_names(
 
     if let Some(subject) = subject {
         match f(GeneralName::DirectoryName(subject)) {
-            NameIteration::Stop(result) => result,
-            NameIteration::KeepGoing => result_if_never_stopped_early,
+            NameIteration::Stop(result) => return result,
+            NameIteration::KeepGoing => (),
+        };
+    }
+
+    if let (SubjectCommonNameContents::DnsName, Some(subject)) =
+        (subject_common_name_contents, subject)
+    {
+        match common_name(subject) {
+            Ok(Some(cn)) => match f(GeneralName::DnsName(cn)) {
+                NameIteration::Stop(result) => result,
+                NameIteration::KeepGoing => result_if_never_stopped_early,
+            },
+            Ok(None) => result_if_never_stopped_early,
+            Err(err) => Err(err),
         }
     } else {
         result_if_never_stopped_early

@@ -51,6 +51,16 @@ pub(crate) fn build_chain(
         }
     }
 
+    // for the purpose of name constraints checking, only end-entity server certificates
+    // could plausibly have a DNS name as a subject commonName that could contribute to
+    // path validity
+    let subject_common_name_contents =
+        if required_eku_if_present == EKU_SERVER_AUTH && used_as_ca == UsedAsCa::No {
+            subject_name::SubjectCommonNameContents::DnsName
+        } else {
+            subject_name::SubjectCommonNameContents::Ignore
+        };
+
     // TODO: revocation.
 
     let result = loop_while_non_fatal_error(trust_anchors, |trust_anchor: &TrustAnchor| {
@@ -62,7 +72,7 @@ pub(crate) fn build_chain(
         let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
 
         untrusted::read_all_optional(name_constraints, Error::BadDER, |value| {
-            subject_name::check_name_constraints(value, cert)
+            subject_name::check_name_constraints(value, cert, subject_common_name_contents)
         })?;
 
         let trust_anchor_spki = untrusted::Input::from(trust_anchor.spki);
@@ -106,7 +116,7 @@ pub(crate) fn build_chain(
         }
 
         untrusted::read_all_optional(potential_issuer.name_constraints, Error::BadDER, |value| {
-            subject_name::check_name_constraints(value, cert)
+            subject_name::check_name_constraints(value, cert, subject_common_name_contents)
         })?;
 
         let next_sub_ca_count = match used_as_ca {
@@ -201,7 +211,7 @@ fn check_validity(input: &mut untrusted::Reader, time: time::Time) -> Result<(),
     Ok(())
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum UsedAsCa {
     Yes,
     No,
@@ -250,7 +260,7 @@ fn check_basic_constraints(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct KeyPurposeId {
     oid_value: untrusted::Input<'static>,
 }
