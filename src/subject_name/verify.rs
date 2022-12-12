@@ -203,7 +203,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
             }
 
             (GeneralName::DirectoryName(name), GeneralName::DnsName(base)) => {
-                common_name(name).map(|cn| cn == base)
+                common_name(name).map(|cn| cn == Some(base))
             }
 
             (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => Ok(
@@ -369,15 +369,20 @@ fn general_name<'a>(input: &mut untrusted::Reader<'a>) -> Result<GeneralName<'a>
 
 static COMMON_NAME: untrusted::Input = untrusted::Input::from(&[85, 4, 3]);
 
-fn common_name(input: untrusted::Input) -> Result<untrusted::Input, Error> {
+fn common_name(input: untrusted::Input) -> Result<Option<untrusted::Input>, Error> {
     let inner = &mut untrusted::Reader::new(input);
     der::nested(inner, der::Tag::Set, Error::BadDER, |tagged| {
         der::nested(tagged, der::Tag::Sequence, Error::BadDER, |tagged| {
-            let value = der::expect_tag_and_get_value(tagged, der::Tag::OID)?;
-            if value != COMMON_NAME {
-                return Err(Error::BadDER);
+            while !tagged.at_end() {
+                let name_oid = der::expect_tag_and_get_value(tagged, der::Tag::OID)?;
+                if name_oid == COMMON_NAME {
+                    return der::expect_tag_and_get_value(tagged, der::Tag::UTF8String).map(Some);
+                } else {
+                    // discard unused name value
+                    der::read_tag_and_get_value(tagged)?;
+                }
             }
-            der::expect_tag_and_get_value(tagged, der::Tag::UTF8String)
+            Ok(None)
         })
     })
 }
