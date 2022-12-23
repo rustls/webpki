@@ -357,3 +357,25 @@ fn ip46_mixed_address_san_allowed() {
         Ok(())
     );
 }
+
+#[test]
+#[cfg(feature = "alloc")]
+fn permit_directory_name_not_implemented() {
+    let ee = include_bytes!("name_constraints/permit_directory_name_not_implemented.ee.der");
+    let ca = include_bytes!("name_constraints/permit_directory_name_not_implemented.ca.der");
+    assert_eq!(
+        check_cert(ee, ca, &[], &[]),
+        Err(webpki::Error::UnknownIssuer)
+    );
+}
+
+#[test]
+#[cfg(feature = "alloc")]
+fn exclude_directory_name_not_implemented() {
+    let ee = include_bytes!("name_constraints/exclude_directory_name_not_implemented.ee.der");
+    let ca = include_bytes!("name_constraints/exclude_directory_name_not_implemented.ca.der");
+    assert_eq!(
+        check_cert(ee, ca, &[], &[]),
+        Err(webpki::Error::UnknownIssuer)
+    );
+}

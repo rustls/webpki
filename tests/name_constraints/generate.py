@@ -320,3 +320,17 @@ name_constraints_test(
         x509.IPAddress(ipaddress.ip_network('12.34.56.0/24')),
         x509.IPAddress(ipaddress.ip_network('2001:db9::/48'))
     ])
+
+name_constraints_test(
+    'permit_directory_name_not_implemented',
+    expected_error='UnknownIssuer',
+    permitted_subtrees=[
+        x509.DirectoryName(x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, u'CN')]))
+    ])
+
+name_constraints_test(
+    'exclude_directory_name_not_implemented',
+    expected_error='UnknownIssuer',
+    excluded_subtrees=[
+        x509.DirectoryName(x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, u'CN')]))
+    ])
