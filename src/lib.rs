@@ -50,7 +50,7 @@ pub use {
     end_entity::EndEntityCert,
     error::Error,
     name::{
-        ip_address::InvalidIpAddressError, ip_address::IpAddressRef, DnsNameOrIpRef, DnsNameRef,
+        ip_address::AddrParseError, ip_address::IpAddrRef, DnsNameOrIpRef, DnsNameRef,
         InvalidDnsNameError, InvalidDnsNameOrIpError,
     },
     signed_data::{
@@ -63,7 +63,7 @@ pub use {
 
 #[cfg(feature = "alloc")]
 pub use {
-    name::{ip_address::IpAddress, DnsName},
+    name::{ip_address::IpAddr, DnsName},
     signed_data::{
         RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
         RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,

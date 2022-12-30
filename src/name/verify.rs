@@ -14,7 +14,7 @@
 
 use super::{
     dns_name::{self, DnsNameRef},
-    ip_address::{self, IpAddressRef},
+    ip_address::{self, IpAddrRef},
     name::DnsNameOrIpRef,
 };
 use crate::{
@@ -49,45 +49,35 @@ pub fn verify_cert_dns_name_or_ip(
     cert: &crate::EndEntityCert,
     dns_name_or_ip: DnsNameOrIpRef,
 ) -> Result<(), Error> {
-    match dns_name_or_ip {
-        DnsNameOrIpRef::DnsName(dns_name) => verify_cert_dns_name(cert, dns_name),
-        DnsNameOrIpRef::IpAddress(ip_address) => {
-            let ip_address = match ip_address {
-                IpAddressRef::IpV4AddressRef(_, ref ip_address_octets) => {
-                    untrusted::Input::from(ip_address_octets)
-                }
-                IpAddressRef::IpV6AddressRef(_, ref ip_address_octets) => {
-                    untrusted::Input::from(ip_address_octets)
-                }
-            };
-            iterate_names(
-                // IP addresses are not compared against the subject field;
-                // only against Subject Alternative Names.
-                None,
-                cert.inner().subject_alt_name,
-                Err(Error::CertNotValidForName),
-                &|name| {
-                    #[allow(clippy::single_match)]
-                    match name {
-                        GeneralName::IpAddress(presented_id) => {
-                            match ip_address::presented_id_matches_reference_id(
-                                presented_id,
-                                ip_address,
-                            ) {
-                                Ok(true) => return NameIteration::Stop(Ok(())),
-                                Ok(false) => (),
-                                Err(_) => {
-                                    return NameIteration::Stop(Err(Error::BadDER));
-                                }
-                            }
-                        }
-                        _ => (),
-                    }
-                    NameIteration::KeepGoing
-                },
-            )
+    let ip_address = match dns_name_or_ip {
+        DnsNameOrIpRef::DnsName(dns_name) => return verify_cert_dns_name(cert, dns_name),
+        DnsNameOrIpRef::IpAddress(IpAddrRef::V4(_, ref ip_address_octets)) => {
+            untrusted::Input::from(ip_address_octets)
         }
-    }
+        DnsNameOrIpRef::IpAddress(IpAddrRef::V6(_, ref ip_address_octets)) => {
+            untrusted::Input::from(ip_address_octets)
+        }
+    };
+
+    iterate_names(
+        // IP addresses are not compared against the subject field;
+        // only against Subject Alternative Names.
+        None,
+        cert.inner().subject_alt_name,
+        Err(Error::CertNotValidForName),
+        &|name| {
+            if let GeneralName::IpAddress(presented_id) = name {
+                match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
+                    Ok(true) => return NameIteration::Stop(Ok(())),
+                    Ok(false) => (),
+                    Err(_) => {
+                        return NameIteration::Stop(Err(Error::BadDER));
+                    }
+                }
+            }
+            NameIteration::KeepGoing
+        },
+    )
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
