@@ -241,20 +241,21 @@ pub(super) fn presented_id_matches_reference_id(
     presented_id: untrusted::Input,
     reference_id: untrusted::Input,
 ) -> Result<bool, Error> {
-    if presented_id.len() != reference_id.len() {
-        return Ok(false);
-    }
+    match (presented_id.len(), reference_id.len()) {
+        (4, 4) => (),
+        (16, 16) => (),
+        _ => {
+            return Ok(false);
+        }
+    };
 
     let mut presented_ip_address = untrusted::Reader::new(presented_id);
     let mut reference_ip_address = untrusted::Reader::new(reference_id);
-    loop {
+    while !presented_ip_address.at_end() {
         let presented_ip_address_byte = presented_ip_address.read_byte().unwrap();
         let reference_ip_address_byte = reference_ip_address.read_byte().unwrap();
         if presented_ip_address_byte != reference_ip_address_byte {
             return Ok(false);
-        }
-        if presented_ip_address.at_end() {
-            break;
         }
     }
 
@@ -974,6 +975,65 @@ mod tests {
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00, 0xFF, 0xFF, 0xFF, 0x00]),
             ),
             Ok(false),
+        );
+    }
+
+    #[test]
+    fn test_presented_id_matches_reference_id() {
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[]),
+                untrusted::Input::from(&[])
+            ),
+            Ok(false),
+        );
+
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[0x01]),
+                untrusted::Input::from(&[])
+            ),
+            Ok(false),
+        );
+
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[]),
+                untrusted::Input::from(&[0x01])
+            ),
+            Ok(false),
+        );
+
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[1, 2, 3, 4]),
+                untrusted::Input::from(&[1, 2, 3, 4])
+            ),
+            Ok(true),
+        );
+
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+                untrusted::Input::from(&[1, 2, 3, 4])
+            ),
+            Ok(false),
+        );
+
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[1, 2, 3, 4]),
+                untrusted::Input::from(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+            ),
+            Ok(false),
+        );
+
+        assert_eq!(
+            presented_id_matches_reference_id(
+                untrusted::Input::from(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+                untrusted::Input::from(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+            ),
+            Ok(true),
         );
     }
 }
