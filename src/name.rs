@@ -21,9 +21,9 @@ pub use dns_name::DnsName;
 
 #[allow(clippy::module_inception)]
 mod name;
-pub use name::{DnsNameOrIpRef, InvalidDnsNameOrIpError};
+pub use name::{InvalidSubjectNameError, SubjectNameRef};
 
 pub mod ip_address;
 
 mod verify;
-pub(super) use verify::{check_name_constraints, verify_cert_dns_name, verify_cert_dns_name_or_ip};
+pub(super) use verify::{check_name_constraints, verify_cert_dns_name, verify_cert_subject_name};

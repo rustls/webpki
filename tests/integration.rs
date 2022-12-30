@@ -76,19 +76,19 @@ pub fn cloudflare_dns() {
     let check_name = |name: &str| {
         let dns_name_ref = webpki::DnsNameRef::try_from_ascii_str(name).unwrap();
         assert_eq!(Ok(()), cert.verify_is_valid_for_dns_name(dns_name_ref));
-        let dns_name_or_ip_ref = webpki::DnsNameOrIpRef::from(dns_name_ref);
+        let subject_name_ref = webpki::SubjectNameRef::from(dns_name_ref);
         assert_eq!(
             Ok(()),
-            cert.verify_is_valid_for_dns_name_or_ip(dns_name_or_ip_ref)
+            cert.verify_is_valid_for_subject_name(subject_name_ref)
         );
         println!("{:?} ok as name", name);
     };
 
     let check_addr = |addr: &str| {
-        let dns_name_or_ip_ref = webpki::DnsNameOrIpRef::try_from_ascii(addr.as_bytes()).unwrap();
+        let subject_name_ref = webpki::SubjectNameRef::try_from_ascii(addr.as_bytes()).unwrap();
         assert_eq!(
             Ok(()),
-            cert.verify_is_valid_for_dns_name_or_ip(dns_name_or_ip_ref)
+            cert.verify_is_valid_for_subject_name(subject_name_ref)
         );
         println!("{:?} ok as address", addr);
     };

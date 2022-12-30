@@ -15,7 +15,7 @@
 use super::{
     dns_name::{self, DnsNameRef},
     ip_address::{self, IpAddrRef},
-    name::DnsNameOrIpRef,
+    name::SubjectNameRef,
 };
 use crate::{
     cert::{Cert, EndEntityOrCa},
@@ -45,16 +45,16 @@ pub fn verify_cert_dns_name(
     )
 }
 
-pub fn verify_cert_dns_name_or_ip(
+pub fn verify_cert_subject_name(
     cert: &crate::EndEntityCert,
-    dns_name_or_ip: DnsNameOrIpRef,
+    subject_name: SubjectNameRef,
 ) -> Result<(), Error> {
-    let ip_address = match dns_name_or_ip {
-        DnsNameOrIpRef::DnsName(dns_name) => return verify_cert_dns_name(cert, dns_name),
-        DnsNameOrIpRef::IpAddress(IpAddrRef::V4(_, ref ip_address_octets)) => {
+    let ip_address = match subject_name {
+        SubjectNameRef::DnsName(dns_name) => return verify_cert_dns_name(cert, dns_name),
+        SubjectNameRef::IpAddress(IpAddrRef::V4(_, ref ip_address_octets)) => {
             untrusted::Input::from(ip_address_octets)
         }
-        DnsNameOrIpRef::IpAddress(IpAddrRef::V6(_, ref ip_address_octets)) => {
+        SubjectNameRef::IpAddress(IpAddrRef::V6(_, ref ip_address_octets)) => {
             untrusted::Input::from(ip_address_octets)
         }
     };

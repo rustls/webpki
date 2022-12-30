@@ -50,8 +50,8 @@ pub use {
     end_entity::EndEntityCert,
     error::Error,
     name::{
-        ip_address::AddrParseError, ip_address::IpAddrRef, DnsNameOrIpRef, DnsNameRef,
-        InvalidDnsNameError, InvalidDnsNameOrIpError,
+        ip_address::AddrParseError, ip_address::IpAddrRef, DnsNameRef, InvalidDnsNameError,
+        InvalidSubjectNameError, SubjectNameRef,
     },
     signed_data::{
         SignatureAlgorithm, ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256,

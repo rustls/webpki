@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{
-    cert, name, signed_data, verify_cert, DnsNameOrIpRef, DnsNameRef, Error, SignatureAlgorithm,
+    cert, name, signed_data, verify_cert, DnsNameRef, Error, SignatureAlgorithm, SubjectNameRef,
     TLSClientTrustAnchors, TLSServerTrustAnchors, Time,
 };
 use core::convert::TryFrom;
@@ -27,7 +27,7 @@ use core::convert::TryFrom;
 ///   certificate is currently valid *for use by a TLS server*.
 /// * `EndEntityCert.verify_is_valid_for_dns_name`: Verify that the server's
 ///   certificate is valid for the host that is being connected to.
-/// * `EndEntityCert.verify_is_valid_for_dns_name_or_ip`: Verify that the server's
+/// * `EndEntityCert.verify_is_valid_for_subject_name`: Verify that the server's
 ///   certificate is valid for the host or IP address that is being connected to.
 ///
 /// * `EndEntityCert.verify_signature`: Verify that the signature of server's
@@ -151,12 +151,12 @@ impl<'a> EndEntityCert<'a> {
         name::verify_cert_dns_name(self, dns_name)
     }
 
-    /// Verifies that the certificate is valid for the given DNS host name or IP address.
-    pub fn verify_is_valid_for_dns_name_or_ip(
+    /// Verifies that the certificate is valid for the given Subject Name.
+    pub fn verify_is_valid_for_subject_name(
         &self,
-        dns_name_or_ip: DnsNameOrIpRef,
+        subject_name: SubjectNameRef,
     ) -> Result<(), Error> {
-        name::verify_cert_dns_name_or_ip(self, dns_name_or_ip)
+        name::verify_cert_subject_name(self, subject_name)
     }
 
     /// Verifies the signature `signature` of message `msg` using the

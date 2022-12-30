@@ -18,7 +18,7 @@ use super::ip_address::{self, IpAddrRef};
 
 /// A DNS name or IP address, which borrows its text representation.
 #[derive(Debug, Clone, Copy)]
-pub enum DnsNameOrIpRef<'a> {
+pub enum SubjectNameRef<'a> {
     /// A valid DNS name
     DnsName(DnsNameRef<'a>),
 
@@ -26,12 +26,13 @@ pub enum DnsNameOrIpRef<'a> {
     IpAddress(IpAddrRef<'a>),
 }
 
-/// An error indicating that a `DnsNameOrIpRef` could not built because the input
-/// is not a syntactically-valid DNS Name or IP address.
+/// An error indicating that a `SubjectNameRef` could not built
+/// because the input is not a syntactically-valid DNS Name or IP
+/// address.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InvalidDnsNameOrIpError;
+pub struct InvalidSubjectNameError;
 
-impl<'a> DnsNameOrIpRef<'a> {
+impl<'a> SubjectNameRef<'a> {
     /// Attempts to decode an encodingless string as either an IPv4 address, IPv6 address or
     /// DNS name; in that order.  In practice this space is non-overlapping because
     /// DNS name components are separated by periods but cannot be wholly numeric (so cannot
@@ -43,56 +44,56 @@ impl<'a> DnsNameOrIpRef<'a> {
     /// this is not suitable as a parse for human-provided addresses for this reason.  Instead:
     /// consider parsing these with `std::net::IpAddr` and then using
     /// `IpAddr::from<std::net::IpAddr>`.
-    pub fn try_from_ascii(dns_name_or_ip: &'a [u8]) -> Result<Self, InvalidDnsNameOrIpError> {
-        if ip_address::is_valid_ipv4_address(untrusted::Input::from(dns_name_or_ip)) {
-            return Ok(DnsNameOrIpRef::IpAddress(IpAddrRef::V4(
-                dns_name_or_ip,
-                ip_address::ipv4_octets(dns_name_or_ip).map_err(|_| InvalidDnsNameOrIpError)?,
+    pub fn try_from_ascii(subject_name: &'a [u8]) -> Result<Self, InvalidSubjectNameError> {
+        if ip_address::is_valid_ipv4_address(untrusted::Input::from(subject_name)) {
+            return Ok(SubjectNameRef::IpAddress(IpAddrRef::V4(
+                subject_name,
+                ip_address::ipv4_octets(subject_name).map_err(|_| InvalidSubjectNameError)?,
             )));
         }
-        if ip_address::is_valid_ipv6_address(untrusted::Input::from(dns_name_or_ip)) {
-            return Ok(DnsNameOrIpRef::IpAddress(IpAddrRef::V6(
-                dns_name_or_ip,
-                ip_address::ipv6_octets(dns_name_or_ip).map_err(|_| InvalidDnsNameOrIpError)?,
+        if ip_address::is_valid_ipv6_address(untrusted::Input::from(subject_name)) {
+            return Ok(SubjectNameRef::IpAddress(IpAddrRef::V6(
+                subject_name,
+                ip_address::ipv6_octets(subject_name).map_err(|_| InvalidSubjectNameError)?,
             )));
         }
-        Ok(DnsNameOrIpRef::DnsName(
-            DnsNameRef::try_from_ascii(dns_name_or_ip).map_err(|_| InvalidDnsNameOrIpError)?,
+        Ok(SubjectNameRef::DnsName(
+            DnsNameRef::try_from_ascii(subject_name).map_err(|_| InvalidSubjectNameError)?,
         ))
     }
 
-    /// Constructs a `DnsNameOrIpRef` from the given input if the input is a
-    /// syntactically-valid DNS name or IP address.
-    pub fn try_from_ascii_str(dns_name_or_ip: &'a str) -> Result<Self, InvalidDnsNameOrIpError> {
-        Self::try_from_ascii(dns_name_or_ip.as_bytes())
+    /// Constructs a `SubjectNameRef` from the given input if the
+    /// input is a syntactically-valid DNS name or IP address.
+    pub fn try_from_ascii_str(subject_name: &'a str) -> Result<Self, InvalidSubjectNameError> {
+        Self::try_from_ascii(subject_name.as_bytes())
     }
 }
 
-impl<'a> From<DnsNameRef<'a>> for DnsNameOrIpRef<'a> {
-    fn from(dns_name: DnsNameRef<'a>) -> DnsNameOrIpRef {
-        DnsNameOrIpRef::DnsName(DnsNameRef(dns_name.0))
+impl<'a> From<DnsNameRef<'a>> for SubjectNameRef<'a> {
+    fn from(dns_name: DnsNameRef<'a>) -> SubjectNameRef {
+        SubjectNameRef::DnsName(DnsNameRef(dns_name.0))
     }
 }
 
-impl<'a> From<IpAddrRef<'a>> for DnsNameOrIpRef<'a> {
-    fn from(dns_name: IpAddrRef<'a>) -> DnsNameOrIpRef {
+impl<'a> From<IpAddrRef<'a>> for SubjectNameRef<'a> {
+    fn from(dns_name: IpAddrRef<'a>) -> SubjectNameRef {
         match dns_name {
             IpAddrRef::V4(ip_address, ip_address_octets) => {
-                DnsNameOrIpRef::IpAddress(IpAddrRef::V4(ip_address, ip_address_octets))
+                SubjectNameRef::IpAddress(IpAddrRef::V4(ip_address, ip_address_octets))
             }
             IpAddrRef::V6(ip_address, ip_address_octets) => {
-                DnsNameOrIpRef::IpAddress(IpAddrRef::V6(ip_address, ip_address_octets))
+                SubjectNameRef::IpAddress(IpAddrRef::V6(ip_address, ip_address_octets))
             }
         }
     }
 }
 
-impl AsRef<[u8]> for DnsNameOrIpRef<'_> {
+impl AsRef<[u8]> for SubjectNameRef<'_> {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         match self {
-            DnsNameOrIpRef::DnsName(dns_name) => dns_name.0,
-            DnsNameOrIpRef::IpAddress(ip_address) => match ip_address {
+            SubjectNameRef::DnsName(dns_name) => dns_name.0,
+            SubjectNameRef::IpAddress(ip_address) => match ip_address {
                 IpAddrRef::V4(ip_address, _) | IpAddrRef::V6(ip_address, _) => ip_address,
             },
         }
