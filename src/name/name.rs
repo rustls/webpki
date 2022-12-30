@@ -45,21 +45,15 @@ impl<'a> SubjectNameRef<'a> {
     /// consider parsing these with `std::net::IpAddr` and then using
     /// `IpAddr::from<std::net::IpAddr>`.
     pub fn try_from_ascii(subject_name: &'a [u8]) -> Result<Self, InvalidSubjectNameError> {
-        if ip_address::is_valid_ipv4_address(untrusted::Input::from(subject_name)) {
-            return Ok(SubjectNameRef::IpAddress(IpAddrRef::V4(
-                subject_name,
-                ip_address::ipv4_octets(subject_name).map_err(|_| InvalidSubjectNameError)?,
-            )));
+        if let Ok(ip_address) = ip_address::parse_ipv4_address(subject_name) {
+            return Ok(SubjectNameRef::IpAddress(ip_address));
+        } else if let Ok(ip_address) = ip_address::parse_ipv6_address(subject_name) {
+            return Ok(SubjectNameRef::IpAddress(ip_address));
+        } else {
+            Ok(SubjectNameRef::DnsName(
+                DnsNameRef::try_from_ascii(subject_name).map_err(|_| InvalidSubjectNameError)?,
+            ))
         }
-        if ip_address::is_valid_ipv6_address(untrusted::Input::from(subject_name)) {
-            return Ok(SubjectNameRef::IpAddress(IpAddrRef::V6(
-                subject_name,
-                ip_address::ipv6_octets(subject_name).map_err(|_| InvalidSubjectNameError)?,
-            )));
-        }
-        Ok(SubjectNameRef::DnsName(
-            DnsNameRef::try_from_ascii(subject_name).map_err(|_| InvalidSubjectNameError)?,
-        ))
     }
 
     /// Constructs a `SubjectNameRef` from the given input if the

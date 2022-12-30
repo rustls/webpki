@@ -63,46 +63,6 @@ impl<'a> From<IpAddrRef<'a>> for IpAddr {
     }
 }
 
-// Returns the octets that correspond to the provided IPv4 address.
-//
-// This function can only be called on IPv4 addresses that have
-// already been validated with `is_valid_ipv4_address`.
-pub(crate) fn ipv4_octets(ip_address: &[u8]) -> Result<[u8; 4], AddrParseError> {
-    let mut result: [u8; 4] = [0, 0, 0, 0];
-    for (i, textual_octet) in ip_address
-        .split(|textual_octet| *textual_octet == b'.')
-        .enumerate()
-    {
-        result[i] =
-            str::parse::<u8>(core::str::from_utf8(textual_octet).map_err(|_| AddrParseError)?)
-                .map_err(|_| AddrParseError)?;
-    }
-    Ok(result)
-}
-
-// Returns the octets that correspond to the provided IPv6 address.
-//
-// This function can only be called on uncompressed IPv6 addresses
-// that have already been validated with `is_valid_ipv6_address`.
-pub(crate) fn ipv6_octets(ip_address: &[u8]) -> Result<[u8; 16], AddrParseError> {
-    let mut result: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    for (i, textual_block) in ip_address
-        .split(|textual_block| *textual_block == b':')
-        .enumerate()
-    {
-        let octets = u16::from_str_radix(
-            core::str::from_utf8(textual_block).map_err(|_| AddrParseError)?,
-            16,
-        )
-        .map_err(|_| AddrParseError)?
-        .to_be_bytes();
-
-        result[2 * i] = octets[0];
-        result[(2 * i) + 1] = octets[1];
-    }
-    Ok(result)
-}
-
 #[cfg(feature = "alloc")]
 impl<'a> From<&'a IpAddr> for IpAddrRef<'a> {
     fn from(ip_address: &'a IpAddr) -> IpAddrRef<'a> {
@@ -136,10 +96,10 @@ impl<'a> IpAddrRef<'a> {
     /// Constructs an `IpAddrRef` from the given input if the input is
     /// a valid IPv4 or IPv6 address.
     pub fn try_from_ascii(ip_address: &'a [u8]) -> Result<Self, AddrParseError> {
-        if is_valid_ipv4_address(untrusted::Input::from(ip_address)) {
-            Ok(IpAddrRef::V4(ip_address, ipv4_octets(ip_address)?))
-        } else if is_valid_ipv6_address(untrusted::Input::from(ip_address)) {
-            Ok(IpAddrRef::V6(ip_address, ipv6_octets(ip_address)?))
+        if let Ok(ip_address) = parse_ipv4_address(ip_address) {
+            Ok(ip_address)
+        } else if let Ok(ip_address) = parse_ipv6_address(ip_address) {
+            Ok(ip_address)
         } else {
             Err(AddrParseError)
         }
@@ -306,12 +266,15 @@ pub(super) fn presented_id_matches_constraint(
     Ok(true)
 }
 
-pub(crate) fn is_valid_ipv4_address(ip_address: untrusted::Input) -> bool {
-    let mut ip_address = untrusted::Reader::new(ip_address);
+pub(crate) fn parse_ipv4_address(ip_address_: &[u8]) -> Result<IpAddrRef, AddrParseError> {
+    let mut ip_address = untrusted::Reader::new(untrusted::Input::from(ip_address_));
     let mut is_first_byte = true;
-    let mut current: [u8; 3] = [0, 0, 0];
+    let mut current_octet: [u8; 3] = [0, 0, 0];
     let mut current_size = 0;
     let mut dot_count = 0;
+
+    let mut octet = 0;
+    let mut octets: [u8; 4] = [0, 0, 0, 0];
 
     // Returns a u32 so it's possible to identify (and error) when
     // provided textual octets > 255, not representable by u8.
@@ -329,27 +292,29 @@ pub(crate) fn is_valid_ipv4_address(ip_address: untrusted::Input) -> bool {
             Ok(b'.') => {
                 if is_first_byte {
                     // IPv4 address cannot start with a dot.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 if ip_address.at_end() {
                     // IPv4 address cannot end with a dot.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 if dot_count == 3 {
                     // IPv4 address cannot have more than three dots.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 dot_count += 1;
                 if current_size == 0 {
                     // IPv4 address cannot contain two dots in a row.
-                    return false;
+                    return Err(AddrParseError);
                 }
-                if radix10_to_octet(&current[..current_size]) > 255 {
+                if radix10_to_octet(&current_octet[..current_size]) > 255 {
                     // No octet can be greater than 255.
-                    return false;
+                    return Err(AddrParseError);
                 }
+                octets[octet] = radix10_to_octet(&current_octet[..current_size]) as u8;
+                octet += 1;
                 // We move on to the next textual octet.
-                current = [0, 0, 0];
+                current_octet = [0, 0, 0];
                 current_size = 0;
             }
             Ok(number @ b'0'..=b'9') => {
@@ -359,80 +324,108 @@ pub(crate) fn is_valid_ipv4_address(ip_address: untrusted::Input) -> bool {
                     && !ip_address.at_end()
                 {
                     // No octet can start with 0 if a dot does not follow and if we are not at the end.
-                    return false;
+                    return Err(AddrParseError);
                 }
-                if current_size >= current.len() {
+                if current_size >= current_octet.len() {
                     // More than 3 octets in a triple
-                    return false;
+                    return Err(AddrParseError);
                 }
-                current[current_size] = number - b'0';
+                current_octet[current_size] = number - b'0';
                 current_size += 1;
             }
             _ => {
-                return false;
+                return Err(AddrParseError);
             }
         }
         is_first_byte = false;
 
         if ip_address.at_end() {
-            if current_size > 0 && radix10_to_octet(&current[..current_size]) > 255 {
+            let last_octet = radix10_to_octet(&current_octet[..current_size]);
+            if current_size > 0 && last_octet > 255 {
                 // No octet can be greater than 255.
-                return false;
+                return Err(AddrParseError);
             }
+            octets[octet] = last_octet as u8;
             break;
         }
     }
-    dot_count == 3
+    if dot_count != 3 {
+        return Err(AddrParseError);
+    }
+    Ok(IpAddrRef::V4(ip_address_, octets))
 }
 
-pub(crate) fn is_valid_ipv6_address(ip_address: untrusted::Input) -> bool {
+pub(crate) fn parse_ipv6_address(ip_address_: &[u8]) -> Result<IpAddrRef, AddrParseError> {
     // Compressed addresses are not supported. Also, IPv4-mapped IPv6
     // addresses are not supported. This makes 8 groups of 4
     // hexadecimal characters + 7 colons.
-    if ip_address.len() != 39 {
-        return false;
+    if ip_address_.len() != 39 {
+        return Err(AddrParseError);
     }
 
-    let mut ip_address = untrusted::Reader::new(ip_address);
+    let mut ip_address = untrusted::Reader::new(untrusted::Input::from(ip_address_));
     let mut is_first_byte = true;
     let mut current_textual_block_size = 0;
     let mut colon_count = 0;
+
+    let mut octet = 0;
+    let mut previous_character = None;
+    let mut octets: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
     loop {
         match ip_address.read_byte() {
             Ok(b':') => {
                 if is_first_byte {
                     // Uncompressed IPv6 address cannot start with a colon.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 if ip_address.at_end() {
                     // Uncompressed IPv6 address cannot end with a colon.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 if colon_count == 7 {
                     // IPv6 address cannot have more than seven colons.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 colon_count += 1;
                 if current_textual_block_size == 0 {
                     // Uncompressed IPv6 address cannot contain two colons in a row.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 if current_textual_block_size != 4 {
                     // Compressed IPv6 addresses are not supported.
-                    return false;
+                    return Err(AddrParseError);
                 }
                 // We move on to the next textual block.
                 current_textual_block_size = 0;
+                previous_character = None;
             }
-            Ok(b'0'..=b'9') | Ok(b'a'..=b'f') | Ok(b'A'..=b'F') => {
+            Ok(character @ b'0'..=b'9')
+            | Ok(character @ b'a'..=b'f')
+            | Ok(character @ b'A'..=b'F') => {
                 if current_textual_block_size == 4 {
                     // Blocks cannot contain more than 4 hexadecimal characters.
-                    return false;
+                    return Err(AddrParseError);
+                }
+                if let Some(previous_character_) = previous_character {
+                    octets[octet] = (((previous_character_ as char)
+                        .to_digit(16)
+                        // Safe to unwrap because we know character is within hexadecimal bounds ([0-9a-f])
+                        .unwrap() as u8)
+                        << 4)
+                        | ((character as char)
+                            .to_digit(16)
+                            // Safe to unwrap because we know character is within hexadecimal bounds ([0-9a-f])
+                            .unwrap() as u8);
+                    previous_character = None;
+                    octet += 1;
+                } else {
+                    previous_character = Some(character);
                 }
                 current_textual_block_size += 1;
             }
             _ => {
-                return false;
+                return Err(AddrParseError);
             }
         }
         is_first_byte = false;
@@ -441,151 +434,274 @@ pub(crate) fn is_valid_ipv6_address(ip_address: untrusted::Input) -> bool {
             break;
         }
     }
-    colon_count == 7
+    if colon_count != 7 {
+        return Err(AddrParseError);
+    }
+    Ok(IpAddrRef::V6(ip_address_, octets))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const IPV4_ADDRESSES_VALIDITY: &[(&[u8], bool)] = &[
+    const fn ipv4_address(
+        ip_address: &[u8],
+        octets: [u8; 4],
+    ) -> (&[u8], Result<IpAddrRef, AddrParseError>) {
+        (ip_address, Ok(IpAddrRef::V4(ip_address, octets)))
+    }
+
+    const IPV4_ADDRESSES: &[(&[u8], Result<IpAddrRef, AddrParseError>)] = &[
         // Valid IPv4 addresses
-        (b"0.0.0.0", true),
-        (b"127.0.0.1", true),
-        (b"1.1.1.1", true),
-        (b"255.255.255.255", true),
-        (b"205.0.0.0", true),
-        (b"0.205.0.0", true),
-        (b"0.0.205.0", true),
-        (b"0.0.0.205", true),
-        (b"0.0.0.20", true),
+        ipv4_address(b"0.0.0.0", [0, 0, 0, 0]),
+        ipv4_address(b"1.1.1.1", [1, 1, 1, 1]),
+        ipv4_address(b"205.0.0.0", [205, 0, 0, 0]),
+        ipv4_address(b"0.205.0.0", [0, 205, 0, 0]),
+        ipv4_address(b"0.0.205.0", [0, 0, 205, 0]),
+        ipv4_address(b"0.0.0.205", [0, 0, 0, 205]),
+        ipv4_address(b"0.0.0.20", [0, 0, 0, 20]),
         // Invalid IPv4 addresses
-        (b"", false),
-        (b"...", false),
-        (b".0.0.0.0", false),
-        (b"0.0.0.0.", false),
-        (b"256.0.0.0", false),
-        (b"0.256.0.0", false),
-        (b"0.0.256.0", false),
-        (b"0.0.0.256", false),
-        (b"1..1.1.1", false),
-        (b"1.1..1.1", false),
-        (b"1.1.1..1", false),
-        (b"025.0.0.0", false),
-        (b"0.025.0.0", false),
-        (b"0.0.025.0", false),
-        (b"0.0.0.025", false),
-        (b"1234.0.0.0", false),
-        (b"0.1234.0.0", false),
-        (b"0.0.1234.0", false),
-        (b"0.0.0.1234", false),
+        (b"", Err(AddrParseError)),
+        (b"...", Err(AddrParseError)),
+        (b".0.0.0.0", Err(AddrParseError)),
+        (b"0.0.0.0.", Err(AddrParseError)),
+        (b"256.0.0.0", Err(AddrParseError)),
+        (b"0.256.0.0", Err(AddrParseError)),
+        (b"0.0.256.0", Err(AddrParseError)),
+        (b"0.0.0.256", Err(AddrParseError)),
+        (b"1..1.1.1", Err(AddrParseError)),
+        (b"1.1..1.1", Err(AddrParseError)),
+        (b"1.1.1..1", Err(AddrParseError)),
+        (b"025.0.0.0", Err(AddrParseError)),
+        (b"0.025.0.0", Err(AddrParseError)),
+        (b"0.0.025.0", Err(AddrParseError)),
+        (b"0.0.0.025", Err(AddrParseError)),
+        (b"1234.0.0.0", Err(AddrParseError)),
+        (b"0.1234.0.0", Err(AddrParseError)),
+        (b"0.0.1234.0", Err(AddrParseError)),
+        (b"0.0.0.1234", Err(AddrParseError)),
     ];
 
     #[test]
-    fn is_valid_ipv4_address_test() {
-        for &(ip_address, expected_result) in IPV4_ADDRESSES_VALIDITY {
-            assert_eq!(
-                is_valid_ipv4_address(untrusted::Input::from(ip_address)),
-                expected_result
-            );
+    fn parse_ipv4_address_test() {
+        for &(ip_address, expected_result) in IPV4_ADDRESSES {
+            assert_eq!(parse_ipv4_address(ip_address), expected_result,);
         }
     }
 
-    #[test]
-    fn ipv4_octets_test() {
-        assert_eq!(ipv4_octets(b"0.0.0.0"), Ok([0, 0, 0, 0]));
-        assert_eq!(ipv4_octets(b"54.155.246.232"), Ok([54, 155, 246, 232]));
-        // Invalid UTF-8 encoding
-        assert_eq!(ipv4_octets(b"0.\xc3\x28.0.0"), Err(AddrParseError));
-        // Invalid number for a u8
-        assert_eq!(ipv4_octets(b"0.0.0.256"), Err(AddrParseError));
+    const fn ipv6_address(
+        ip_address: &[u8],
+        octets: [u8; 16],
+    ) -> (&[u8], Result<IpAddrRef, AddrParseError>) {
+        (ip_address, Ok(IpAddrRef::V6(ip_address, octets)))
     }
 
-    const IPV6_ADDRESSES_VALIDITY: &[(&[u8], bool)] = &[
+    const IPV6_ADDRESSES: &[(&[u8], Result<IpAddrRef, AddrParseError>)] = &[
         // Valid IPv6 addresses
-        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3aed", true),
-        (b"2A05:D018:076C:B685:E8AB:AFD3:AF51:3AED", true),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true),
-        (b"FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF", true),
-        (b"FFFF:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true), // both case hex allowed
+        ipv6_address(
+            b"2a05:d018:076c:b685:e8ab:afd3:af51:3aed",
+            [
+                0x2a, 0x05, 0xd0, 0x18, 0x07, 0x6c, 0xb6, 0x85, 0xe8, 0xab, 0xaf, 0xd3, 0xaf, 0x51,
+                0x3a, 0xed,
+            ],
+        ),
+        ipv6_address(
+            b"2A05:D018:076C:B685:E8AB:AFD3:AF51:3AED",
+            [
+                0x2a, 0x05, 0xd0, 0x18, 0x07, 0x6c, 0xb6, 0x85, 0xe8, 0xab, 0xaf, 0xd3, 0xaf, 0x51,
+                0x3a, 0xed,
+            ],
+        ),
+        ipv6_address(
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            [
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff,
+            ],
+        ),
+        ipv6_address(
+            b"FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+            [
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff,
+            ],
+        ),
+        ipv6_address(
+            b"FFFF:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            [
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff,
+            ],
+        ),
         // Invalid IPv6 addresses
         // Missing octets on uncompressed addresses. The unmatching letter has the violation
-        (b"aaa:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:aaa:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:aaa:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:aaa:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:aaa:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:aaa:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:aaa:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:aaa", false),
+        (
+            b"aaa:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:aaa:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:aaa:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:aaa:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:aaa:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:aaa:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:aaa:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:aaa",
+            Err(AddrParseError),
+        ),
         // Wrong hexadecimal characters on different positions
-        (b"ffgf:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:gfff:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:fffg:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffgf:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:gfff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:fgff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffgf:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffgf:fffg", false),
+        (
+            b"ffgf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:gfff:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:fffg:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffgf:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:gfff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:fgff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffgf:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffgf:fffg",
+            Err(AddrParseError),
+        ),
         // Wrong colons on uncompressed addresses
-        (b":ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff::ffff:ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff::ffff:ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff::ffff:ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff::ffff:ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff::ffff:ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff::ffff:ffff", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff::ffff", false),
+        (
+            b":ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff::ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff::ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff::ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff::ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff::ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff::ffff:ffff",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffff::ffff",
+            Err(AddrParseError),
+        ),
         // More colons than allowed
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:", false),
-        (b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:",
+            Err(AddrParseError),
+        ),
+        (
+            b"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            Err(AddrParseError),
+        ),
         // v Invalid UTF-8 encoding
-        (b"\xc3\x28a05:d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        (
+            b"\xc3\x28a05:d018:076c:b685:e8ab:afd3:af51:3aed",
+            Err(AddrParseError),
+        ),
         // v Invalid hexadecimal
-        (b"ga05:d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        (
+            b"ga05:d018:076c:b685:e8ab:afd3:af51:3aed",
+            Err(AddrParseError),
+        ),
         // Cannot start with colon
-        (b":a05:d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        (
+            b":a05:d018:076c:b685:e8ab:afd3:af51:3aed",
+            Err(AddrParseError),
+        ),
         // Cannot end with colon
-        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3ae:", false),
+        (
+            b"2a05:d018:076c:b685:e8ab:afd3:af51:3ae:",
+            Err(AddrParseError),
+        ),
         // Cannot have more than seven colons
-        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3a::", false),
+        (
+            b"2a05:d018:076c:b685:e8ab:afd3:af51:3a::",
+            Err(AddrParseError),
+        ),
         // Cannot contain two colons in a row
-        (b"2a05::018:076c:b685:e8ab:afd3:af51:3aed", false),
+        (
+            b"2a05::018:076c:b685:e8ab:afd3:af51:3aed",
+            Err(AddrParseError),
+        ),
         // v Textual block size is longer
-        (b"2a056:d018:076c:b685:e8ab:afd3:af51:3ae", false),
+        (
+            b"2a056:d018:076c:b685:e8ab:afd3:af51:3ae",
+            Err(AddrParseError),
+        ),
         // v Textual block size is shorter
-        (b"2a0:d018:076c:b685:e8ab:afd3:af51:3aed ", false),
+        (
+            b"2a0:d018:076c:b685:e8ab:afd3:af51:3aed ",
+            Err(AddrParseError),
+        ),
         // Shorter IPv6 address
-        (b"d018:076c:b685:e8ab:afd3:af51:3aed", false),
+        (b"d018:076c:b685:e8ab:afd3:af51:3aed", Err(AddrParseError)),
         // Longer IPv6 address
-        (b"2a05:d018:076c:b685:e8ab:afd3:af51:3aed3aed", false),
+        (
+            b"2a05:d018:076c:b685:e8ab:afd3:af51:3aed3aed",
+            Err(AddrParseError),
+        ),
         // These are valid IPv6 addresses, but we don't support compressed addresses
-        (b"0:0:0:0:0:0:0:1", false),
-        (b"2a05:d018:76c:b685:e8ab:afd3:af51:3aed", false),
+        (b"0:0:0:0:0:0:0:1", Err(AddrParseError)),
+        (
+            b"2a05:d018:76c:b685:e8ab:afd3:af51:3aed",
+            Err(AddrParseError),
+        ),
     ];
 
     #[test]
-    fn is_valid_ipv6_address_test() {
-        for &(ip_address, expected_result) in IPV6_ADDRESSES_VALIDITY {
-            assert_eq!(
-                is_valid_ipv6_address(untrusted::Input::from(ip_address)),
-                expected_result
-            );
+    fn parse_ipv6_address_test() {
+        for &(ip_address, expected_result) in IPV6_ADDRESSES {
+            assert_eq!(parse_ipv6_address(ip_address), expected_result,);
         }
-    }
-
-    #[test]
-    fn ipv6_octets_test() {
-        // Invalid UTF-8 encoding
-        assert_eq!(
-            ipv6_octets(b"\xc3\x28a05:d018:076c:b684:8e48:47c9:84aa:b34d"),
-            Err(AddrParseError),
-        );
-        // Invalid hexadecimal
-        assert_eq!(
-            ipv6_octets(b"ga05:d018:076c:b684:8e48:47c9:84aa:b34d"),
-            Err(AddrParseError),
-        );
     }
 
     #[test]
