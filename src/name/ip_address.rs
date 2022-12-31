@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use core::fmt::Write;
+
 use crate::Error;
 
 #[cfg(feature = "alloc")]
@@ -131,17 +133,21 @@ impl<'a> IpAddrRef<'a> {
 
 #[cfg(feature = "std")]
 fn ipv6_to_uncompressed_string(octets: [u8; 16]) -> String {
-    format!(
-        "{:02x?}{:02x?}:{:02x?}{:02x?}:{:02x?}{:02x?}:{:02x?}{:02x?}:{:02x?}{:02x?}:{:02x?}{:02x?}:{:02x?}{:02x?}:{:02x?}{:02x?}",
-        octets[0], octets[1],
-        octets[2], octets[3],
-        octets[4], octets[5],
-        octets[6], octets[7],
-        octets[8], octets[9],
-        octets[10], octets[11],
-        octets[12], octets[13],
-        octets[14], octets[15],
-    )
+    let mut result = String::with_capacity(39);
+    for i in 0..7 {
+        result
+            .write_fmt(format_args!(
+                "{:02x?}{:02x?}:",
+                octets[i * 2],
+                octets[(i * 2) + 1]
+            ))
+            .expect("unexpected error while formatting IPv6 address");
+    }
+    result
+        .write_fmt(format_args!("{:02x?}{:02x?}", octets[14], octets[15]))
+        .expect("unexpected error while formatting IPv6 address");
+
+    result
 }
 
 #[cfg(feature = "std")]
