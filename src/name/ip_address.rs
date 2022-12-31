@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::fmt::Write;
+use core::{convert::TryInto, fmt::Write};
 
 use crate::Error;
 
@@ -313,11 +313,13 @@ pub(crate) fn parse_ipv4_address(ip_address_: &[u8]) -> Result<IpAddrRef, AddrPa
                     // IPv4 address cannot contain two dots in a row.
                     return Err(AddrParseError);
                 }
-                if radix10_to_octet(&current_octet[..current_size]) > 255 {
+                let current_raw_octet = radix10_to_octet(&current_octet[..current_size]);
+                if current_raw_octet > 255 {
                     // No octet can be greater than 255.
                     return Err(AddrParseError);
                 }
-                octets[octet] = radix10_to_octet(&current_octet[..current_size]) as u8;
+                octets[octet] =
+                    TryInto::<u8>::try_into(current_raw_octet).expect("invalid character");
                 octet += 1;
                 // We move on to the next textual octet.
                 current_octet = [0, 0, 0];
@@ -351,7 +353,7 @@ pub(crate) fn parse_ipv4_address(ip_address_: &[u8]) -> Result<IpAddrRef, AddrPa
                 // No octet can be greater than 255.
                 return Err(AddrParseError);
             }
-            octets[octet] = last_octet as u8;
+            octets[octet] = TryInto::<u8>::try_into(last_octet).expect("invalid character");
             break;
         }
     }
@@ -414,15 +416,26 @@ pub(crate) fn parse_ipv6_address(ip_address_: &[u8]) -> Result<IpAddrRef, AddrPa
                     return Err(AddrParseError);
                 }
                 if let Some(previous_character_) = previous_character {
-                    octets[octet] = (((previous_character_ as char)
-                        .to_digit(16)
-                        // Safe to unwrap because we know character is within hexadecimal bounds ([0-9a-f])
-                        .unwrap() as u8)
-                        << 4)
-                        | ((character as char)
+                    octets[octet] = (TryInto::<u8>::try_into(
+                        TryInto::<u8>::try_into(
+                            (TryInto::<char>::try_into(previous_character_)
+                                .expect("invalid character"))
                             .to_digit(16)
                             // Safe to unwrap because we know character is within hexadecimal bounds ([0-9a-f])
-                            .unwrap() as u8);
+                            .unwrap(),
+                        )
+                        .expect("invalid character"),
+                    )
+                    .expect("invalid character")
+                        << 4)
+                        | (TryInto::<u8>::try_into(
+                            TryInto::<char>::try_into(character)
+                                .expect("invalid character")
+                                .to_digit(16)
+                                // Safe to unwrap because we know character is within hexadecimal bounds ([0-9a-f])
+                                .unwrap(),
+                        )
+                        .expect("invalid character"));
                     previous_character = None;
                     octet += 1;
                 } else {
@@ -471,6 +484,8 @@ mod tests {
         (b"...", Err(AddrParseError)),
         (b".0.0.0.0", Err(AddrParseError)),
         (b"0.0.0.0.", Err(AddrParseError)),
+        (b"0.0.0", Err(AddrParseError)),
+        (b"0.0.0.", Err(AddrParseError)),
         (b"256.0.0.0", Err(AddrParseError)),
         (b"0.256.0.0", Err(AddrParseError)),
         (b"0.0.256.0", Err(AddrParseError)),
