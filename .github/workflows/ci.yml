@@ -240,28 +240,6 @@ jobs:
 
   coverage:
     runs-on: ubuntu-20.04
-
-    strategy:
-      matrix:
-        features:
-          - --all-features
-
-        # TODO: targets
-        target:
-          - x86_64-unknown-linux-musl
-
-        mode:
-          - # debug
-
-        # Coverage collection is Nightly-only
-        rust_channel:
-          - nightly
-
-        # TODO: targets
-        include:
-          - target: x86_64-unknown-linux-musl
-            host_os: ubuntu-20.04
-
     steps:
       - uses: actions/checkout@v2
         with:
@@ -272,11 +250,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           override: true
-          target: ${{ matrix.target }}
-          toolchain: ${{ matrix.rust_channel }}
+          toolchain: nightly
           components: llvm-tools
 
-      - run: cargo llvm-cov ${{ matrix.features }} --lcov --output-path ./lcov.info
+      - run: cargo llvm-cov --all-features --lcov --output-path ./lcov.info
 
       - uses: codecov/codecov-action@v1
         with:
