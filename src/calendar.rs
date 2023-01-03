@@ -14,7 +14,7 @@
 
 use super::{time::Time, Error};
 
-pub fn time_from_ymdhms_utc(
+pub(crate) fn time_from_ymdhms_utc(
     year: u64,
     month: u64,
     day_of_month: u64,
@@ -81,7 +81,7 @@ fn days_before_year_ad(year: u64) -> u64 {
         + ((year - 1) / 400) // except years divisible by 400.
 }
 
-pub fn days_in_month(year: u64, month: u64) -> u64 {
+pub(crate) fn days_in_month(year: u64, month: u64) -> u64 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,

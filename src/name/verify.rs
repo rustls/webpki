@@ -21,7 +21,7 @@ use crate::{
     der, Error,
 };
 
-pub fn verify_cert_dns_name(
+pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
     dns_name: DnsNameRef,
 ) -> Result<(), Error> {
@@ -45,7 +45,7 @@ pub fn verify_cert_dns_name(
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
-pub fn check_name_constraints(
+pub(crate) fn check_name_constraints(
     input: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
 ) -> Result<(), Error> {

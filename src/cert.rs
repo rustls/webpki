@@ -34,7 +34,7 @@ pub struct Cert<'a> {
     pub subject_alt_name: Option<untrusted::Input<'a>>,
 }
 
-pub fn parse_cert<'a>(
+pub(crate) fn parse_cert<'a>(
     cert_der: untrusted::Input<'a>,
     ee_or_ca: EndEntityOrCa<'a>,
 ) -> Result<Cert<'a>, Error> {
@@ -147,7 +147,7 @@ fn version3(input: &mut untrusted::Reader) -> Result<(), Error> {
     )
 }
 
-pub fn certificate_serial_number(input: &mut untrusted::Reader) -> Result<(), Error> {
+pub(crate) fn certificate_serial_number(input: &mut untrusted::Reader) -> Result<(), Error> {
     // https://tools.ietf.org/html/rfc5280#section-4.1.2.2:
     // * Conforming CAs MUST NOT use serialNumber values longer than 20 octets."
     // * "The serial number MUST be a positive integer [...]"

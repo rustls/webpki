@@ -17,7 +17,7 @@ use crate::{
     der, name, signed_data, time, Error, SignatureAlgorithm, TrustAnchor,
 };
 
-pub fn build_chain(
+pub(crate) fn build_chain(
     required_eku_if_present: KeyPurposeId,
     supported_sig_algs: &[&SignatureAlgorithm],
     trust_anchors: &[TrustAnchor],
@@ -251,7 +251,7 @@ fn check_basic_constraints(
 }
 
 #[derive(Clone, Copy)]
-pub struct KeyPurposeId {
+pub(crate) struct KeyPurposeId {
     oid_value: untrusted::Input<'static>,
 }
 
@@ -260,19 +260,19 @@ pub struct KeyPurposeId {
 
 // id-kp-serverAuth   OBJECT IDENTIFIER ::= { id-kp 1 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub static EKU_SERVER_AUTH: KeyPurposeId = KeyPurposeId {
+pub(crate) static EKU_SERVER_AUTH: KeyPurposeId = KeyPurposeId {
     oid_value: untrusted::Input::from(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 1]),
 };
 
 // id-kp-clientAuth   OBJECT IDENTIFIER ::= { id-kp 2 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub static EKU_CLIENT_AUTH: KeyPurposeId = KeyPurposeId {
+pub(crate) static EKU_CLIENT_AUTH: KeyPurposeId = KeyPurposeId {
     oid_value: untrusted::Input::from(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 2]),
 };
 
 // id-kp-OCSPSigning  OBJECT IDENTIFIER ::= { id-kp 9 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub static EKU_OCSP_SIGNING: KeyPurposeId = KeyPurposeId {
+pub(crate) static EKU_OCSP_SIGNING: KeyPurposeId = KeyPurposeId {
     oid_value: untrusted::Input::from(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 9]),
 };
 
