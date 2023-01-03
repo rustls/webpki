@@ -71,14 +71,10 @@ jobs:
           - beta
           - nightly
 
-        include:
-          - target: x86_64-unknown-linux-gnu
-
     steps:
       - uses: actions-rs/toolchain@v1
         with:
           override: true
-          target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust_channel }}
 
       - uses: actions/checkout@v2
@@ -115,15 +111,6 @@ jobs:
           - --all-features
           - --no-default-features
 
-        target:
-          # There is no platform-specific code in webpki. Choose a handful of
-          # platforms mostly to smoketest that the build machinery in mk/ is
-          # portable.
-          - arm-unknown-linux-gnueabihf
-          - i686-pc-windows-msvc
-          - x86_64-unknown-linux-musl
-          - x86_64-unknown-linux-gnu
-
         mode:
           - # debug
           - --release
@@ -157,58 +144,54 @@ jobs:
 
         include:
           - features: # Default
-            target: x86_64-unknown-linux-gnu
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-20.04
 
           - features: --features=alloc
-            target: x86_64-unknown-linux-gnu
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-20.04
 
           - features: --no-default-features
-            target: x86_64-unknown-linux-gnu
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-20.04
 
           - features: --all-features
-            target: x86_64-unknown-linux-gnu
             mode: --release
             rust_channel: stable
             host_os: ubuntu-20.04
 
           - features: --all-features
-            target: x86_64-unknown-linux-gnu
             mode: # debug
             rust_channel: nightly
             host_os: ubuntu-20.04
 
           - features: --all-features
-            target: x86_64-unknown-linux-gnu
             mode: # debug
             rust_channel: 1.46.0
             host_os: ubuntu-20.04
 
           - features: --all-features
-            target: x86_64-unknown-linux-gnu
             mode: # debug
             rust_channel: beta
             host_os: ubuntu-20.04
 
-          - target: arm-unknown-linux-gnueabihf
-            host_os: ubuntu-20.04
+          - features: --all-features
+            mode: # debug
+            rust_channel: stable
+            host_os: macos-latest
 
-          - target: i686-pc-windows-msvc
+          - features: --all-features
+            mode: # debug
+            rust_channel: stable
             host_os: windows-latest
 
-          - target: x86_64-unknown-linux-musl
-            host_os: ubuntu-20.04
-
-          - target: x86_64-unknown-linux-gnu
-            host_os: ubuntu-20.04
+          - features: --all-features
+            mode: # debug
+            rust_channel: stable
+            host_os: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
@@ -218,11 +201,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           override: true
-          target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust_channel }}
 
       - run: |
-          cargo test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
+          cargo test -vv ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
 
   coverage:
     runs-on: ubuntu-20.04
