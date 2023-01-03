@@ -13,13 +13,13 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{calendar, time, Error};
-pub use ring::io::{
-    der::{nested, Tag, CONSTRUCTED},
+pub(crate) use ring::io::{
+    der::{nested, Tag},
     Positive,
 };
 
 #[inline(always)]
-pub fn expect_tag_and_get_value<'a>(
+pub(crate) fn expect_tag_and_get_value<'a>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
 ) -> Result<untrusted::Input<'a>, Error> {
@@ -36,7 +36,10 @@ impl<'a> Value<'a> {
     }
 }
 
-pub fn expect_tag<'a>(input: &mut untrusted::Reader<'a>, tag: Tag) -> Result<Value<'a>, Error> {
+pub(crate) fn expect_tag<'a>(
+    input: &mut untrusted::Reader<'a>,
+    tag: Tag,
+) -> Result<Value<'a>, Error> {
     let (actual_tag, value) = read_tag_and_get_value(input)?;
     if usize::from(tag) != usize::from(actual_tag) {
         return Err(Error::BadDER);
@@ -46,7 +49,7 @@ pub fn expect_tag<'a>(input: &mut untrusted::Reader<'a>, tag: Tag) -> Result<Val
 }
 
 #[inline(always)]
-pub fn read_tag_and_get_value<'a>(
+pub(crate) fn read_tag_and_get_value<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
     ring::io::der::read_tag_and_get_value(input).map_err(|_| Error::BadDER)
@@ -54,7 +57,7 @@ pub fn read_tag_and_get_value<'a>(
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
-pub fn nested_of_mut<'a, E>(
+pub(crate) fn nested_of_mut<'a, E>(
     input: &mut untrusted::Reader<'a>,
     outer_tag: Tag,
     inner_tag: Tag,
@@ -75,7 +78,7 @@ where
     })
 }
 
-pub fn bit_string_with_no_unused_bits<'a>(
+pub(crate) fn bit_string_with_no_unused_bits<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<untrusted::Input<'a>, Error> {
     nested(input, Tag::BitString, Error::BadDER, |value| {
@@ -89,7 +92,7 @@ pub fn bit_string_with_no_unused_bits<'a>(
 
 // Like mozilla::pkix, we accept the nonconformant explicit encoding of
 // the default value (false) for compatibility with real-world certificates.
-pub fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
+pub(crate) fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
     if !input.peek(Tag::Boolean.into()) {
         return Ok(false);
     }
@@ -102,15 +105,17 @@ pub fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
     })
 }
 
-pub fn positive_integer<'a>(input: &'a mut untrusted::Reader) -> Result<Positive<'a>, Error> {
+pub(crate) fn positive_integer<'a>(
+    input: &'a mut untrusted::Reader,
+) -> Result<Positive<'a>, Error> {
     ring::io::der::positive_integer(input).map_err(|_| Error::BadDER)
 }
 
-pub fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {
+pub(crate) fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {
     ring::io::der::small_nonnegative_integer(input).map_err(|_| Error::BadDER)
 }
 
-pub fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
+pub(crate) fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
     let is_utc_time = input.peek(Tag::UTCTime.into());
     let expected_tag = if is_utc_time {
         Tag::UTCTime

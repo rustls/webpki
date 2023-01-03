@@ -26,6 +26,7 @@
 
 #![doc(html_root_url = "https://briansmith.org/rustdoc/")]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![warn(unreachable_pub)]
 
 #[cfg(any(test, feature = "alloc"))]
 #[cfg_attr(test, macro_use)]
