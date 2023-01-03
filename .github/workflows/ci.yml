@@ -211,15 +211,9 @@ jobs:
             host_os: ubuntu-20.04
 
     steps:
-      - if: ${{ contains(matrix.host_os, 'ubuntu') }}
-        run: sudo apt-get update -y
-
       - uses: actions/checkout@v2
         with:
           persist-credentials: false
-
-      - if: ${{ !contains(matrix.host_os, 'windows') }}
-        run: mk/install-build-tools.sh --target=${{ matrix.target }} ${{ matrix.features }}
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -227,15 +221,7 @@ jobs:
           target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust_channel }}
 
-      - if: ${{ matrix.target == 'aarch64-apple-darwin' }}
-        run: echo "DEVELOPER_DIR=/Applications/Xcode_12.2.app/Contents/Developer" >> $GITHUB_ENV
-
-      - if: ${{ !contains(matrix.host_os, 'windows') }}
-        run: |
-          mk/cargo.sh test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
-
-      - if: ${{ contains(matrix.host_os, 'windows') }}
-        run: |
+      - run: |
           cargo test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
 
   coverage:
