@@ -25,8 +25,6 @@ use core::convert::TryFrom;
 ///
 /// * `EndEntityCert.verify_is_valid_tls_server_cert`: Verify that the server's
 ///   certificate is currently valid *for use by a TLS server*.
-/// * `EndEntityCert.verify_is_valid_for_dns_name`: Verify that the server's
-///   certificate is valid for the host that is being connected to.
 /// * `EndEntityCert.verify_is_valid_for_subject_name`: Verify that the server's
 ///   certificate is valid for the host or IP address that is being connected to.
 ///
