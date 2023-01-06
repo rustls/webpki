@@ -19,11 +19,14 @@ pub use dns_name::{DnsNameRef, InvalidDnsNameError};
 #[cfg(feature = "alloc")]
 pub use dns_name::DnsName;
 
-#[allow(clippy::module_inception)]
 mod name;
 pub use name::{InvalidSubjectNameError, SubjectNameRef};
 
-pub mod ip_address;
+mod ip_address;
+pub use ip_address::{AddrParseError, IpAddrRef};
+
+#[cfg(feature = "alloc")]
+pub use ip_address::IpAddr;
 
 mod verify;
-pub(super) use verify::{check_name_constraints, verify_cert_dns_name, verify_cert_subject_name};
+pub(super) use verify::{check_name_constraints, verify_cert_subject_name};

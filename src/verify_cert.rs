@@ -14,7 +14,7 @@
 
 use crate::{
     cert::{self, Cert, EndEntityOrCa},
-    der, name, signed_data, time, Error, SignatureAlgorithm, TrustAnchor,
+    der, signed_data, subject_name, time, Error, SignatureAlgorithm, TrustAnchor,
 };
 
 pub fn build_chain(
@@ -62,7 +62,7 @@ pub fn build_chain(
         let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
 
         untrusted::read_all_optional(name_constraints, Error::BadDER, |value| {
-            name::check_name_constraints(value, cert)
+            subject_name::check_name_constraints(value, cert)
         })?;
 
         let trust_anchor_spki = untrusted::Input::from(trust_anchor.spki);
@@ -106,7 +106,7 @@ pub fn build_chain(
         }
 
         untrusted::read_all_optional(potential_issuer.name_constraints, Error::BadDER, |value| {
-            name::check_name_constraints(value, cert)
+            subject_name::check_name_constraints(value, cert)
         })?;
 
         let next_sub_ca_count = match used_as_ca {

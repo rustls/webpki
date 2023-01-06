@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{
-    cert, name, signed_data, verify_cert, DnsNameRef, Error, SignatureAlgorithm, SubjectNameRef,
+    cert, signed_data, subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef,
     TLSClientTrustAnchors, TLSServerTrustAnchors, Time,
 };
 use core::convert::TryFrom;
@@ -36,11 +36,6 @@ use core::convert::TryFrom;
 ///
 /// * `EndEntityCert.verify_is_valid_tls_client_cert`: Verify that the client's
 ///   certificate is currently valid *for use by a TLS client*.
-/// * `EndEntityCert.verify_is_valid_for_dns_name` or
-///   `EndEntityCert.verify_is_valid_for_at_least_one_dns_name`: Verify that the
-///   client's certificate is valid for the identity or identities used to
-///   identify the client. (Currently client authentication only works when the
-///   client is identified by one or more DNS hostnames.)
 /// * `EndEntityCert.verify_signature`: Verify that the client's signature in
 ///   its `CertificateVerify` message is valid using the public key from the
 ///   client's certificate.
@@ -144,17 +139,12 @@ impl<'a> EndEntityCert<'a> {
         )
     }
 
-    /// Verifies that the certificate is valid for the given DNS host name.
-    pub fn verify_is_valid_for_dns_name(&self, dns_name: DnsNameRef) -> Result<(), Error> {
-        name::verify_cert_dns_name(self, dns_name)
-    }
-
     /// Verifies that the certificate is valid for the given Subject Name.
     pub fn verify_is_valid_for_subject_name(
         &self,
         subject_name: SubjectNameRef,
     ) -> Result<(), Error> {
-        name::verify_cert_subject_name(self, subject_name)
+        subject_name::verify_cert_subject_name(self, subject_name)
     }
 
     /// Verifies the signature `signature` of message `msg` using the

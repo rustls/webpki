@@ -38,8 +38,8 @@ mod calendar;
 mod cert;
 mod end_entity;
 mod error;
-mod name;
 mod signed_data;
+mod subject_name;
 mod time;
 mod trust_anchor;
 pub mod trust_anchor_util;
@@ -49,13 +49,13 @@ mod verify_cert;
 pub use {
     end_entity::EndEntityCert,
     error::Error,
-    name::{
-        ip_address::AddrParseError, ip_address::IpAddrRef, DnsNameRef, InvalidDnsNameError,
-        InvalidSubjectNameError, SubjectNameRef,
-    },
     signed_data::{
         SignatureAlgorithm, ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256,
         ECDSA_P384_SHA384, ED25519,
+    },
+    subject_name::{
+        AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,
+        SubjectNameRef,
     },
     time::Time,
     trust_anchor::{TLSClientTrustAnchors, TLSServerTrustAnchors, TrustAnchor},
@@ -63,12 +63,12 @@ pub use {
 
 #[cfg(feature = "alloc")]
 pub use {
-    name::{ip_address::IpAddr, DnsName},
     signed_data::{
         RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
         RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     },
+    subject_name::{DnsName, IpAddr},
 };
 
 #[cfg(feature = "alloc")]
