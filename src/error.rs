@@ -16,6 +16,7 @@ use core::fmt;
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Error {
     /// The encoding of some ASN.1 DER-encoded item is invalid.
     // TODO: Rename to `BadDer` in the next release.
