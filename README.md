@@ -7,6 +7,11 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
+[![Build Status](https://github.com/rustls/webpki/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rustls/webpki/actions/workflows/ci.yml?query=branch%3Amain)
+[![Coverage Status (codecov.io)](https://codecov.io/gh/rustls/webpki/branch/main/graph/badge.svg)](https://codecov.io/gh/rustls/webpki/)
+[![Documentation](https://docs.rs/rustls-webpki/badge.svg)](https://docs.rs/rustls-webpki/)
+[![Chat](https://img.shields.io/discord/976380008299917365?logo=discord)](https://discord.gg/MCSB76RU96)
+
 
 What is webpki?
 ==================
@@ -49,6 +54,23 @@ including:
   applications.
 * A specification of precisely what the Web PKI is.
 
+
+About this fork
+===============
+
+This is a fork of the [original webpki project](https://github.com/briansmith/webpki)
+which adds a number of features required by the rustls project.  This fork is
+released as the `rustls-webpki` crate, with versions starting 0.100.0 so as to
+not confusingly overlap with `webpki` versions.
+
+Changelog
+---------
+
+* 0.100.0 (2023-01-xx) - first release of `rustls-webpki` crate.
+  - Allow verification of certificates with IP address subjectAltNames.
+    `EndEntityCert::verify_is_valid_for_subject_name` was added, and
+    `EndEntityCert::verify_is_valid_for_dns_name` was removed.
+* 0.22.0 (2021-04-10) - last upstream release of `webpki` crate.
 
 
 Demo
