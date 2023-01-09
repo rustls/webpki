@@ -236,17 +236,25 @@ pub(super) fn presented_id_matches_constraint(
     name: untrusted::Input,
     constraint: untrusted::Input,
 ) -> Result<bool, Error> {
-    if name.len() != 4 && name.len() != 16 {
-        return Err(Error::BadDER);
-    }
-    if constraint.len() != 8 && constraint.len() != 32 {
-        return Err(Error::InvalidNetworkMaskConstraint);
-    }
+    match (name.len(), constraint.len()) {
+        (4, 8) => (),
+        (16, 32) => (),
 
-    // an IPv4 address never matches an IPv6 constraint, and vice versa.
-    if name.len() * 2 != constraint.len() {
-        return Ok(false);
-    }
+        // an IPv4 address never matches an IPv6 constraint, and vice versa.
+        (4, 32) | (16, 8) => {
+            return Ok(false);
+        }
+
+        // invalid constraint length
+        (4, _) | (16, _) => {
+            return Err(Error::InvalidNetworkMaskConstraint);
+        }
+
+        // invalid name length, or anything else
+        _ => {
+            return Err(Error::BadDER);
+        }
+    };
 
     let (constraint_address, constraint_mask) = constraint.read_all(Error::BadDER, |value| {
         let address = value.read_bytes(constraint.len() / 2).unwrap();
