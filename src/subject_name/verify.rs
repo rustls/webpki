@@ -45,7 +45,7 @@ pub(crate) fn verify_cert_dns_name(
     )
 }
 
-pub fn verify_cert_subject_name(
+pub(crate) fn verify_cert_subject_name(
     cert: &crate::EndEntityCert,
     subject_name: SubjectNameRef,
 ) -> Result<(), Error> {
