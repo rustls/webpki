@@ -31,6 +31,7 @@ pub(crate) fn verify_cert_dns_name(
     iterate_names(
         Some(cert.subject),
         cert.subject_alt_name,
+        SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
         &|name| {
             if let GeneralName::DnsName(presented_id) = name {
@@ -64,6 +65,7 @@ pub(crate) fn verify_cert_subject_name(
         // only against Subject Alternative Names.
         None,
         cert.inner().subject_alt_name,
+        SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
         &|name| {
             if let GeneralName::IpAddress(presented_id) = name {
@@ -84,6 +86,7 @@ pub(crate) fn verify_cert_subject_name(
 pub(crate) fn check_name_constraints(
     input: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
+    subject_common_name_contents: SubjectCommonNameContents,
 ) -> Result<(), Error> {
     let input = match input {
         Some(input) => input,
@@ -99,10 +102,7 @@ pub(crate) fn check_name_constraints(
         if !inner.peek(subtrees_tag.into()) {
             return Ok(None);
         }
-        let subtrees = der::nested(inner, subtrees_tag, Error::BadDER, |tagged| {
-            der::expect_tag_and_get_value(tagged, der::Tag::Sequence)
-        })?;
-        Ok(Some(subtrees))
+        der::expect_tag_and_get_value(inner, subtrees_tag).map(Some)
     }
 
     let permitted_subtrees = parse_subtrees(input, der::Tag::ContextSpecificConstructed0)?;
@@ -113,6 +113,7 @@ pub(crate) fn check_name_constraints(
         iterate_names(
             Some(child.subject),
             child.subject_alt_name,
+            subject_common_name_contents,
             Ok(()),
             &|name| {
                 check_presented_id_conforms_to_constraints(
@@ -178,7 +179,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
     let mut has_permitted_subtrees_match = false;
     let mut has_permitted_subtrees_mismatch = false;
 
-    loop {
+    while !constraints.at_end() {
         // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
         // profile, the minimum and maximum fields are not used with any name
         // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
@@ -227,7 +228,11 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
                 Err(Error::NameConstraintViolation)
             }
 
-            _ => Ok(false),
+            _ => {
+                // mismatch between constraint and name types; continue with current
+                // name and next constraint
+                continue;
+            }
         };
 
         match (subtrees, matches) {
@@ -249,10 +254,6 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
                 return NameIteration::Stop(Err(err));
             }
         }
-
-        if constraints.at_end() {
-            break;
-        }
     }
 
     if has_permitted_subtrees_mismatch && !has_permitted_subtrees_match {
@@ -265,14 +266,26 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
     }
 }
 
-// TODO: document this.
 fn presented_directory_name_matches_constraint(
-    name: untrusted::Input,
-    constraint: untrusted::Input,
+    _name: untrusted::Input,
+    _constraint: untrusted::Input,
     subtrees: Subtrees,
 ) -> bool {
+    // Reject any uses of directory name constraints; we don't implement this.
+    //
+    // Rejecting everything technically confirms to RFC5280:
+    //
+    //   "If a name constraints extension that is marked as critical imposes constraints
+    //    on a particular name form, and an instance of that name form appears in the
+    //    subject field or subjectAltName extension of a subsequent certificate, then
+    //    the application MUST either process the constraint or _reject the certificate_."
+    //
+    // TODO: rustls/webpki#19
+    //
+    // Rejection is achieved by not matching any PermittedSubtrees, and matching all
+    // ExcludedSubtrees.
     match subtrees {
-        Subtrees::PermittedSubtrees => name == constraint,
+        Subtrees::PermittedSubtrees => false,
         Subtrees::ExcludedSubtrees => true,
     }
 }
@@ -283,9 +296,16 @@ enum NameIteration {
     Stop(Result<(), Error>),
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum SubjectCommonNameContents {
+    DnsName,
+    Ignore,
+}
+
 fn iterate_names(
     subject: Option<untrusted::Input>,
     subject_alt_name: Option<untrusted::Input>,
+    subject_common_name_contents: SubjectCommonNameContents,
     result_if_never_stopped_early: Result<(), Error>,
     f: &dyn Fn(GeneralName) -> NameIteration,
 ) -> Result<(), Error> {
@@ -310,8 +330,21 @@ fn iterate_names(
 
     if let Some(subject) = subject {
         match f(GeneralName::DirectoryName(subject)) {
-            NameIteration::Stop(result) => result,
-            NameIteration::KeepGoing => result_if_never_stopped_early,
+            NameIteration::Stop(result) => return result,
+            NameIteration::KeepGoing => (),
+        };
+    }
+
+    if let (SubjectCommonNameContents::DnsName, Some(subject)) =
+        (subject_common_name_contents, subject)
+    {
+        match common_name(subject) {
+            Ok(Some(cn)) => match f(GeneralName::DnsName(cn)) {
+                NameIteration::Stop(result) => result,
+                NameIteration::KeepGoing => result_if_never_stopped_early,
+            },
+            Ok(None) => result_if_never_stopped_early,
+            Err(err) => Err(err),
         }
     } else {
         result_if_never_stopped_early
@@ -364,4 +397,24 @@ fn general_name<'a>(input: &mut untrusted::Reader<'a>) -> Result<GeneralName<'a>
         _ => return Err(Error::BadDER),
     };
     Ok(name)
+}
+
+static COMMON_NAME: untrusted::Input = untrusted::Input::from(&[85, 4, 3]);
+
+fn common_name(input: untrusted::Input) -> Result<Option<untrusted::Input>, Error> {
+    let inner = &mut untrusted::Reader::new(input);
+    der::nested(inner, der::Tag::Set, Error::BadDER, |tagged| {
+        der::nested(tagged, der::Tag::Sequence, Error::BadDER, |tagged| {
+            while !tagged.at_end() {
+                let name_oid = der::expect_tag_and_get_value(tagged, der::Tag::OID)?;
+                if name_oid == COMMON_NAME {
+                    return der::expect_tag_and_get_value(tagged, der::Tag::UTF8String).map(Some);
+                } else {
+                    // discard unused name value
+                    der::read_tag_and_get_value(tagged)?;
+                }
+            }
+            Ok(None)
+        })
+    })
 }

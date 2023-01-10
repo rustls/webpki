@@ -29,4 +29,6 @@ pub use ip_address::{AddrParseError, IpAddrRef};
 pub use ip_address::IpAddr;
 
 mod verify;
-pub(super) use verify::{check_name_constraints, verify_cert_subject_name};
+pub(super) use verify::{
+    check_name_constraints, verify_cert_subject_name, SubjectCommonNameContents,
+};

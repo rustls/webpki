@@ -14,16 +14,71 @@
 
 use crate::{calendar, time, Error};
 pub(crate) use ring::io::{
-    der::{nested, Tag},
+    der::{CONSTRUCTED, CONTEXT_SPECIFIC},
     Positive,
 };
+
+// Copied (and extended) from ring's src/der.rs
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
+pub(crate) enum Tag {
+    Boolean = 0x01,
+    Integer = 0x02,
+    BitString = 0x03,
+    OctetString = 0x04,
+    OID = 0x06,
+    UTF8String = 0x0C,
+    Sequence = CONSTRUCTED | 0x10, // 0x30
+    Set = CONSTRUCTED | 0x11,      // 0x31
+    UTCTime = 0x17,
+    GeneralizedTime = 0x18,
+
+    #[allow(clippy::identity_op)]
+    ContextSpecificConstructed0 = CONTEXT_SPECIFIC | CONSTRUCTED | 0,
+    ContextSpecificConstructed1 = CONTEXT_SPECIFIC | CONSTRUCTED | 1,
+    ContextSpecificConstructed3 = CONTEXT_SPECIFIC | CONSTRUCTED | 3,
+}
+
+impl From<Tag> for usize {
+    #[allow(clippy::as_conversions)]
+    fn from(tag: Tag) -> Self {
+        tag as Self
+    }
+}
+
+impl From<Tag> for u8 {
+    #[allow(clippy::as_conversions)]
+    fn from(tag: Tag) -> Self {
+        tag as Self
+    } // XXX: narrowing conversion.
+}
 
 #[inline(always)]
 pub(crate) fn expect_tag_and_get_value<'a>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
 ) -> Result<untrusted::Input<'a>, Error> {
-    ring::io::der::expect_tag_and_get_value(input, tag).map_err(|_| Error::BadDER)
+    let (actual_tag, inner) = read_tag_and_get_value(input)?;
+    if usize::from(tag) != usize::from(actual_tag) {
+        return Err(Error::BadDER);
+    }
+    Ok(inner)
+}
+
+// TODO: investigate taking decoder as a reference to reduce generated code
+// size.
+pub(crate) fn nested<'a, F, R, E: Copy>(
+    input: &mut untrusted::Reader<'a>,
+    tag: Tag,
+    error: E,
+    decoder: F,
+) -> Result<R, E>
+where
+    F: FnOnce(&mut untrusted::Reader<'a>) -> Result<R, E>,
+{
+    let inner = expect_tag_and_get_value(input, tag).map_err(|_| error)?;
+    inner.read_all(error, decoder)
 }
 
 pub struct Value<'a> {

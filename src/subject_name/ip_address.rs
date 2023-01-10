@@ -236,17 +236,25 @@ pub(super) fn presented_id_matches_constraint(
     name: untrusted::Input,
     constraint: untrusted::Input,
 ) -> Result<bool, Error> {
-    if name.len() != 4 && name.len() != 16 {
-        return Err(Error::BadDER);
-    }
-    if constraint.len() != 8 && constraint.len() != 32 {
-        return Err(Error::BadDER);
-    }
+    match (name.len(), constraint.len()) {
+        (4, 8) => (),
+        (16, 32) => (),
 
-    // an IPv4 address never matches an IPv6 constraint, and vice versa.
-    if name.len() * 2 != constraint.len() {
-        return Ok(false);
-    }
+        // an IPv4 address never matches an IPv6 constraint, and vice versa.
+        (4, 32) | (16, 8) => {
+            return Ok(false);
+        }
+
+        // invalid constraint length
+        (4, _) | (16, _) => {
+            return Err(Error::InvalidNetworkMaskConstraint);
+        }
+
+        // invalid name length, or anything else
+        _ => {
+            return Err(Error::BadDER);
+        }
+    };
 
     let (constraint_address, constraint_mask) = constraint.read_all(Error::BadDER, |value| {
         let address = value.read_bytes(constraint.len() / 2).unwrap();
@@ -257,10 +265,38 @@ pub(super) fn presented_id_matches_constraint(
     let mut name = untrusted::Reader::new(name);
     let mut constraint_address = untrusted::Reader::new(constraint_address);
     let mut constraint_mask = untrusted::Reader::new(constraint_mask);
+    let mut seen_zero_bit = false;
+
     loop {
+        // Iterate through the name, constraint address, and constraint mask
+        // a byte at a time.
         let name_byte = name.read_byte().unwrap();
         let constraint_address_byte = constraint_address.read_byte().unwrap();
         let constraint_mask_byte = constraint_mask.read_byte().unwrap();
+
+        // A valid mask consists of a sequence of 1 bits, followed by a
+        // sequence of 0 bits.  Either sequence could be empty.
+
+        let leading = constraint_mask_byte.leading_ones();
+        let trailing = constraint_mask_byte.trailing_zeros();
+
+        // At the resolution of a single octet, a valid mask is one where
+        // leading_ones() and trailing_zeros() sums to 8.
+        // This includes all-ones and all-zeroes.
+        if leading + trailing != 8 {
+            return Err(Error::InvalidNetworkMaskConstraint);
+        }
+
+        // There should be no bits set after the first octet with a zero bit is seen.
+        if seen_zero_bit && constraint_mask_byte != 0x00 {
+            return Err(Error::InvalidNetworkMaskConstraint);
+        }
+
+        // Note when a zero bit is seen for later octets.
+        if constraint_mask_byte != 0xff {
+            seen_zero_bit = true;
+        }
+
         if ((name_byte ^ constraint_address_byte) & constraint_mask_byte) != 0 {
             return Ok(false);
         }
@@ -911,7 +947,7 @@ mod tests {
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00]),
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00, 0xFF, 0xFF, 0xFF]),
             ),
-            Err(Error::BadDER),
+            Err(Error::InvalidNetworkMaskConstraint),
         );
 
         // Unmatching constraint size (longer)
@@ -920,7 +956,7 @@ mod tests {
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00]),
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x00]),
             ),
-            Err(Error::BadDER),
+            Err(Error::InvalidNetworkMaskConstraint),
         );
 
         // Unmatching constraint size (IPv6 constraint for IPv4 address)
@@ -1066,7 +1102,7 @@ mod tests {
                     0x00, 0x00, 0x00, 0x00, 0x00
                 ]),
             ),
-            Err(Error::BadDER),
+            Err(Error::InvalidNetworkMaskConstraint),
         );
 
         // Unmatching constraint size (longer)
@@ -1082,7 +1118,7 @@ mod tests {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
                 ]),
             ),
-            Err(Error::BadDER),
+            Err(Error::InvalidNetworkMaskConstraint),
         );
 
         // Unmatching constraint size (IPv4 constraint for IPv6 address)
@@ -1154,6 +1190,89 @@ mod tests {
                 untrusted::Input::from(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
             ),
             Ok(true),
+        );
+    }
+
+    #[test]
+    fn presented_id_matches_constraint_rejects_incorrect_length_arguments() {
+        // wrong length names
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(b"\x00\x00\x00"),
+                untrusted::Input::from(b"")
+            ),
+            Err(Error::BadDER)
+        );
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(b"\x00\x00\x00\x00\x00"),
+                untrusted::Input::from(b"")
+            ),
+            Err(Error::BadDER)
+        );
+
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(
+                    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+                ),
+                untrusted::Input::from(b"")
+            ),
+            Err(Error::BadDER)
+        );
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(
+                    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+                ),
+                untrusted::Input::from(b"")
+            ),
+            Err(Error::BadDER)
+        );
+
+        // wrong length constraints
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(b"\x00\x00\x00\x00"),
+                untrusted::Input::from(b"\x00\x00\x00\x00\xff\xff\xff")
+            ),
+            Err(Error::InvalidNetworkMaskConstraint)
+        );
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(b"\x00\x00\x00\x00"),
+                untrusted::Input::from(b"\x00\x00\x00\x00\xff\xff\xff\xff\x00")
+            ),
+            Err(Error::InvalidNetworkMaskConstraint)
+        );
+        assert_eq!(
+            presented_id_matches_constraint(untrusted::Input::from(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"),
+                                            untrusted::Input::from(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+                                                                     \xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff")),
+            Err(Error::InvalidNetworkMaskConstraint)
+        );
+        assert_eq!(
+            presented_id_matches_constraint(untrusted::Input::from(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"),
+                                            untrusted::Input::from(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+                                                                     \xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff")),
+            Err(Error::InvalidNetworkMaskConstraint)
+        );
+
+        // ipv4-length not considered for ipv6-length name, and vv
+        assert_eq!(
+            presented_id_matches_constraint(untrusted::Input::from(b"\x00\x00\x00\x00"),
+                                            untrusted::Input::from(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+                                                                     \xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff")),
+            Ok(false)
+        );
+        assert_eq!(
+            presented_id_matches_constraint(
+                untrusted::Input::from(
+                    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+                ),
+                untrusted::Input::from(b"\x00\x00\x00\x00\xff\xff\xff\xff")
+            ),
+            Ok(false)
         );
     }
 }
@@ -1291,6 +1410,144 @@ mod alloc_tests {
                 ipv6_to_uncompressed_string(ip_address_octets),
                 expected_result,
             )
+        }
+    }
+
+    // (presented_address, constraint_address, constraint_mask, expected_result)
+    const PRESENTED_MATCHES_CONSTRAINT: &[(&str, &str, &str, Result<bool, Error>)] = &[
+        // Cannot mix IpV4 with IpV6 and viceversa
+        ("2001:db8::", "8.8.8.8", "255.255.255.255", Ok(false)),
+        ("8.8.8.8", "2001:db8::", "ffff::", Ok(false)),
+        // IpV4 non-contiguous masks
+        (
+            "8.8.8.8",
+            "8.8.8.8",
+            "255.255.255.1",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "8.8.8.8",
+            "8.8.8.8",
+            "255.255.0.255",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "8.8.8.8",
+            "8.8.8.8",
+            "255.0.255.255",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "8.8.8.8",
+            "8.8.8.8",
+            "0.255.255.255",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "8.8.8.8",
+            "8.8.8.8",
+            "1.255.255.255",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "8.8.8.8",
+            "8.8.8.8",
+            "128.128.128.128",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        // IpV4
+        ("8.8.8.8", "8.8.8.8", "255.255.255.255", Ok(true)),
+        ("8.8.8.9", "8.8.8.8", "255.255.255.255", Ok(false)),
+        ("8.8.8.9", "8.8.8.8", "255.255.255.254", Ok(true)),
+        ("8.8.8.10", "8.8.8.8", "255.255.255.254", Ok(false)),
+        ("8.8.8.10", "8.8.8.8", "255.255.255.0", Ok(true)),
+        ("8.8.15.10", "8.8.8.8", "255.255.248.0", Ok(true)),
+        ("8.8.16.10", "8.8.8.8", "255.255.248.0", Ok(false)),
+        ("8.8.16.10", "8.8.8.8", "255.255.0.0", Ok(true)),
+        ("8.31.16.10", "8.8.8.8", "255.224.0.0", Ok(true)),
+        ("8.32.16.10", "8.8.8.8", "255.224.0.0", Ok(false)),
+        ("8.32.16.10", "8.8.8.8", "255.0.0.0", Ok(true)),
+        ("63.32.16.10", "8.8.8.8", "192.0.0.0", Ok(true)),
+        ("64.32.16.10", "8.8.8.8", "192.0.0.0", Ok(false)),
+        ("64.32.16.10", "8.8.8.8", "0.0.0.0", Ok(true)),
+        // IpV6 non-contiguous masks
+        (
+            "2001:db8::",
+            "2001:db8::",
+            "fffe:ffff::",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "2001:db8::",
+            "2001:db8::",
+            "ffff:fdff::",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "2001:db8::",
+            "2001:db8::",
+            "ffff:feff::",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "2001:db8::",
+            "2001:db8::",
+            "ffff:fcff::",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        (
+            "2001:db8::",
+            "2001:db8::",
+            "7fff:ffff::",
+            Err(Error::InvalidNetworkMaskConstraint),
+        ),
+        // IpV6
+        ("2001:db8::", "2001:db8::", "ffff:ffff::", Ok(true)),
+        ("2001:db9::", "2001:db8::", "ffff:ffff::", Ok(false)),
+        ("2001:db9::", "2001:db8::", "ffff:fffe::", Ok(true)),
+        ("2001:dba::", "2001:db8::", "ffff:fffe::", Ok(false)),
+        ("2001:dba::", "2001:db8::", "ffff:ff00::", Ok(true)),
+        ("2001:dca::", "2001:db8::", "ffff:fe00::", Ok(true)),
+        ("2001:fca::", "2001:db8::", "ffff:fe00::", Ok(false)),
+        ("2001:fca::", "2001:db8::", "ffff:0000::", Ok(true)),
+        ("2000:fca::", "2001:db8::", "fffe:0000::", Ok(true)),
+        ("2003:fca::", "2001:db8::", "fffe:0000::", Ok(false)),
+        ("2003:fca::", "2001:db8::", "ff00:0000::", Ok(true)),
+        ("1003:fca::", "2001:db8::", "e000:0000::", Ok(false)),
+        ("1003:fca::", "2001:db8::", "0000:0000::", Ok(true)),
+    ];
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn presented_matches_constraint_test() {
+        use std::boxed::Box;
+        use std::net::IpAddr;
+
+        for &(presented, constraint_address, constraint_mask, expected_result) in
+            PRESENTED_MATCHES_CONSTRAINT
+        {
+            let presented_bytes: Box<[u8]> = match presented.parse::<IpAddr>().unwrap() {
+                IpAddr::V4(p) => Box::new(p.octets()),
+                IpAddr::V6(p) => Box::new(p.octets()),
+            };
+            let ca_bytes: Box<[u8]> = match constraint_address.parse::<IpAddr>().unwrap() {
+                IpAddr::V4(ca) => Box::new(ca.octets()),
+                IpAddr::V6(ca) => Box::new(ca.octets()),
+            };
+            let cm_bytes: Box<[u8]> = match constraint_mask.parse::<IpAddr>().unwrap() {
+                IpAddr::V4(cm) => Box::new(cm.octets()),
+                IpAddr::V6(cm) => Box::new(cm.octets()),
+            };
+            let constraint_bytes = [ca_bytes, cm_bytes].concat();
+            let actual_result = presented_id_matches_constraint(
+                untrusted::Input::from(&presented_bytes),
+                untrusted::Input::from(&constraint_bytes),
+            );
+            assert_eq!(
+                actual_result, expected_result,
+                "presented_id_matches_constraint(\"{:?}\", \"{:?}\")",
+                presented_bytes, constraint_bytes
+            );
         }
     }
 }

@@ -16,6 +16,7 @@ use core::fmt;
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Error {
     /// The encoding of some ASN.1 DER-encoded item is invalid.
     // TODO: Rename to `BadDer` in the next release.
@@ -97,6 +98,11 @@ pub enum Error {
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
     UnsupportedSignatureAlgorithm,
+
+    /// A iPAddress name constraint was invalid:
+    /// - it had a sparse network mask (ie, cannot be written in CIDR form).
+    /// - it was too long or short
+    InvalidNetworkMaskConstraint,
 }
 
 impl fmt::Display for Error {

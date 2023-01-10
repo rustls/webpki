@@ -70,6 +70,11 @@ Changelog
   - Allow verification of certificates with IP address subjectAltNames.
     `EndEntityCert::verify_is_valid_for_subject_name` was added, and
     `EndEntityCert::verify_is_valid_for_dns_name` was removed.
+  - Make `Error` type non-exhaustive.
+  - Reject non-contiguous netmasks in IP address name constraints.
+  - Name constraints of type dNSName and iPAddress now work and are tested.
+    directoryName name constraints are not implemented and will prevent
+    path building where they appear.
 * 0.22.0 (2021-04-10) - last upstream release of `webpki` crate.
 
 
