@@ -38,7 +38,7 @@ pub(crate) fn verify_cert_dns_name(
                 match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
                     Some(true) => return NameIteration::Stop(Ok(())),
                     Some(false) => (),
-                    None => return NameIteration::Stop(Err(Error::BadDER)),
+                    None => return NameIteration::Stop(Err(Error::BadDer)),
                 }
             }
             NameIteration::KeepGoing
@@ -73,7 +73,7 @@ pub(crate) fn verify_cert_subject_name(
                     Ok(true) => return NameIteration::Stop(Ok(())),
                     Ok(false) => (),
                     Err(_) => {
-                        return NameIteration::Stop(Err(Error::BadDER));
+                        return NameIteration::Stop(Err(Error::BadDer));
                     }
                 }
             }
@@ -191,7 +191,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
             input: &mut untrusted::Reader<'b>,
         ) -> Result<GeneralName<'b>, Error> {
             let general_subtree = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
-            general_subtree.read_all(Error::BadDER, general_name)
+            general_subtree.read_all(Error::BadDer, general_name)
         }
 
         let base = match general_subtree(&mut constraints) {
@@ -203,7 +203,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
 
         let matches = match (name, base) {
             (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
-                dns_name::presented_id_matches_constraint(name, base).ok_or(Error::BadDER)
+                dns_name::presented_id_matches_constraint(name, base).ok_or(Error::BadDer)
             }
 
             (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => Ok(
@@ -394,7 +394,7 @@ fn general_name<'a>(input: &mut untrusted::Reader<'a>) -> Result<GeneralName<'a>
         | UNIFORM_RESOURCE_IDENTIFIER_TAG
         | REGISTERED_ID_TAG => GeneralName::Unsupported(tag & !(CONTEXT_SPECIFIC | CONSTRUCTED)),
 
-        _ => return Err(Error::BadDER),
+        _ => return Err(Error::BadDer),
     };
     Ok(name)
 }
@@ -403,8 +403,8 @@ static COMMON_NAME: untrusted::Input = untrusted::Input::from(&[85, 4, 3]);
 
 fn common_name(input: untrusted::Input) -> Result<Option<untrusted::Input>, Error> {
     let inner = &mut untrusted::Reader::new(input);
-    der::nested(inner, der::Tag::Set, Error::BadDER, |tagged| {
-        der::nested(tagged, der::Tag::Sequence, Error::BadDER, |tagged| {
+    der::nested(inner, der::Tag::Set, Error::BadDer, |tagged| {
+        der::nested(tagged, der::Tag::Sequence, Error::BadDer, |tagged| {
             while !tagged.at_end() {
                 let name_oid = der::expect_tag_and_get_value(tagged, der::Tag::OID)?;
                 if name_oid == COMMON_NAME {

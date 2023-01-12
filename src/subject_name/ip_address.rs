@@ -252,11 +252,11 @@ pub(super) fn presented_id_matches_constraint(
 
         // invalid name length, or anything else
         _ => {
-            return Err(Error::BadDER);
+            return Err(Error::BadDer);
         }
     };
 
-    let (constraint_address, constraint_mask) = constraint.read_all(Error::BadDER, |value| {
+    let (constraint_address, constraint_mask) = constraint.read_all(Error::BadDer, |value| {
         let address = value.read_bytes(constraint.len() / 2).unwrap();
         let mask = value.read_bytes(constraint.len() / 2).unwrap();
         Ok((address, mask))
@@ -929,7 +929,7 @@ mod tests {
                 untrusted::Input::from(&[0xC0, 0x00, 0x02]),
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00, 0xFF, 0xFF, 0xFF, 0x00]),
             ),
-            Err(Error::BadDER),
+            Err(Error::BadDer),
         );
 
         // Invalid name length (longer)
@@ -938,7 +938,7 @@ mod tests {
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00, 0x00]),
                 untrusted::Input::from(&[0xC0, 0x00, 0x02, 0x00, 0xFF, 0xFF, 0xFF, 0x00]),
             ),
-            Err(Error::BadDER),
+            Err(Error::BadDer),
         );
 
         // Unmatching constraint size (shorter)
@@ -1070,7 +1070,7 @@ mod tests {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00
                 ]),
             ),
-            Err(Error::BadDER),
+            Err(Error::BadDer),
         );
 
         // Invalid name length (longer)
@@ -1086,7 +1086,7 @@ mod tests {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00
                 ]),
             ),
-            Err(Error::BadDER),
+            Err(Error::BadDer),
         );
 
         // Unmatching constraint size (shorter)
@@ -1201,14 +1201,14 @@ mod tests {
                 untrusted::Input::from(b"\x00\x00\x00"),
                 untrusted::Input::from(b"")
             ),
-            Err(Error::BadDER)
+            Err(Error::BadDer)
         );
         assert_eq!(
             presented_id_matches_constraint(
                 untrusted::Input::from(b"\x00\x00\x00\x00\x00"),
                 untrusted::Input::from(b"")
             ),
-            Err(Error::BadDER)
+            Err(Error::BadDer)
         );
 
         assert_eq!(
@@ -1218,7 +1218,7 @@ mod tests {
                 ),
                 untrusted::Input::from(b"")
             ),
-            Err(Error::BadDER)
+            Err(Error::BadDer)
         );
         assert_eq!(
             presented_id_matches_constraint(
@@ -1227,7 +1227,7 @@ mod tests {
                 ),
                 untrusted::Input::from(b"")
             ),
-            Err(Error::BadDER)
+            Err(Error::BadDer)
         );
 
         // wrong length constraints

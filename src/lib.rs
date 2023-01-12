@@ -59,7 +59,7 @@ pub use {
         SubjectNameRef,
     },
     time::Time,
-    trust_anchor::{TLSClientTrustAnchors, TLSServerTrustAnchors, TrustAnchor},
+    trust_anchor::{TlsClientTrustAnchors, TlsServerTrustAnchors, TrustAnchor},
 };
 
 #[cfg(feature = "alloc")]
@@ -84,3 +84,11 @@ pub type DNSNameRef<'a> = DnsNameRef<'a>;
 #[deprecated(note = "use InvalidDnsNameError")]
 #[allow(missing_docs, unknown_lints, clippy::upper_case_acronyms)]
 pub type InvalidDNSNameError = InvalidDnsNameError;
+
+#[deprecated(note = "use TlsServerTrustAnchors")]
+#[allow(missing_docs, unknown_lints, clippy::upper_case_acronyms)]
+pub type TLSServerTrustAnchors<'a> = TlsServerTrustAnchors<'a>;
+
+#[deprecated(note = "use TlsClientTrustAnchors")]
+#[allow(missing_docs, unknown_lints, clippy::upper_case_acronyms)]
+pub type TLSClientTrustAnchors<'a> = TlsClientTrustAnchors<'a>;

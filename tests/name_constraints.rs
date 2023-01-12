@@ -38,7 +38,7 @@ fn check_cert(
     invalid_names: &[&str],
 ) -> Result<(), webpki::Error> {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
