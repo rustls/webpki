@@ -10,8 +10,8 @@ use crate::{
 /// anchors as full X.509 root certificates. However, those certificates
 /// contain a lot more data than is needed for verifying certificates. The
 /// `TrustAnchor` representation allows an application to store just the
-/// essential elements of trust anchors. The `webpki::trust_anchor_util` module
-/// provides functions for converting X.509 certificates to to the minimized
+/// essential elements of trust anchors. The `TrustAnchor::try_from_cert_der`
+/// function allows converting X.509 certificates to to the minimized
 /// `TrustAnchor` representation, either at runtime or in a build script.
 #[derive(Debug)]
 pub struct TrustAnchor<'a> {
