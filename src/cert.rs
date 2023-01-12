@@ -42,7 +42,7 @@ pub(crate) fn parse_cert<'a>(
 }
 
 /// Used by `parse_cert` for regular certificates (end-entity and intermediate)
-/// and by `cert_der_as_trust_anchor` for trust anchors encoded as
+/// and by `TrustAnchor::try_from_cert_der` for trust anchors encoded as
 /// certificates.
 pub(crate) fn parse_cert_internal<'a>(
     cert_der: untrusted::Input<'a>,
