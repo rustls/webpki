@@ -28,11 +28,11 @@ pub struct TrustAnchor<'a> {
 
 /// Trust anchors which may be used for authenticating servers.
 #[derive(Debug)]
-pub struct TLSServerTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
+pub struct TlsServerTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
 
 /// Trust anchors which may be used for authenticating clients.
 #[derive(Debug)]
-pub struct TLSClientTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
+pub struct TlsClientTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
 
 impl<'a> TrustAnchor<'a> {
     /// Interprets the given DER-encoded certificate as a `TrustAnchor`. The
@@ -46,7 +46,7 @@ impl<'a> TrustAnchor<'a> {
         // because we don't have a reference to a child cert, which is needed for
         // `EndEntityOrCA::CA`. For this purpose, it doesn't matter.
         //
-        // v1 certificates will result in `Error::BadDER` because `parse_cert` will
+        // v1 certificates will result in `Error::BadDer` because `parse_cert` will
         // expect a version field that isn't there. In that case, try to parse the
         // certificate using a special parser for v1 certificates. Notably, that
         // parser doesn't allow extensions, so there's no need to worry about
@@ -57,7 +57,7 @@ impl<'a> TrustAnchor<'a> {
             possibly_invalid_certificate_serial_number,
         ) {
             Ok(cert) => Ok(Self::from(cert)),
-            Err(Error::UnsupportedCertVersion) => parse_cert_v1(cert_der).or(Err(Error::BadDER)),
+            Err(Error::UnsupportedCertVersion) => parse_cert_v1(cert_der).or(Err(Error::BadDer)),
             Err(err) => Err(err),
         }
     }
@@ -86,9 +86,9 @@ impl<'a> From<Cert<'a>> for TrustAnchor<'a> {
 /// Parses a v1 certificate directly into a TrustAnchor.
 fn parse_cert_v1(cert_der: untrusted::Input) -> Result<TrustAnchor, Error> {
     // X.509 Certificate: https://tools.ietf.org/html/rfc5280#section-4.1.
-    cert_der.read_all(Error::BadDER, |cert_der| {
-        der::nested(cert_der, der::Tag::Sequence, Error::BadDER, |cert_der| {
-            let anchor = der::nested(cert_der, der::Tag::Sequence, Error::BadDER, |tbs| {
+    cert_der.read_all(Error::BadDer, |cert_der| {
+        der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |cert_der| {
+            let anchor = der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |tbs| {
                 // The version number field does not appear in v1 certificates.
                 certificate_serial_number(tbs)?;
 

@@ -13,8 +13,8 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{
-    cert, signed_data, subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef,
-    TLSClientTrustAnchors, TLSServerTrustAnchors, Time,
+    cert, signed_data, subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef, Time,
+    TlsClientTrustAnchors, TlsServerTrustAnchors,
 };
 use core::convert::TryFrom;
 
@@ -69,12 +69,6 @@ impl<'a> TryFrom<&'a [u8]> for EndEntityCert<'a> {
 }
 
 impl<'a> EndEntityCert<'a> {
-    /// Deprecated. Use `TryFrom::try_from`.
-    #[deprecated(note = "Use TryFrom::try_from")]
-    pub fn from(cert_der: &'a [u8]) -> Result<Self, Error> {
-        TryFrom::try_from(cert_der)
-    }
-
     pub(super) fn inner(&self) -> &cert::Cert {
         &self.inner
     }
@@ -92,7 +86,7 @@ impl<'a> EndEntityCert<'a> {
     pub fn verify_is_valid_tls_server_cert(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
-        &TLSServerTrustAnchors(trust_anchors): &TLSServerTrustAnchors,
+        &TlsServerTrustAnchors(trust_anchors): &TlsServerTrustAnchors,
         intermediate_certs: &[&[u8]],
         time: Time,
     ) -> Result<(), Error> {
@@ -124,7 +118,7 @@ impl<'a> EndEntityCert<'a> {
     pub fn verify_is_valid_tls_client_cert(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
-        &TLSClientTrustAnchors(trust_anchors): &TLSClientTrustAnchors,
+        &TlsClientTrustAnchors(trust_anchors): &TlsClientTrustAnchors,
         intermediate_certs: &[&[u8]],
         time: Time,
     ) -> Result<(), Error> {

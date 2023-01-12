@@ -41,7 +41,7 @@ pub fn netflix() {
     let ca = include_bytes!("netflix/ca.der");
 
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     let time = webpki::Time::from_seconds_since_unix_epoch(1492441716);
@@ -62,7 +62,7 @@ pub fn cloudflare_dns() {
     let ca = include_bytes!("cloudflare_dns/ca.der");
 
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     #[allow(clippy::unreadable_literal)]
     let time = webpki::Time::from_seconds_since_unix_epoch(1663495771);
@@ -111,7 +111,7 @@ pub fn wpt() {
     let ca = include_bytes!("wpt/ca.der");
 
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     let time = webpki::Time::from_seconds_since_unix_epoch(1619256684);
@@ -129,7 +129,7 @@ pub fn ed25519() {
     let ca = include_bytes!("ed25519/ca.der");
 
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     let time = webpki::Time::from_seconds_since_unix_epoch(1547363522);
@@ -149,7 +149,7 @@ fn critical_extensions() {
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_670_779_098);
     let anchors = [webpki::TrustAnchor::try_from_cert_der(root).unwrap()];
-    let anchors = webpki::TLSServerTrustAnchors(&anchors);
+    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     let ee = include_bytes!("critical_extensions/ee-cert-noncrit-unknown-ext.der");
     let res = webpki::EndEntityCert::try_from(&ee[..])
