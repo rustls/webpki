@@ -122,6 +122,7 @@ jobs:
           # MSRV: Rust 1.47 and later have bugs in rustc that prevent some
           # projects from upgrading past 1.46 yet. So, maintain compatibility
           # for 1.46 until those bugs are fixed.
+          # Make sure to update rust-version in Cargo.toml when updating MSRV.
           - 1.46.0
 
           - beta
