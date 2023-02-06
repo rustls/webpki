@@ -184,3 +184,9 @@ fn read_root_with_neg_serial() {
 fn time_constructor() {
     let _ = webpki::Time::try_from(std::time::SystemTime::now()).unwrap();
 }
+
+#[test]
+fn any_policy() {
+    let ca = include_bytes!("certificate_policies/any-policy.der");
+    webpki::TrustAnchor::try_from_cert_der(ca).expect("Any policy should be parsed");
+}

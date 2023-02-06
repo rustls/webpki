@@ -199,6 +199,9 @@ fn remember_extension<'a>(
         // id-ce-nameConstraints 2.5.29.30
         30 => &mut cert.name_constraints,
 
+        // id-ce-certificatePolicies 2.5.29.32
+        32 => return understood_if_any_policy(value),
+
         // id-ce-extKeyUsage 2.5.29.37
         37 => &mut cert.eku,
 
@@ -223,4 +226,29 @@ fn remember_extension<'a>(
     }
 
     Ok(Understood::Yes)
+}
+
+fn understood_if_any_policy(value: untrusted::Input<'_>) -> Result<Understood, Error> {
+    // Minimal implementation of certificate policies that understands
+    // certificate policy only if it contains anyPolicy.
+    value.read_all(Error::BadDer, |value| {
+        der::nested(value, der::Tag::Sequence, Error::BadDer, |value| {
+            let mut understood = Understood::No;
+            while !value.at_end() {
+                let found_any_policy =
+                    der::nested(value, der::Tag::Sequence, Error::BadDer, |value| {
+                        let oid = der::expect_tag_and_get_value(value, der::Tag::OID)?;
+                        if !value.at_end() {
+                            der::expect_tag_and_get_value(value, der::Tag::Sequence)?;
+                        }
+                        // anyPolicy 2.5.29.32.0
+                        Ok(oid.as_slice_less_safe() == oid![2, 5, 29, 32, 0])
+                    })?;
+                if found_any_policy {
+                    understood = Understood::Yes;
+                }
+            }
+            Ok(understood)
+        })
+    })
 }
