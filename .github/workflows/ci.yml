@@ -9,27 +9,25 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
           components: rustfmt
-      - uses: actions/checkout@v2
+
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
       - run: cargo fmt --all -- --check
 
   clippy:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
           components: clippy
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
 
@@ -39,12 +37,9 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+      - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/cargo-deny
@@ -54,7 +49,7 @@ jobs:
 
       - run: cargo install cargo-deny --locked --vers "0.8.5"
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
 
@@ -72,12 +67,11 @@ jobs:
           - nightly
 
     steps:
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
-          override: true
           toolchain: ${{ matrix.rust_channel }}
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
 
@@ -88,12 +82,9 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+      - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
 
@@ -195,13 +186,12 @@ jobs:
             host_os: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
-          override: true
           toolchain: ${{ matrix.rust_channel }}
 
       - run: |
@@ -210,21 +200,19 @@ jobs:
   coverage:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           persist-credentials: false
 
       - run: cargo install cargo-llvm-cov
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          override: true
-          toolchain: nightly
           components: llvm-tools
 
       - run: cargo llvm-cov --all-features --lcov --output-path ./lcov.info
 
-      - uses: codecov/codecov-action@v1
+      - uses: codecov/codecov-action@v3
         with:
           files: ./lcov.info
           fail_ci_if_error: true
