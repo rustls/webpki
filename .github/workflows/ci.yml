@@ -39,15 +39,7 @@ jobs:
     steps:
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/cargo-deny
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-          key: ${{ runner.os }}-v2-cargo-deny-locked-0.8.5
-
-      - run: cargo install cargo-deny --locked --vers "0.8.5"
+      - uses: taiki-e/install-action@cargo-deny
 
       - uses: actions/checkout@v3
         with:
@@ -204,7 +196,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: cargo install cargo-llvm-cov
+      - uses: taiki-e/install-action@cargo-llvm-cov
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
