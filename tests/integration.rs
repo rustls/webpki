@@ -180,6 +180,7 @@ fn read_root_with_neg_serial() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn read_ee_with_neg_serial() {
     let ca: &[u8] = include_bytes!("misc/serial_neg_ca.der");
     let ee: &[u8] = include_bytes!("misc/serial_neg_ee.der");
