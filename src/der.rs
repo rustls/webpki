@@ -13,9 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{calendar, time, Error};
-pub(crate) use ring::io::{
-    der::{CONSTRUCTED, CONTEXT_SPECIFIC},
-};
+pub(crate) use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
 
 // Copied (and extended) from ring's src/der.rs
 #[allow(clippy::upper_case_acronyms)]
