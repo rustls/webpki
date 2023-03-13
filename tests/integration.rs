@@ -43,8 +43,8 @@ pub fn netflix() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
-    let time = webpki::Time::from_seconds_since_unix_epoch(1492441716);
+    #[allow(clippy::unreadable_literal)]
+    let time = webpki::Time::from_seconds_since_unix_epoch(1492441716); // 2017-04-17T15:08:36Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
@@ -113,8 +113,8 @@ pub fn wpt() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
-    let time = webpki::Time::from_seconds_since_unix_epoch(1619256684);
+    #[allow(clippy::unreadable_literal)]
+    let time = webpki::Time::from_seconds_since_unix_epoch(1619256684); // 2021-04-24T09:31:24Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
@@ -131,8 +131,8 @@ pub fn ed25519() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
-    let time = webpki::Time::from_seconds_since_unix_epoch(1547363522);
+    #[allow(clippy::unreadable_literal)]
+    let time = webpki::Time::from_seconds_since_unix_epoch(1547363522); // 2019-01-13T07:12:02Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
