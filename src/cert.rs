@@ -140,7 +140,11 @@ pub(crate) fn lenient_certificate_serial_number(input: &mut untrusted::Reader) -
     // * "The serial number MUST be a positive integer [...]"
     //
     // However, we don't enforce these constraints, as there are widely-deployed trust anchors
-    // and many X.509 implementations in common use that violate these constraints.
+    // and many X.509 implementations in common use that violate these constraints. This is called
+    // out by the same section of RFC 5280 as cited above:
+    //   Note: Non-conforming CAs may issue certificates with serial numbers
+    //   that are negative or zero.  Certificate users SHOULD be prepared to
+    //   gracefully handle such certificates.
     der::expect_tag_and_get_value(input, der::Tag::Integer).map(|_| ())
 }
 
