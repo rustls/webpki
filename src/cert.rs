@@ -12,6 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use crate::der::Tag;
 use crate::{der, signed_data, Error};
 
 pub enum EndEntityOrCa<'a> {
@@ -134,7 +135,9 @@ fn version3(input: &mut untrusted::Reader) -> Result<(), Error> {
     )
 }
 
-pub(crate) fn lenient_certificate_serial_number(input: &mut untrusted::Reader) -> Result<(), Error> {
+pub(crate) fn lenient_certificate_serial_number(
+    input: &mut untrusted::Reader,
+) -> Result<(), Error> {
     // https://tools.ietf.org/html/rfc5280#section-4.1.2.2:
     // * Conforming CAs MUST NOT use serialNumber values longer than 20 octets."
     // * "The serial number MUST be a positive integer [...]"
@@ -145,7 +148,11 @@ pub(crate) fn lenient_certificate_serial_number(input: &mut untrusted::Reader) -
     //   Note: Non-conforming CAs may issue certificates with serial numbers
     //   that are negative or zero.  Certificate users SHOULD be prepared to
     //   gracefully handle such certificates.
-    der::expect_tag_and_get_value(input, der::Tag::Integer).map(|_| ())
+    let value = der::expect_tag_and_get_value(input, Tag::Integer)?;
+    match value.len() <= 20 {
+        true => Ok(()),
+        false => Err(Error::BadDer),
+    }
 }
 
 enum Understood {
