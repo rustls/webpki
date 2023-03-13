@@ -66,7 +66,7 @@ not confusingly overlap with `webpki` versions.
 Changelog
 ---------
 
-* 0.100.0 (2023-01-xx) - first release of `rustls-webpki` crate.
+* 0.100.0 (2023-03-13) - first release of `rustls-webpki` crate.
   - Allow verification of certificates with IP address subjectAltNames.
     `EndEntityCert::verify_is_valid_for_subject_name` was added, and
     `EndEntityCert::verify_is_valid_for_dns_name` was removed.
@@ -75,6 +75,8 @@ Changelog
   - Name constraints of type dNSName and iPAddress now work and are tested.
     directoryName name constraints are not implemented and will prevent
     path building where they appear.
+  - Relax requirement that serial numbers are positive to deal with issuers
+    that cannot generate correct ASN.1 but nevertheless persist in doing so.
 * 0.22.0 (2021-04-10) - last upstream release of `webpki` crate.
 
 
