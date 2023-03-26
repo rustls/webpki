@@ -198,6 +198,14 @@ fn read_ee_with_neg_serial() {
     );
 }
 
+#[test]
+#[cfg(feature = "alloc")]
+fn read_ee_with_large_pos_serial() {
+    let ee: &[u8] = include_bytes!("misc/serial_large_positive.der");
+
+    webpki::EndEntityCert::try_from(ee).expect("should parse 20-octet positive serial number");
+}
+
 #[cfg(feature = "std")]
 #[test]
 fn time_constructor() {
