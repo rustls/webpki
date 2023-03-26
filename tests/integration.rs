@@ -43,8 +43,7 @@ pub fn netflix() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)]
-    let time = webpki::Time::from_seconds_since_unix_epoch(1492441716); // 2017-04-17T15:08:36Z
+    let time = webpki::Time::from_seconds_since_unix_epoch(1_492_441_716); // 2017-04-17T15:08:36Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
@@ -64,8 +63,7 @@ pub fn cloudflare_dns() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)]
-    let time = webpki::Time::from_seconds_since_unix_epoch(1663495771);
+    let time = webpki::Time::from_seconds_since_unix_epoch(1_663_495_771);
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
@@ -113,8 +111,7 @@ pub fn wpt() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)]
-    let time = webpki::Time::from_seconds_since_unix_epoch(1619256684); // 2021-04-24T09:31:24Z
+    let time = webpki::Time::from_seconds_since_unix_epoch(1_619_256_684); // 2021-04-24T09:31:24Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
@@ -131,8 +128,7 @@ pub fn ed25519() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)]
-    let time = webpki::Time::from_seconds_since_unix_epoch(1547363522); // 2019-01-13T07:12:02Z
+    let time = webpki::Time::from_seconds_since_unix_epoch(1_547_363_522); // 2019-01-13T07:12:02Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
@@ -188,8 +184,7 @@ fn read_ee_with_neg_serial() {
     let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
-    //#[allow(clippy::unreadable_literal)]
-    let time = webpki::Time::from_seconds_since_unix_epoch(1667401500); // 2022-11-02T15:05:00Z
+    let time = webpki::Time::from_seconds_since_unix_epoch(1_667_401_500); // 2022-11-02T15:05:00Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
