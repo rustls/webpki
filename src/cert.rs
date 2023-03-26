@@ -148,11 +148,8 @@ pub(crate) fn lenient_certificate_serial_number(
     //   Note: Non-conforming CAs may issue certificates with serial numbers
     //   that are negative or zero.  Certificate users SHOULD be prepared to
     //   gracefully handle such certificates.
-    let value = der::expect_tag_and_get_value(input, Tag::Integer)?;
-    match value.len() <= 20 {
-        true => Ok(()),
-        false => Err(Error::BadDer),
-    }
+    der::expect_tag_and_get_value(input, Tag::Integer)?;
+    Ok(())
 }
 
 enum Understood {
