@@ -145,7 +145,6 @@ def name_constraints_test(test_name,
 
     print("""
 #[test]
-#[cfg(feature = "alloc")]
 fn %(test_name)s() {
     let ee = include_bytes!("name_constraints/%(test_name)s.ee.der");
     let ca = include_bytes!("name_constraints/%(test_name)s.ca.der");

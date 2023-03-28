@@ -12,7 +12,9 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::{convert::TryInto, fmt::Write};
+use core::convert::TryInto;
+#[cfg(feature = "std")]
+use core::fmt::Write;
 
 use crate::Error;
 
