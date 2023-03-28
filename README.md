@@ -41,8 +41,7 @@ and it maintains a tight bound on the amount of stack memory it uses. webpki
 avoids all superfluous PKIX features in order to keep its object code size
 small. Further reducing the code size of webpki is an important goal.
 
-This release is the very first prototype. Lots of improvements are planned,
-including:
+Lots of improvements are planned, including:
 
 * An extensive automated test suite.
 * Key pinning.
