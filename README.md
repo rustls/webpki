@@ -66,6 +66,8 @@ not confusingly overlap with `webpki` versions.
 Changelog
 ---------
 
+* 0.100.1 (2023-03-28)
+  - Relax constraint on serial number length.
 * 0.100.0 (2023-03-13) - first release of `rustls-webpki` crate.
   - Allow verification of certificates with IP address subjectAltNames.
     `EndEntityCert::verify_is_valid_for_subject_name` was added, and
