@@ -32,3 +32,18 @@ impl<'a> Extension<'a> {
         })
     }
 }
+
+pub(crate) fn set_extension_once<T>(
+    destination: &mut Option<T>,
+    parser: impl Fn() -> Result<T, Error>,
+) -> Result<(), Error> {
+    match destination {
+        // The extension value has already been set, indicating that we encountered it
+        // more than once in our serialized data. That's invalid!
+        Some(..) => Err(Error::ExtensionValueInvalid),
+        None => {
+            *destination = Some(parser()?);
+            Ok(())
+        }
+    }
+}
