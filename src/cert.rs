@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
-use crate::x509::Extension;
+use crate::x509::{set_extension_once, Extension};
 use crate::{der, signed_data, Error};
 
 pub enum EndEntityOrCa<'a> {
@@ -100,16 +100,7 @@ pub(crate) fn parse_cert<'a>(
                         der::Tag::Sequence,
                         der::Tag::Sequence,
                         Error::BadDer,
-                        |extension| {
-                            let extension = Extension::parse(extension)?;
-                            let critical = extension.critical;
-                            match remember_extension(&mut cert, &extension)? {
-                                Understood::No if critical => {
-                                    Err(Error::UnsupportedCriticalExtension)
-                                }
-                                _ => Ok(()),
-                            }
-                        },
+                        |extension| remember_extension(&mut cert, &Extension::parse(extension)?),
                     )
                 },
             )?;
@@ -153,15 +144,7 @@ pub(crate) fn lenient_certificate_serial_number<'a>(
     der::expect_tag_and_get_value(input, Tag::Integer)
 }
 
-enum Understood {
-    Yes,
-    No,
-}
-
-fn remember_extension<'a>(
-    cert: &mut Cert<'a>,
-    extension: &Extension<'a>,
-) -> Result<Understood, Error> {
+fn remember_extension<'a>(cert: &mut Cert<'a>, extension: &Extension<'a>) -> Result<(), Error> {
     // We don't do anything with certificate policies so we can safely ignore
     // all policy-related stuff. We assume that the policy-related extensions
     // are not marked critical.
@@ -172,7 +155,11 @@ fn remember_extension<'a>(
     if extension.id.len() != ID_CE.len() + 1
         || !extension.id.as_slice_less_safe().starts_with(&ID_CE)
     {
-        return Ok(Understood::No);
+        return if extension.critical {
+            Err(Error::UnsupportedCriticalExtension)
+        } else {
+            Ok(())
+        };
     }
 
     let out = match *extension.id.as_slice_less_safe().last().unwrap() {
@@ -182,7 +169,7 @@ fn remember_extension<'a>(
         // though it would be kind of nice to ensure that a KeyUsage without
         // the keyEncipherment bit could not be used for RSA key exchange.
         15 => {
-            return Ok(Understood::Yes);
+            return Ok(());
         }
 
         // id-ce-subjectAltName 2.5.29.17
@@ -197,27 +184,20 @@ fn remember_extension<'a>(
         // id-ce-extKeyUsage 2.5.29.37
         37 => &mut cert.eku,
 
-        _ => {
-            return Ok(Understood::No);
+        // Unsupported critical extension
+        _ if extension.critical => {
+            return Err(Error::UnsupportedCriticalExtension);
         }
+
+        // Unsupported non-critical extension
+        _ => return Ok(()),
     };
 
-    match *out {
-        Some(..) => {
-            // The certificate contains more than one instance of this
-            // extension.
-            return Err(Error::ExtensionValueInvalid);
-        }
-        None => {
-            // All the extensions that we care about are wrapped in a SEQUENCE.
-            let sequence_value = extension.value.read_all(Error::BadDer, |value| {
-                der::expect_tag_and_get_value(value, der::Tag::Sequence)
-            })?;
-            *out = Some(sequence_value);
-        }
-    }
-
-    Ok(Understood::Yes)
+    set_extension_once(out, || {
+        extension.value.read_all(Error::BadDer, |value| {
+            der::expect_tag_and_get_value(value, der::Tag::Sequence)
+        })
+    })
 }
 
 #[cfg(test)]
