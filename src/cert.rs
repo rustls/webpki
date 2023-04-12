@@ -13,6 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
+use crate::x509::Extension;
 use crate::{der, signed_data, Error};
 
 pub enum EndEntityOrCa<'a> {
@@ -100,11 +101,9 @@ pub(crate) fn parse_cert<'a>(
                         der::Tag::Sequence,
                         Error::BadDer,
                         |extension| {
-                            let extn_id = der::expect_tag_and_get_value(extension, der::Tag::OID)?;
-                            let critical = der::optional_boolean(extension)?;
-                            let extn_value =
-                                der::expect_tag_and_get_value(extension, der::Tag::OctetString)?;
-                            match remember_extension(&mut cert, extn_id, extn_value)? {
+                            let extension = Extension::parse(extension)?;
+                            let critical = extension.critical;
+                            match remember_extension(&mut cert, &extension)? {
                                 Understood::No if critical => {
                                     Err(Error::UnsupportedCriticalExtension)
                                 }
@@ -161,8 +160,7 @@ enum Understood {
 
 fn remember_extension<'a>(
     cert: &mut Cert<'a>,
-    extn_id: untrusted::Input,
-    value: untrusted::Input<'a>,
+    extension: &Extension<'a>,
 ) -> Result<Understood, Error> {
     // We don't do anything with certificate policies so we can safely ignore
     // all policy-related stuff. We assume that the policy-related extensions
@@ -171,11 +169,13 @@ fn remember_extension<'a>(
     // id-ce 2.5.29
     static ID_CE: [u8; 2] = oid![2, 5, 29];
 
-    if extn_id.len() != ID_CE.len() + 1 || !extn_id.as_slice_less_safe().starts_with(&ID_CE) {
+    if extension.id.len() != ID_CE.len() + 1
+        || !extension.id.as_slice_less_safe().starts_with(&ID_CE)
+    {
         return Ok(Understood::No);
     }
 
-    let out = match *extn_id.as_slice_less_safe().last().unwrap() {
+    let out = match *extension.id.as_slice_less_safe().last().unwrap() {
         // id-ce-keyUsage 2.5.29.15. We ignore the KeyUsage extension. For CA
         // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
         // and other common browsers do not check KeyUsage for end-entities,
@@ -210,7 +210,7 @@ fn remember_extension<'a>(
         }
         None => {
             // All the extensions that we care about are wrapped in a SEQUENCE.
-            let sequence_value = value.read_all(Error::BadDer, |value| {
+            let sequence_value = extension.value.read_all(Error::BadDer, |value| {
                 der::expect_tag_and_get_value(value, der::Tag::Sequence)
             })?;
             *out = Some(sequence_value);

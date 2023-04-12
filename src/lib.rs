@@ -45,6 +45,7 @@ mod time;
 mod trust_anchor;
 
 mod verify_cert;
+mod x509;
 
 pub use {
     end_entity::EndEntityCert,
