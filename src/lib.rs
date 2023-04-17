@@ -44,10 +44,12 @@ mod subject_name;
 mod time;
 mod trust_anchor;
 
+mod crl;
 mod verify_cert;
 mod x509;
 
 pub use {
+    crl::CertRevocationList,
     end_entity::EndEntityCert,
     error::Error,
     signed_data::{
