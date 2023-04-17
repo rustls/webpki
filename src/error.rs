@@ -59,6 +59,12 @@ pub enum Error {
     /// - it was too long or short
     InvalidNetworkMaskConstraint,
 
+    /// A serial number was invalid:
+    ///  - it was misencoded
+    ///  - it was negative
+    ///  - it was too long
+    InvalidSerialNumber,
+
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
 
@@ -113,6 +119,12 @@ pub enum Error {
 
     /// The CRL is an unsupported "delta" CRL.
     UnsupportedDeltaCrl,
+
+    /// The CRL contains unsupported "indirect" entries.
+    UnsupportedIndirectCrl,
+
+    /// The revocation reason is not in the set of supported revocation reasons.
+    UnsupportedRevocationReason,
 
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
