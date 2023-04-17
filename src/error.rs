@@ -97,6 +97,14 @@ pub enum Error {
     /// The certificate contains an unsupported critical extension.
     UnsupportedCriticalExtension,
 
+    /// The CRL is not a v2 X.509 CRL.
+    ///
+    /// The RFC 5280 web PKI profile mandates only version 2 be used. See section
+    /// 5.1.2.1 for more information.
+    ///
+    /// This error may also be reported if the CRL version field is malformed.
+    UnsupportedCrlVersion,
+
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
     UnsupportedSignatureAlgorithm,
