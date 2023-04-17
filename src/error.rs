@@ -48,6 +48,12 @@ pub enum Error {
     /// the notAfter time is earlier than the notBefore time.
     InvalidCertValidity,
 
+    /// A CRL number extension was invalid:
+    ///  - it was mis-encoded
+    ///  - it was negative
+    ///  - it was too long
+    InvalidCrlNumber,
+
     /// A iPAddress name constraint was invalid:
     /// - it had a sparse network mask (ie, cannot be written in CIDR form).
     /// - it was too long or short
@@ -104,6 +110,9 @@ pub enum Error {
     ///
     /// This error may also be reported if the CRL version field is malformed.
     UnsupportedCrlVersion,
+
+    /// The CRL is an unsupported "delta" CRL.
+    UnsupportedDeltaCrl,
 
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
