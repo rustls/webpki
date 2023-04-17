@@ -49,7 +49,7 @@ mod verify_cert;
 mod x509;
 
 pub use {
-    crl::CertRevocationList,
+    crl::{CertRevocationList, RevocationReason, RevokedCert},
     end_entity::EndEntityCert,
     error::Error,
     signed_data::{

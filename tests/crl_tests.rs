@@ -1,6 +1,8 @@
 use std::convert::TryFrom;
 use webpki::{CertRevocationList, Error};
 
+const REVOKED_SERIAL: &[u8] = &[0x03, 0xAE, 0x51, 0xDB, 0x51, 0x15, 0x5A, 0x3C];
+
 #[test]
 fn parse_valid_crl() {
     // We should be able to parse a valid CRL without error.
@@ -18,13 +20,19 @@ fn parse_valid_crl() {
     ];
     let aki = crl.authority_key_identifier.expect("missing AKI");
     assert_eq!(aki.as_slice_less_safe(), expected_aki);
+
+    // We should find the expected revoked certificate with the expected serial number.
+    assert!(crl.find_serial(REVOKED_SERIAL).is_some())
 }
 
 #[test]
 fn parse_empty_crl() {
     // We should be able to parse an empty CRL without error.
     let crl = include_bytes!("crls/crl.empty.der");
-    let _ = CertRevocationList::try_from(&crl[..]).expect("failed to parse empty crl");
+    let crl = CertRevocationList::try_from(&crl[..]).expect("failed to parse empty crl");
+
+    // We should find no revoked certificates.
+    assert!(crl.into_iter().next().is_none());
 }
 
 #[test]
@@ -81,4 +89,29 @@ fn parse_unknown_crit_ext_crl() {
     let crl = include_bytes!("crls/crl.unknown.crit.ext.der");
     let res = CertRevocationList::try_from(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedCriticalExtension)));
+}
+
+#[test]
+fn parse_negative_crl_number_crl() {
+    // Parsing a CRL with a negative CRL number should error.
+    let crl = include_bytes!("crls/crl.negative.crl.number.der");
+    let res = CertRevocationList::try_from(&crl[..]);
+    assert!(matches!(res, Err(Error::InvalidCrlNumber)));
+}
+
+#[test]
+fn parse_entry_negative_serial_crl() {
+    // Parsing a CRL that includes a revoked entry with a negative serial number should error.
+    let crl = include_bytes!("crls/crl.negative.serial.der");
+    let res = CertRevocationList::try_from(&crl[..]);
+    assert!(matches!(res, Err(Error::InvalidSerialNumber)));
+}
+
+#[test]
+fn parse_entry_without_exts_crl() {
+    // Parsing a CRL that includes a revoked entry that has no extensions shouldn't error.
+    let crl = include_bytes!("crls/crl.no.entry.exts.der");
+    let crl = CertRevocationList::try_from(&crl[..]).expect("unexpected error parsing crl");
+    // We should find the expected revoked certificate with the expected serial number.
+    assert!(crl.find_serial(REVOKED_SERIAL).is_some());
 }
