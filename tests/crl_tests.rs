@@ -115,3 +115,50 @@ fn parse_entry_without_exts_crl() {
     // We should find the expected revoked certificate with the expected serial number.
     assert!(crl.find_serial(REVOKED_SERIAL).is_some());
 }
+
+#[test]
+fn parse_entry_with_empty_exts_seq() {
+    let crl = include_bytes!("crls/crl.entry.empty.ext.seq.der");
+    let res = CertRevocationList::try_from(&crl[..]);
+
+    assert!(res.is_ok());
+}
+
+#[test]
+fn parse_entry_unknown_crit_ext_crl() {
+    // Parsing a CRL that includes a revoked entry that has an unknown critical extension should error.
+    let crl = include_bytes!("crls/crl.entry.unknown.crit.ext.der");
+    let res = CertRevocationList::try_from(&crl[..]);
+    assert!(matches!(res, Err(Error::UnsupportedCriticalExtension)));
+}
+
+#[test]
+fn parse_entry_invalid_reason_crl() {
+    // Parsing a CRL that includes a revoked entry that has an unknown revocation reason should error.
+    let crl = include_bytes!("crls/crl.entry.invalid.reason.der");
+    let res = CertRevocationList::try_from(&crl[..]);
+    assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
+}
+
+#[test]
+fn parse_entry_invalidity_date_crl() {
+    // Parsing a CRL that includes a revoked entry that has an invalidity date ext shouldn't error.
+    let crl = include_bytes!("crls/crl.entry.invalidity.date.der");
+    let crl = CertRevocationList::try_from(&crl[..]).expect("unexpected err parsing CRL");
+
+    // We should find the expected revoked cert, and it should have a parsed invalidity date.
+    assert!(crl
+        .find_serial(REVOKED_SERIAL)
+        .unwrap()
+        .invalidity_date
+        .is_some());
+}
+
+#[test]
+fn parse_entry_indirect_issuer_crl() {
+    // Parsing a CRL that includes a revoked entry that has a issuer certificate extension
+    // should error because this indicates the CRL is an "indirect" CRL that we do not support.
+    let crl = include_bytes!("crls/crl.entry.issuer.ext.der");
+    let res = CertRevocationList::try_from(&crl[..]);
+    assert!(matches!(res, Err(Error::UnsupportedIndirectCrl)));
+}
