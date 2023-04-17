@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::convert::TryFrom;
+use core::convert::{TryFrom, TryInto};
 
 use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
@@ -338,22 +338,145 @@ fn parse_revoked_cert<'a>(der: &mut untrusted::Reader<'a>) -> Result<RevokedCert
 
         let revocation_date = der::time_choice(der)?;
 
+        let mut revoked_cert = RevokedCert {
+            serial_number,
+            revocation_date,
+            reason_code: None,
+            invalidity_date: None,
+        };
+
         // RFC 5280 §5.3:
         //   Support for the CRL entry extensions defined in this specification is
         //   optional for conforming CRL issuers and applications.  However, CRL
         //   issuers SHOULD include reason codes (Section 5.3.1) and invalidity
         //   dates (Section 5.3.2) whenever this information is available.
-        if !der.at_end() {
-            // Consume extension bytes without parsing.
-            // TODO(@cpu): Parse these extensions.
-            let _ = der.read_bytes_to_end();
+        if der.at_end() {
+            return Ok(revoked_cert);
         }
 
-        Ok(RevokedCert {
-            serial_number,
-            revocation_date,
-            reason_code: None,
-            invalidity_date: None,
+        // It would be convenient to use der::nested_of_mut here to unpack a SEQUENCE of one or
+        // more SEQUENCEs, however CAs have been mis-encoding the absence of extensions as an
+        // empty SEQUENCE so we must be tolerant of that.
+        let ext_seq = der::expect_tag_and_get_value(der, Tag::Sequence)?;
+        if ext_seq.is_empty() {
+            return Ok(revoked_cert);
+        }
+
+        let mut reader = untrusted::Reader::new(ext_seq);
+        loop {
+            der::nested(&mut reader, Tag::Sequence, Error::BadDer, |ext_der| {
+                // RFC 5280 §5.3:
+                //   If a CRL contains a critical CRL entry extension that the application cannot
+                //   process, then the application MUST NOT use that CRL to determine the
+                //   status of any certificates.  However, applications may ignore
+                //   unrecognized non-critical CRL entry extensions.
+                remember_revoked_cert_extension(&mut revoked_cert, &Extension::parse(ext_der)?)
+            })?;
+            if reader.at_end() {
+                break;
+            }
+        }
+
+        Ok(revoked_cert)
+    })
+}
+
+fn remember_revoked_cert_extension<'a>(
+    revoked_cert: &mut RevokedCert<'a>,
+    extension: &Extension<'a>,
+) -> Result<(), Error> {
+    remember_extension(extension, |id| {
+        match id {
+            // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
+            21 => set_extension_once(&mut revoked_cert.reason_code, || {
+                revocation_reason(extension.value)?.try_into()
+            }),
+
+            // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
+            24 => set_extension_once(&mut revoked_cert.invalidity_date, || {
+                extension.value.read_all(Error::BadDer, der::time_choice)
+            }),
+
+            // id-ce-certificateIssuer 2.5.29.29 - RFC 5280 §5.3.3.
+            //   This CRL entry extension identifies the certificate issuer associated
+            //   with an entry in an indirect CRL, that is, a CRL that has the
+            //   indirectCRL indicator set in its issuing distribution point
+            //   extension.
+            // We choose not to support indirect CRLs and so turn this into a more specific
+            // error rather than simply letting it fail as an unsupported critical extension.
+            29 => Err(Error::UnsupportedIndirectCrl),
+
+            // Unsupported extension
+            _ => extension.unsupported(),
+        }
+    })
+}
+
+impl TryFrom<u8> for RevocationReason {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        // See https://www.rfc-editor.org/rfc/rfc5280#section-5.3.1
+        match value {
+            0 => Ok(RevocationReason::Unspecified),
+            1 => Ok(RevocationReason::KeyCompromise),
+            2 => Ok(RevocationReason::CaCompromise),
+            3 => Ok(RevocationReason::AffiliationChanged),
+            4 => Ok(RevocationReason::Superseded),
+            5 => Ok(RevocationReason::CessationOfOperation),
+            6 => Ok(RevocationReason::CertificateHold),
+            // 7 is not used.
+            8 => Ok(RevocationReason::RemoveFromCrl),
+            9 => Ok(RevocationReason::PrivilegeWithdrawn),
+            10 => Ok(RevocationReason::AaCompromise),
+            _ => Err(Error::UnsupportedRevocationReason),
+        }
+    }
+}
+
+// RFC 5280 §5.3.1.
+fn revocation_reason(value: untrusted::Input) -> Result<u8, Error> {
+    value.read_all(Error::BadDer, |enumerated_reason| {
+        let value = der::expect_tag(enumerated_reason, Tag::Enum)?;
+        value.value().read_all(Error::BadDer, |reason| {
+            reason.read_byte().map_err(|_| Error::BadDer)
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+    use core::convert::TryInto;
+
+    use crate::{Error, RevocationReason};
+
+    #[test]
+    fn revocation_reasons() {
+        // Test that we can convert the allowed u8 revocation reason code values into the expected
+        // revocation reason variant.
+        let testcases: Vec<(u8, RevocationReason)> = vec![
+            (0, RevocationReason::Unspecified),
+            (1, RevocationReason::KeyCompromise),
+            (2, RevocationReason::CaCompromise),
+            (3, RevocationReason::AffiliationChanged),
+            (4, RevocationReason::Superseded),
+            (5, RevocationReason::CessationOfOperation),
+            (6, RevocationReason::CertificateHold),
+            // Note: 7 is unused.
+            (8, RevocationReason::RemoveFromCrl),
+            (9, RevocationReason::PrivilegeWithdrawn),
+            (10, RevocationReason::AaCompromise),
+        ];
+        for tc in testcases.iter() {
+            let (id, expected) = tc;
+            let actual = <u8 as TryInto<RevocationReason>>::try_into(*id)
+                .expect("unexpected reason code conversion error");
+            assert_eq!(actual, *expected);
+        }
+
+        // Unsupported/unknown revocation reason codes should produce an error.
+        let res = <u8 as TryInto<RevocationReason>>::try_into(7);
+        assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
+    }
 }

@@ -25,6 +25,7 @@ pub(crate) enum Tag {
     BitString = 0x03,
     OctetString = 0x04,
     OID = 0x06,
+    Enum = 0x0A,
     UTF8String = 0x0C,
     Sequence = CONSTRUCTED | 0x10, // 0x30
     Set = CONSTRUCTED | 0x11,      // 0x31
