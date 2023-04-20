@@ -41,6 +41,7 @@ fn test_dns_name_traits() {
     let a_ref = DnsNameRef::try_from_ascii(b"example.com").unwrap();
 
     // `From<DnsNameRef>`
+    // TODO(XXX): Remove when deprecated From<DnsNameRef> for DnsName trait is removed.
     let a: DnsName = DnsName::from(a_ref);
 
     // `Clone`, `Debug`, `PartialEq`.
@@ -52,16 +53,22 @@ fn test_dns_name_traits() {
     // PartialEq is case-insensitive
     assert_eq!(
         a,
-        DnsName::from(DnsNameRef::try_from_ascii(b"Example.Com").unwrap())
+        DnsNameRef::try_from_ascii(b"Example.Com")
+            .unwrap()
+            .to_owned()
     );
 
     // PartialEq isn't completely wrong.
     assert_ne!(
         a,
-        DnsName::from(DnsNameRef::try_from_ascii(b"fxample.com").unwrap())
+        DnsNameRef::try_from_ascii(b"fxample.com")
+            .unwrap()
+            .to_owned()
     );
     assert_ne!(
         a,
-        DnsName::from(DnsNameRef::try_from_ascii(b"example.co").unwrap())
+        DnsNameRef::try_from_ascii(b"example.co")
+            .unwrap()
+            .to_owned()
     );
 }
