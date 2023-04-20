@@ -25,7 +25,7 @@ pub struct Time(u64);
 impl Time {
     /// Deprecated. Use `TryFrom::try_from`.
     #[cfg(feature = "std")]
-    // Soft deprecation. #[deprecated(note = "Use TryFrom::try_from")]
+    #[deprecated(note = "Use TryFrom::try_from")]
     pub fn try_from(time: std::time::SystemTime) -> Result<Self, ring::error::Unspecified> {
         core::convert::TryFrom::try_from(time)
     }
