@@ -52,9 +52,12 @@ impl AsRef<str> for DnsName {
 }
 
 /// Requires the `alloc` feature.
-// Deprecated
+/// Deprecated.
 #[cfg(feature = "alloc")]
 impl From<DnsNameRef<'_>> for DnsName {
+    // TODO(XXX): Remove this trait impl in the next release. We can't mark it as
+    //            hard deprecated as this isn't supported and produces a
+    //            'useless_deprecated' warning.
     fn from(dns_name: DnsNameRef) -> Self {
         dns_name.to_owned()
     }
