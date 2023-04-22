@@ -68,5 +68,5 @@ pub use {
         RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     },
-    subject_name::{DnsName, IpAddr},
+    subject_name::{DnsName, GeneralDnsNameRef, IpAddr},
 };
