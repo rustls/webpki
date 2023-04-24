@@ -287,21 +287,6 @@ pub(crate) static EKU_OCSP_SIGNING: KeyPurposeId = KeyPurposeId {
 };
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-//
-// Notable Differences from RFC 5280:
-//
-// * We follow the convention established by Microsoft's implementation and
-//   mozilla::pkix of treating the EKU extension in a CA certificate as a
-//   restriction on the allowable EKUs for certificates issued by that CA. RFC
-//   5280 doesn't prescribe any meaning to the EKU extension when a certificate
-//   is being used as a CA certificate.
-//
-// * We do not recognize anyExtendedKeyUsage. NSS and mozilla::pkix do not
-//   recognize it either.
-//
-// * We treat id-Netscape-stepUp as being equivalent to id-kp-serverAuth in CA
-//   certificates (only). Comodo has issued certificates that require this
-//   behavior that don't expire until June 2020. See https://bugzilla.mozilla.org/show_bug.cgi?id=982292.
 fn check_eku(
     input: Option<&mut untrusted::Reader>,
     required_eku_if_present: KeyPurposeId,
