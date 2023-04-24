@@ -106,9 +106,6 @@ impl<'a> EndEntityCert<'a> {
     /// Verifies that the end-entity certificate is valid for use by a TLS
     /// client.
     ///
-    /// If the certificate is not valid for any of the given names then this
-    /// fails with `Error::CertNotValidForName`.
-    ///
     /// `supported_sig_algs` is the list of signature algorithms that are
     /// trusted for use in certificate signatures; the end-entity certificate's
     /// public key is not validated against this list. `trust_anchors` is the
