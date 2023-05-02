@@ -101,6 +101,14 @@ pub enum Error {
     /// - it had a sparse network mask (ie, cannot be written in CIDR form).
     /// - it was too long or short
     InvalidNetworkMaskConstraint,
+
+    /// A presented or reference DNS identifier was malformed, potentially
+    /// containing invalid characters or invalid labels.
+    MalformedDnsIdentifier,
+
+    /// A name constraint was malformed, potentially containing invalid characters or
+    /// invalid labels.
+    MalformedNameConstraint,
 }
 
 impl fmt::Display for Error {

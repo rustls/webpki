@@ -41,9 +41,9 @@ pub(crate) fn verify_cert_dns_name(
         &mut |name| {
             if let GeneralName::DnsName(presented_id) = name {
                 match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-                    Some(true) => return NameIteration::Stop(Ok(())),
-                    Some(false) => (),
-                    None => return NameIteration::Stop(Err(Error::BadDer)),
+                    Ok(true) => return NameIteration::Stop(Ok(())),
+                    Ok(false) => (),
+                    Err(e) => return NameIteration::Stop(Err(e)),
                 }
             }
             NameIteration::KeepGoing
@@ -208,7 +208,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
 
         let matches = match (name, base) {
             (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
-                dns_name::presented_id_matches_constraint(name, base).ok_or(Error::BadDer)
+                dns_name::presented_id_matches_constraint(name, base)
             }
 
             (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => Ok(
