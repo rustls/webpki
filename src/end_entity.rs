@@ -100,7 +100,6 @@ impl<'a> EndEntityCert<'a> {
             },
             &self.inner,
             time,
-            0,
         )
     }
 
@@ -131,7 +130,6 @@ impl<'a> EndEntityCert<'a> {
             },
             &self.inner,
             time,
-            0,
         )
     }
 

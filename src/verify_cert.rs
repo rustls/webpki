@@ -24,7 +24,11 @@ pub(crate) struct ChainOptions<'a> {
     pub(crate) intermediate_certs: &'a [&'a [u8]],
 }
 
-pub(crate) fn build_chain(
+pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) -> Result<(), Error> {
+    build_chain_inner(opts, cert, time, 0)
+}
+
+fn build_chain_inner(
     opts: &ChainOptions,
     cert: &Cert,
     time: time::Time,
@@ -128,7 +132,7 @@ pub(crate) fn build_chain(
             UsedAsCa::Yes => sub_ca_count + 1,
         };
 
-        build_chain(opts, &potential_issuer, time, next_sub_ca_count)
+        build_chain_inner(opts, &potential_issuer, time, next_sub_ca_count)
     })
 }
 
