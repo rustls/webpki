@@ -208,14 +208,33 @@ impl CertNotRevoked {
 }
 
 fn check_crl(
-    _supported_sig_algs: &[&SignatureAlgorithm],
+    supported_sig_algs: &[&SignatureAlgorithm],
     cert: &Cert,
-    _issuer_subject: untrusted::Input,
-    _issuer_spki: untrusted::Input,
+    issuer_subject: untrusted::Input,
+    issuer_spki: untrusted::Input,
     crl_provider: &dyn CrlProvider,
 ) -> Result<Option<CertNotRevoked>, Error> {
-    let _relevant_crl = crl_provider.crl_for_cert(cert);
-    todo!();
+    assert_eq!(cert.issuer, issuer_subject);
+
+    let crl = match crl_provider.crl_for_cert(cert) {
+        Some(crl) => crl,
+        None => return Ok(None),
+    };
+
+    // Verify the CRL signature with the issuer SPKI.
+    // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
+    //            of per-lookup.
+    //            https://github.com/rustls/webpki/issues/81
+    signed_data::verify_signed_data(supported_sig_algs, issuer_spki, &crl.signed_data)?;
+
+    // TODO(@cpu): Verify the issuer has no KU, or KU with cRLSign.
+
+    // Try to find the cert serial in the verified CRL contents.
+    let cert_serial = cert.serial.as_slice_less_safe();
+    match crl.find_serial(cert_serial) {
+        None => Ok(Some(CertNotRevoked::assertion())),
+        Some(_) => Err(Error::CertRevoked),
+    }
 }
 
 fn check_issuer_independent_properties(

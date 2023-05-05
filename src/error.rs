@@ -38,6 +38,9 @@ pub enum Error {
     /// for is earlier than the certificate's notBefore time.
     CertNotValidYet,
 
+    /// The certificate, or one of its issuers, has been revoked.
+    CertRevoked,
+
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 
