@@ -23,6 +23,7 @@ pub enum EndEntityOrCa<'a> {
 pub struct Cert<'a> {
     pub ee_or_ca: EndEntityOrCa<'a>,
 
+    pub serial: untrusted::Input<'a>,
     pub signed_data: signed_data::SignedData<'a>,
     pub issuer: untrusted::Input<'a>,
     pub validity: untrusted::Input<'a>,
@@ -50,7 +51,8 @@ pub(crate) fn parse_cert<'a>(
 
     tbs.read_all(Error::BadDer, |tbs| {
         version3(tbs)?;
-        lenient_certificate_serial_number(tbs)?;
+
+        let serial = lenient_certificate_serial_number(tbs)?;
 
         let signature = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
         // TODO: In mozilla::pkix, the comparison is done based on the
@@ -74,6 +76,7 @@ pub(crate) fn parse_cert<'a>(
             ee_or_ca,
 
             signed_data,
+            serial,
             issuer,
             validity,
             subject,
@@ -135,9 +138,9 @@ fn version3(input: &mut untrusted::Reader) -> Result<(), Error> {
     )
 }
 
-pub(crate) fn lenient_certificate_serial_number(
-    input: &mut untrusted::Reader,
-) -> Result<(), Error> {
+pub(crate) fn lenient_certificate_serial_number<'a>(
+    input: &mut untrusted::Reader<'a>,
+) -> Result<untrusted::Input<'a>, Error> {
     // https://tools.ietf.org/html/rfc5280#section-4.1.2.2:
     // * Conforming CAs MUST NOT use serialNumber values longer than 20 octets."
     // * "The serial number MUST be a positive integer [...]"
@@ -148,8 +151,7 @@ pub(crate) fn lenient_certificate_serial_number(
     //   Note: Non-conforming CAs may issue certificates with serial numbers
     //   that are negative or zero.  Certificate users SHOULD be prepared to
     //   gracefully handle such certificates.
-    der::expect_tag_and_get_value(input, Tag::Integer)?;
-    Ok(())
+    der::expect_tag_and_get_value(input, Tag::Integer)
 }
 
 enum Understood {
@@ -216,4 +218,31 @@ fn remember_extension<'a>(
     }
 
     Ok(Understood::Yes)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cert::{self, EndEntityOrCa};
+
+    #[test]
+    // Note: cert::parse_cert is crate-local visibility, and EndEntityCert doesn't expose the
+    //       inner Cert, or the serial number. As a result we test that the raw serial value
+    //       is read correctly here instead of in tests/integration.rs.
+    fn test_serial_read() {
+        let ee = include_bytes!("../tests/misc/serial_neg_ee.der");
+        let cert = cert::parse_cert(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+        assert_eq!(cert.serial.as_slice_less_safe(), &[255, 33, 82, 65, 17]);
+
+        let ee = include_bytes!("../tests/misc/serial_large_positive.der");
+        let cert = cert::parse_cert(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+        assert_eq!(
+            cert.serial.as_slice_less_safe(),
+            &[
+                0, 230, 9, 254, 122, 234, 0, 104, 140, 224, 36, 180, 237, 32, 27, 31, 239, 82, 180,
+                68, 209
+            ]
+        )
+    }
 }
