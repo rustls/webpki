@@ -103,11 +103,9 @@ fn build_chain_inner(
             subject_name::check_name_constraints(value, cert, subject_common_name_contents)
         })?;
 
-        let trust_anchor_spki = untrusted::Input::from(trust_anchor.spki);
-
         // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-        check_signatures(opts.supported_sig_algs, cert, trust_anchor_spki)?;
+        check_signatures(opts.supported_sig_algs, cert, trust_anchor)?;
 
         Ok(())
     });
@@ -159,9 +157,9 @@ fn build_chain_inner(
 fn check_signatures(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
-    trust_anchor_key: untrusted::Input,
+    trust_anchor: &TrustAnchor,
 ) -> Result<(), Error> {
-    let mut spki_value = trust_anchor_key;
+    let mut spki_value = untrusted::Input::from(trust_anchor.spki);
     let mut cert = cert_chain;
     loop {
         signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
