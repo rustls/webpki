@@ -92,10 +92,12 @@ impl<'a> EndEntityCert<'a> {
         time: Time,
     ) -> Result<(), Error> {
         verify_cert::build_chain(
-            verify_cert::EKU_SERVER_AUTH,
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
+            &verify_cert::ChainOptions {
+                required_eku_if_present: verify_cert::EKU_SERVER_AUTH,
+                supported_sig_algs,
+                trust_anchors,
+                intermediate_certs,
+            },
             &self.inner,
             time,
             0,
@@ -121,10 +123,12 @@ impl<'a> EndEntityCert<'a> {
         time: Time,
     ) -> Result<(), Error> {
         verify_cert::build_chain(
-            verify_cert::EKU_CLIENT_AUTH,
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
+            &verify_cert::ChainOptions {
+                required_eku_if_present: verify_cert::EKU_CLIENT_AUTH,
+                supported_sig_algs,
+                trust_anchors,
+                intermediate_certs,
+            },
             &self.inner,
             time,
             0,
