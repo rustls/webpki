@@ -14,14 +14,34 @@
 
 use crate::{
     cert::{self, Cert, EndEntityOrCa},
-    der, signed_data, subject_name, time, Error, SignatureAlgorithm, TrustAnchor,
+    der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
+    TrustAnchor,
 };
+
+/// A trait that can provide CRLs to use for revocation checking.
+pub trait CrlProvider<'a> {
+    /// A function that can be invoked with a [`Cert`] to optionally provide a [`CertRevocationList`]
+    /// to use to verify the certificate's revocation status.
+    ///
+    /// An implementation that only wishes to check revocation status for leaf certificates can
+    /// choose to return `None` when the [`Cert.ee_or_ca`] field is [`EndEntityOrCa::Ca`].
+    fn crl_for_cert(&self, cert: &Cert) -> Option<&'a CertRevocationList<'a>>;
+}
+
+/// Options controlling how revocation is handled when building a chain.
+pub struct RevocationCheckOptions<'a> {
+    /// A function that can be invoked with a [`Cert`] to optionally provide a [`CertRevocationList`]
+    /// to use to verify the certificate's revocation status.
+    pub crl_provider: &'a dyn CrlProvider<'a>,
+}
 
 pub(crate) struct ChainOptions<'a> {
     pub(crate) required_eku_if_present: KeyPurposeId,
     pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
+    #[allow(dead_code)] // TODO(@cpu): remove when used.
+    pub(crate) revocation: Option<RevocationCheckOptions<'a>>,
 }
 
 pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) -> Result<(), Error> {
