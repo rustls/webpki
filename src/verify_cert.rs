@@ -17,11 +17,15 @@ use crate::{
     der, signed_data, subject_name, time, Error, SignatureAlgorithm, TrustAnchor,
 };
 
+pub(crate) struct ChainOptions<'a> {
+    pub(crate) required_eku_if_present: KeyPurposeId,
+    pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
+    pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
+    pub(crate) intermediate_certs: &'a [&'a [u8]],
+}
+
 pub(crate) fn build_chain(
-    required_eku_if_present: KeyPurposeId,
-    supported_sig_algs: &[&SignatureAlgorithm],
-    trust_anchors: &[TrustAnchor],
-    intermediate_certs: &[&[u8]],
+    opts: &ChainOptions,
     cert: &Cert,
     time: time::Time,
     sub_ca_count: usize,
@@ -33,7 +37,7 @@ pub(crate) fn build_chain(
         time,
         used_as_ca,
         sub_ca_count,
-        required_eku_if_present,
+        opts.required_eku_if_present,
     )?;
 
     // TODO: HPKP checks.
@@ -55,7 +59,7 @@ pub(crate) fn build_chain(
     // could plausibly have a DNS name as a subject commonName that could contribute to
     // path validity
     let subject_common_name_contents =
-        if required_eku_if_present == EKU_SERVER_AUTH && used_as_ca == UsedAsCa::No {
+        if opts.required_eku_if_present == EKU_SERVER_AUTH && used_as_ca == UsedAsCa::No {
             subject_name::SubjectCommonNameContents::DnsName
         } else {
             subject_name::SubjectCommonNameContents::Ignore
@@ -63,7 +67,7 @@ pub(crate) fn build_chain(
 
     // TODO: revocation.
 
-    let result = loop_while_non_fatal_error(trust_anchors, |trust_anchor: &TrustAnchor| {
+    let result = loop_while_non_fatal_error(opts.trust_anchors, |trust_anchor: &TrustAnchor| {
         let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject);
         if cert.issuer != trust_anchor_subject {
             return Err(Error::UnknownIssuer);
@@ -79,7 +83,7 @@ pub(crate) fn build_chain(
 
         // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-        check_signatures(supported_sig_algs, cert, trust_anchor_spki)?;
+        check_signatures(opts.supported_sig_algs, cert, trust_anchor_spki)?;
 
         Ok(())
     });
@@ -89,7 +93,7 @@ pub(crate) fn build_chain(
         return Ok(());
     }
 
-    loop_while_non_fatal_error(intermediate_certs, |cert_der| {
+    loop_while_non_fatal_error(opts.intermediate_certs, |cert_der| {
         let potential_issuer =
             cert::parse_cert(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
 
@@ -124,15 +128,7 @@ pub(crate) fn build_chain(
             UsedAsCa::Yes => sub_ca_count + 1,
         };
 
-        build_chain(
-            required_eku_if_present,
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
-            &potential_issuer,
-            time,
-            next_sub_ca_count,
-        )
+        build_chain(opts, &potential_issuer, time, next_sub_ca_count)
     })
 }
 
