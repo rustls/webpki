@@ -68,6 +68,7 @@ pub use {
     },
     time::Time,
     trust_anchor::{TlsClientTrustAnchors, TlsServerTrustAnchors, TrustAnchor},
+    verify_cert::{CrlProvider, RevocationCheckOptions},
 };
 
 // TODO(XXX): An interaction between Rust 1.57 and clippy requires working around 'unreachable_pub'
