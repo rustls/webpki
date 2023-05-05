@@ -40,7 +40,6 @@ pub(crate) struct ChainOptions<'a> {
     pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
-    #[allow(dead_code)] // TODO(@cpu): remove when used.
     pub(crate) revocation: Option<RevocationCheckOptions<'a>>,
 }
 
@@ -105,7 +104,12 @@ fn build_chain_inner(
 
         // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-        check_signatures(opts.supported_sig_algs, cert, trust_anchor)?;
+        check_signatures(
+            opts.supported_sig_algs,
+            cert,
+            trust_anchor,
+            &opts.revocation,
+        )?;
 
         Ok(())
     });
@@ -158,17 +162,28 @@ fn check_signatures(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
+    revocation: &Option<RevocationCheckOptions>,
 ) -> Result<(), Error> {
     let mut spki_value = untrusted::Input::from(trust_anchor.spki);
+    let mut issuer_subject = untrusted::Input::from(trust_anchor.subject);
     let mut cert = cert_chain;
     loop {
         signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
 
-        // TODO: check revocation
+        if let Some(revocation_opts) = revocation {
+            check_crl(
+                supported_sig_algs,
+                cert,
+                issuer_subject,
+                spki_value,
+                revocation_opts.crl_provider,
+            )?;
+        }
 
         match &cert.ee_or_ca {
             EndEntityOrCa::Ca(child_cert) => {
                 spki_value = cert.spki.value();
+                issuer_subject = cert.subject;
                 cert = child_cert;
             }
             EndEntityOrCa::EndEntity => {
@@ -178,6 +193,29 @@ fn check_signatures(
     }
 
     Ok(())
+}
+
+// Zero-sized marker type representing positive assertion that revocation status was checked
+// for a certificate and the result was that the certificate is not revoked.
+struct CertNotRevoked(());
+
+impl CertNotRevoked {
+    // Construct a CertNotRevoked marker.
+    #[allow(unused)] // TODO(@cpu): remove in subsequent commits.
+    fn assertion() -> Self {
+        Self(())
+    }
+}
+
+fn check_crl(
+    _supported_sig_algs: &[&SignatureAlgorithm],
+    cert: &Cert,
+    _issuer_subject: untrusted::Input,
+    _issuer_spki: untrusted::Input,
+    crl_provider: &dyn CrlProvider,
+) -> Result<Option<CertNotRevoked>, Error> {
+    let _relevant_crl = crl_provider.crl_for_cert(cert);
+    todo!();
 }
 
 fn check_issuer_independent_properties(
