@@ -48,8 +48,28 @@ pub enum Error {
     /// the notAfter time is earlier than the notBefore time.
     InvalidCertValidity,
 
+    /// A iPAddress name constraint was invalid:
+    /// - it had a sparse network mask (ie, cannot be written in CIDR form).
+    /// - it was too long or short
+    InvalidNetworkMaskConstraint,
+
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
+
+    /// A presented or reference DNS identifier was malformed, potentially
+    /// containing invalid characters or invalid labels.
+    MalformedDnsIdentifier,
+
+    /// The certificate extensions are malformed.
+    ///
+    /// In particular, webpki requires the DNS name(s) be in the subjectAltName
+    /// extension as required by the CA/Browser Forum Baseline Requirements
+    /// and as recommended by RFC6125.
+    MalformedExtensions,
+
+    /// A name constraint was malformed, potentially containing invalid characters or
+    /// invalid labels.
+    MalformedNameConstraint,
 
     /// The certificate violates one or more name constraints.
     NameConstraintViolation,
@@ -57,13 +77,13 @@ pub enum Error {
     /// The certificate violates one or more path length constraints.
     PathLenConstraintViolated,
 
-    /// The algorithm in the TBSCertificate "signature" field of a certificate
-    /// does not match the algorithm in the signature of the certificate.
-    SignatureAlgorithmMismatch,
-
     /// The certificate is not valid for the Extended Key Usage for which it is
     /// being validated.
     RequiredEkuNotFound,
+
+    /// The algorithm in the TBSCertificate "signature" field of a certificate
+    /// does not match the algorithm in the signature of the certificate.
+    SignatureAlgorithmMismatch,
 
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
@@ -74,15 +94,12 @@ pub enum Error {
     /// is malformed.
     UnsupportedCertVersion,
 
-    /// The certificate extensions are malformed.
-    ///
-    /// In particular, webpki requires the DNS name(s) be in the subjectAltName
-    /// extension as required by the CA/Browser Forum Baseline Requirements
-    /// and as recommended by RFC6125.
-    MalformedExtensions,
-
     /// The certificate contains an unsupported critical extension.
     UnsupportedCriticalExtension,
+
+    /// The signature algorithm for a signature is not in the set of supported
+    /// signature algorithms given.
+    UnsupportedSignatureAlgorithm,
 
     /// The signature's algorithm does not match the algorithm of the public
     /// key it is being validated for. This may be because the public key
@@ -92,23 +109,6 @@ pub enum Error {
     /// algorithm and the signature algorithm simply don't match (e.g.
     /// verifying an RSA signature with an ECC public key).
     UnsupportedSignatureAlgorithmForPublicKey,
-
-    /// The signature algorithm for a signature is not in the set of supported
-    /// signature algorithms given.
-    UnsupportedSignatureAlgorithm,
-
-    /// A iPAddress name constraint was invalid:
-    /// - it had a sparse network mask (ie, cannot be written in CIDR form).
-    /// - it was too long or short
-    InvalidNetworkMaskConstraint,
-
-    /// A presented or reference DNS identifier was malformed, potentially
-    /// containing invalid characters or invalid labels.
-    MalformedDnsIdentifier,
-
-    /// A name constraint was malformed, potentially containing invalid characters or
-    /// invalid labels.
-    MalformedNameConstraint,
 }
 
 impl fmt::Display for Error {
