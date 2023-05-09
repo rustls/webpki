@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
-use crate::x509::{set_extension_once, Extension};
+use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, signed_data, Error};
 
 pub enum EndEntityOrCa<'a> {
@@ -100,7 +100,9 @@ pub(crate) fn parse_cert<'a>(
                         der::Tag::Sequence,
                         der::Tag::Sequence,
                         Error::BadDer,
-                        |extension| remember_extension(&mut cert, &Extension::parse(extension)?),
+                        |extension| {
+                            remember_cert_extension(&mut cert, &Extension::parse(extension)?)
+                        },
                     )
                 },
             )?;
@@ -144,49 +146,45 @@ pub(crate) fn lenient_certificate_serial_number<'a>(
     der::expect_tag_and_get_value(input, Tag::Integer)
 }
 
-fn remember_extension<'a>(cert: &mut Cert<'a>, extension: &Extension<'a>) -> Result<(), Error> {
+fn remember_cert_extension<'a>(
+    cert: &mut Cert<'a>,
+    extension: &Extension<'a>,
+) -> Result<(), Error> {
     // We don't do anything with certificate policies so we can safely ignore
     // all policy-related stuff. We assume that the policy-related extensions
     // are not marked critical.
 
-    // id-ce 2.5.29
-    static ID_CE: [u8; 2] = oid![2, 5, 29];
+    remember_extension(extension, |id| {
+        let out = match id {
+            // id-ce-keyUsage 2.5.29.15. We ignore the KeyUsage extension. For CA
+            // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
+            // and other common browsers do not check KeyUsage for end-entities,
+            // though it would be kind of nice to ensure that a KeyUsage without
+            // the keyEncipherment bit could not be used for RSA key exchange.
+            15 => {
+                return Ok(());
+            }
 
-    if extension.id.len() != ID_CE.len() + 1
-        || !extension.id.as_slice_less_safe().starts_with(&ID_CE)
-    {
-        return extension.unsupported();
-    }
+            // id-ce-subjectAltName 2.5.29.17
+            17 => &mut cert.subject_alt_name,
 
-    let out = match *extension.id.as_slice_less_safe().last().unwrap() {
-        // id-ce-keyUsage 2.5.29.15. We ignore the KeyUsage extension. For CA
-        // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
-        // and other common browsers do not check KeyUsage for end-entities,
-        // though it would be kind of nice to ensure that a KeyUsage without
-        // the keyEncipherment bit could not be used for RSA key exchange.
-        15 => {
-            return Ok(());
-        }
+            // id-ce-basicConstraints 2.5.29.19
+            19 => &mut cert.basic_constraints,
 
-        // id-ce-subjectAltName 2.5.29.17
-        17 => &mut cert.subject_alt_name,
+            // id-ce-nameConstraints 2.5.29.30
+            30 => &mut cert.name_constraints,
 
-        // id-ce-basicConstraints 2.5.29.19
-        19 => &mut cert.basic_constraints,
+            // id-ce-extKeyUsage 2.5.29.37
+            37 => &mut cert.eku,
 
-        // id-ce-nameConstraints 2.5.29.30
-        30 => &mut cert.name_constraints,
+            // Unsupported extension
+            _ => return extension.unsupported(),
+        };
 
-        // id-ce-extKeyUsage 2.5.29.37
-        37 => &mut cert.eku,
-
-        // Unsupported extension
-        _ => return extension.unsupported(),
-    };
-
-    set_extension_once(out, || {
-        extension.value.read_all(Error::BadDer, |value| {
-            der::expect_tag_and_get_value(value, der::Tag::Sequence)
+        set_extension_once(out, || {
+            extension.value.read_all(Error::BadDer, |value| {
+                der::expect_tag_and_get_value(value, der::Tag::Sequence)
+            })
         })
     })
 }
