@@ -31,6 +31,13 @@ impl<'a> Extension<'a> {
             value,
         })
     }
+
+    pub(crate) fn unsupported(&self) -> Result<(), Error> {
+        match self.critical {
+            true => Err(Error::UnsupportedCriticalExtension),
+            false => Ok(()),
+        }
+    }
 }
 
 pub(crate) fn set_extension_once<T>(

@@ -155,11 +155,7 @@ fn remember_extension<'a>(cert: &mut Cert<'a>, extension: &Extension<'a>) -> Res
     if extension.id.len() != ID_CE.len() + 1
         || !extension.id.as_slice_less_safe().starts_with(&ID_CE)
     {
-        return if extension.critical {
-            Err(Error::UnsupportedCriticalExtension)
-        } else {
-            Ok(())
-        };
+        return extension.unsupported();
     }
 
     let out = match *extension.id.as_slice_less_safe().last().unwrap() {
@@ -184,13 +180,8 @@ fn remember_extension<'a>(cert: &mut Cert<'a>, extension: &Extension<'a>) -> Res
         // id-ce-extKeyUsage 2.5.29.37
         37 => &mut cert.eku,
 
-        // Unsupported critical extension
-        _ if extension.critical => {
-            return Err(Error::UnsupportedCriticalExtension);
-        }
-
-        // Unsupported non-critical extension
-        _ => return Ok(()),
+        // Unsupported extension
+        _ => return extension.unsupported(),
     };
 
     set_extension_once(out, || {
