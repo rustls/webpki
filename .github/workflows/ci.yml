@@ -181,7 +181,7 @@ jobs:
           toolchain: ${{ matrix.rust_channel }}
 
       - run: |
-          cargo test -vv ${{ matrix.cargo_options }} ${{ matrix.features }} ${{ matrix.mode }}
+          cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
 
   coverage:
     runs-on: ubuntu-20.04
