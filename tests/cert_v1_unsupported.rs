@@ -12,8 +12,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::convert::TryFrom;
-
 #[test]
 fn test_cert_v1_unsupported() {
     // Check with `openssl x509 -text -noout -in cert_v1.der -inform DER`

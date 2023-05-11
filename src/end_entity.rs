@@ -18,7 +18,6 @@ use crate::{
     cert, signed_data, subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef, Time,
     TlsClientTrustAnchors, TlsServerTrustAnchors,
 };
-use core::convert::TryFrom;
 
 /// An end-entity certificate.
 ///
