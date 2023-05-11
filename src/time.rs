@@ -58,7 +58,7 @@ impl core::convert::TryFrom<std::time::SystemTime> for Time {
     /// # extern crate webpki;
     /// #
     /// #![cfg(feature = "std")]
-    /// use std::{convert::TryFrom, time::SystemTime};
+    /// use std::time::SystemTime;
     ///
     /// # fn foo() -> Result<(), ring::error::Unspecified> {
     /// let time = webpki::Time::try_from(SystemTime::now())?;

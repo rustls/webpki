@@ -12,8 +12,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::convert::TryFrom;
-
 #[test]
 fn cert_without_extensions_test() {
     // Check the certificate is valid with
