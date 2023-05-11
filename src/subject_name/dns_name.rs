@@ -672,6 +672,7 @@ fn is_valid_dns_id(
 mod tests {
     use super::*;
 
+    #[allow(clippy::type_complexity)]
     const PRESENTED_MATCHES_REFERENCE: &[(&[u8], &[u8], Result<bool, Error>)] = &[
         (b"", b"a", Err(Error::MalformedDnsIdentifier)),
         (b"a", b"a", Ok(true)),
@@ -1048,6 +1049,7 @@ mod tests {
     }
 
     // (presented_name, constraint, expected_matches)
+    #[allow(clippy::type_complexity)]
     const PRESENTED_MATCHES_CONSTRAINT: &[(&[u8], &[u8], Result<bool, Error>)] = &[
         // No absolute presented IDs allowed
         (b".", b"", Err(Error::MalformedDnsIdentifier)),

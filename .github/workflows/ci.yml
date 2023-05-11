@@ -101,13 +101,7 @@ jobs:
         rust_channel:
           - stable
           - nightly
-
-          # MSRV: Rust 1.47 and later have bugs in rustc that prevent some
-          # projects from upgrading past 1.46 yet. So, maintain compatibility
-          # for 1.46 until those bugs are fixed.
-          # Make sure to update rust-version in Cargo.toml when updating MSRV.
-          - 1.46.0
-
+          - 1.57.0
           - beta
 
         exclude:
@@ -121,7 +115,7 @@ jobs:
             rust_channel: nightly
           - features: --all-features
             mode: # debug
-            rust_channel: 1.46.0
+            rust_channel: 1.57.0
           - features: --all-features
             mode: # debug
             rust_channel: beta
@@ -154,7 +148,7 @@ jobs:
 
           - features: --all-features
             mode: # debug
-            rust_channel: 1.46.0
+            rust_channel: 1.57.0
             host_os: ubuntu-20.04
 
           - features: --all-features
