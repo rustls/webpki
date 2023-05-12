@@ -1,0 +1,10 @@
+[flake8]
+exclude = 
+    .git,
+    __pycache__,
+    src,
+    third-party,
+    target,
+    .cargo,
+    tests/venv
+max-line-length = 120
