@@ -1,0 +1,46 @@
+name: Python Testgen
+permissions:
+  contents: read
+on:
+  pull_request:
+  push:
+env:
+  PYTHON_VERSION: "3.11"
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+    name: Lint
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v3
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # caching pip dependencies
+      - name: flake8 Lint
+        uses: py-actions/flake8@v2
+      - name: Black Format
+        uses: psf/black@stable
+        with:
+          src: "./tests"
+  testgen:
+    runs-on: ubuntu-latest
+    name: Generate Tests
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v3
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # caching pip dependencies
+      - name: Install Python requirements.
+        run: pip install -r requirements.txt
+      - name: Generate test files
+        working-directory: ./tests
+        run: python3 generate.py
