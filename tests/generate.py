@@ -15,6 +15,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID
 import ipaddress
 import datetime
+import subprocess
 
 ISSUER_PRIVATE_KEY = rsa.generate_private_key(
     public_exponent=65537, key_size=2048, backend=default_backend()
@@ -390,3 +391,6 @@ name_constraints_test(
         x509.DirectoryName(x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")]))
     ],
 )
+
+output.close()
+subprocess.run("cargo fmt", shell=True, check=True)
