@@ -23,8 +23,8 @@ ISSUER_PRIVATE_KEY = rsa.generate_private_key(
 )
 ISSUER_PUBLIC_KEY = ISSUER_PRIVATE_KEY.public_key()
 
-NOT_BEFORE = datetime.datetime.fromtimestamp(0x1fedf00d - 30)
-NOT_AFTER = datetime.datetime.fromtimestamp(0x1fedf00d + 30)
+NOT_BEFORE = datetime.datetime.utcfromtimestamp(0x1fedf00d - 30)
+NOT_AFTER = datetime.datetime.utcfromtimestamp(0x1fedf00d + 30)
 
 def name_constraints_test(test_name,
         expected_error=None,
