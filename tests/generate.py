@@ -42,6 +42,7 @@ def trim_top(file_name):
 
 
 def generate_name_constraints_test(
+    output,
     test_name,
     expected_error=None,
     subject_common_name=None,
@@ -184,224 +185,251 @@ fn %(test_name)s() {
     )
 
 
-output = trim_top("name_constraints.rs")
+def name_constraints():
+    with trim_top("name_constraints.rs") as output:
+        generate_name_constraints_test(
+            output,
+            "no_name_constraints",
+            subject_common_name="subject.example.com",
+            valid_names=["dns.example.com"],
+            invalid_names=["subject.example.com"],
+            sans=[x509.DNSName("dns.example.com")],
+        )
 
-generate_name_constraints_test(
-    "no_name_constraints",
-    subject_common_name="subject.example.com",
-    valid_names=["dns.example.com"],
-    invalid_names=["subject.example.com"],
-    sans=[x509.DNSName("dns.example.com")],
-)
+        generate_name_constraints_test(
+            output,
+            "additional_dns_labels",
+            subject_common_name="subject.example.com",
+            valid_names=["host1.example.com", "host2.example.com"],
+            invalid_names=["subject.example.com"],
+            sans=[x509.DNSName("host1.example.com"), x509.DNSName("host2.example.com")],
+            permitted_subtrees=[x509.DNSName(".example.com")],
+        )
 
-generate_name_constraints_test(
-    "additional_dns_labels",
-    subject_common_name="subject.example.com",
-    valid_names=["host1.example.com", "host2.example.com"],
-    invalid_names=["subject.example.com"],
-    sans=[x509.DNSName("host1.example.com"), x509.DNSName("host2.example.com")],
-    permitted_subtrees=[x509.DNSName(".example.com")],
-)
+        generate_name_constraints_test(
+            output,
+            "disallow_subject_common_name",
+            expected_error="UnknownIssuer",
+            subject_common_name="disallowed.example.com",
+            excluded_subtrees=[x509.DNSName("disallowed.example.com")],
+        )
+        generate_name_constraints_test(
+            output,
+            "disallow_dns_san",
+            expected_error="UnknownIssuer",
+            sans=[x509.DNSName("disallowed.example.com")],
+            excluded_subtrees=[x509.DNSName("disallowed.example.com")],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "allow_subject_common_name",
+            subject_common_name="allowed.example.com",
+            invalid_names=["allowed.example.com"],
+            permitted_subtrees=[x509.DNSName("allowed.example.com")],
+        )
+        generate_name_constraints_test(
+            output,
+            "allow_dns_san",
+            valid_names=["allowed.example.com"],
+            sans=[x509.DNSName("allowed.example.com")],
+            permitted_subtrees=[x509.DNSName("allowed.example.com")],
+        )
+        generate_name_constraints_test(
+            output,
+            "allow_dns_san_and_subject_common_name",
+            valid_names=["allowed-san.example.com"],
+            invalid_names=["allowed-cn.example.com"],
+            sans=[x509.DNSName("allowed-san.example.com")],
+            subject_common_name="allowed-cn.example.com",
+            permitted_subtrees=[
+                x509.DNSName("allowed-san.example.com"),
+                x509.DNSName("allowed-cn.example.com"),
+            ],
+        )
+        generate_name_constraints_test(
+            output,
+            "allow_dns_san_and_disallow_subject_common_name",
+            expected_error="UnknownIssuer",
+            sans=[x509.DNSName("allowed-san.example.com")],
+            subject_common_name="disallowed-cn.example.com",
+            permitted_subtrees=[x509.DNSName("allowed-san.example.com")],
+            excluded_subtrees=[x509.DNSName("disallowed-cn.example.com")],
+        )
+        generate_name_constraints_test(
+            output,
+            "disallow_dns_san_and_allow_subject_common_name",
+            expected_error="UnknownIssuer",
+            sans=[
+                x509.DNSName("allowed-san.example.com"),
+                x509.DNSName("disallowed-san.example.com"),
+            ],
+            subject_common_name="allowed-cn.example.com",
+            permitted_subtrees=[
+                x509.DNSName("allowed-san.example.com"),
+                x509.DNSName("allowed-cn.example.com"),
+            ],
+            excluded_subtrees=[x509.DNSName("disallowed-san.example.com")],
+        )
+
+        # XXX: ideally this test case would be a negative one, because the name constraints
+        # should apply to the subject name.
+        # however, because we don't look at email addresses in subjects, it is accepted.
+        generate_name_constraints_test(
+            output,
+            "we_incorrectly_ignore_name_constraints_on_name_in_subject",
+            extra_subject_names=[
+                x509.NameAttribute(NameOID.EMAIL_ADDRESS, "joe@notexample.com")
+            ],
+            permitted_subtrees=[x509.RFC822Name("example.com")],
+        )
+
+        # this does work, however, because we process all SANs
+        generate_name_constraints_test(
+            output,
+            "reject_constraints_on_unimplemented_names",
+            expected_error="UnknownIssuer",
+            sans=[x509.RFC822Name("joe@example.com")],
+            permitted_subtrees=[x509.RFC822Name("example.com")],
+        )
+
+        # RFC5280 4.2.1.10:
+        #   "If no name of the type is in the certificate,
+        #    the certificate is acceptable."
+        generate_name_constraints_test(
+            output,
+            "we_ignore_constraints_on_names_that_do_not_appear_in_cert",
+            sans=[x509.DNSName("notexample.com")],
+            valid_names=["notexample.com"],
+            invalid_names=["example.com"],
+            permitted_subtrees=[x509.RFC822Name("example.com")],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "wildcard_san_accepted_if_in_subtree",
+            sans=[x509.DNSName("*.example.com")],
+            valid_names=["bob.example.com", "jane.example.com"],
+            invalid_names=["example.com", "uh.oh.example.com"],
+            permitted_subtrees=[x509.DNSName("example.com")],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "wildcard_san_rejected_if_in_excluded_subtree",
+            expected_error="UnknownIssuer",
+            sans=[x509.DNSName("*.example.com")],
+            excluded_subtrees=[x509.DNSName("example.com")],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip4_address_san_rejected_if_in_excluded_subtree",
+            expected_error="UnknownIssuer",
+            sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
+            excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip4_address_san_allowed_if_outside_excluded_subtree",
+            valid_names=["12.34.56.78"],
+            sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
+            excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.252/30"))],
+        )
+
+        sparse_net_addr = ipaddress.ip_network("12.34.56.78/24", strict=False)
+        sparse_net_addr.netmask = ipaddress.ip_address("255.255.255.1")
+        generate_name_constraints_test(
+            output,
+            "ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask",
+            expected_error="UnknownIssuer",
+            sans=[
+                # inside excluded network, if netmask is allowed to be sparse
+                x509.IPAddress(ipaddress.ip_address("12.34.56.79")),
+            ],
+            excluded_subtrees=[x509.IPAddress(sparse_net_addr)],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip4_address_san_allowed",
+            valid_names=["12.34.56.78"],
+            invalid_names=[
+                "12.34.56.77",
+                "12.34.56.79",
+                "0000:0000:0000:0000:0000:ffff:0c22:384e",
+            ],
+            sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
+            permitted_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip6_address_san_rejected_if_in_excluded_subtree",
+            expected_error="UnknownIssuer",
+            sans=[x509.IPAddress(ipaddress.ip_address("2001:db8::1"))],
+            excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip6_address_san_allowed_if_outside_excluded_subtree",
+            valid_names=["2001:0db9:0000:0000:0000:0000:0000:0001"],
+            sans=[x509.IPAddress(ipaddress.ip_address("2001:db9::1"))],
+            excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip6_address_san_allowed",
+            valid_names=["2001:0db9:0000:0000:0000:0000:0000:0001"],
+            invalid_names=["12.34.56.78"],
+            sans=[x509.IPAddress(ipaddress.ip_address("2001:db9::1"))],
+            permitted_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db9::/48"))],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "ip46_mixed_address_san_allowed",
+            valid_names=["12.34.56.78", "2001:0db9:0000:0000:0000:0000:0000:0001"],
+            invalid_names=[
+                "12.34.56.77",
+                "12.34.56.79",
+                "0000:0000:0000:0000:0000:ffff:0c22:384e",
+            ],
+            sans=[
+                x509.IPAddress(ipaddress.ip_address("12.34.56.78")),
+                x509.IPAddress(ipaddress.ip_address("2001:db9::1")),
+            ],
+            permitted_subtrees=[
+                x509.IPAddress(ipaddress.ip_network("12.34.56.0/24")),
+                x509.IPAddress(ipaddress.ip_network("2001:db9::/48")),
+            ],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "permit_directory_name_not_implemented",
+            expected_error="UnknownIssuer",
+            permitted_subtrees=[
+                x509.DirectoryName(
+                    x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")])
+                )
+            ],
+        )
+
+        generate_name_constraints_test(
+            output,
+            "exclude_directory_name_not_implemented",
+            expected_error="UnknownIssuer",
+            excluded_subtrees=[
+                x509.DirectoryName(
+                    x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")])
+                )
+            ],
+        )
 
 
-generate_name_constraints_test(
-    "disallow_subject_common_name",
-    expected_error="UnknownIssuer",
-    subject_common_name="disallowed.example.com",
-    excluded_subtrees=[x509.DNSName("disallowed.example.com")],
-)
-generate_name_constraints_test(
-    "disallow_dns_san",
-    expected_error="UnknownIssuer",
-    sans=[x509.DNSName("disallowed.example.com")],
-    excluded_subtrees=[x509.DNSName("disallowed.example.com")],
-)
-
-generate_name_constraints_test(
-    "allow_subject_common_name",
-    subject_common_name="allowed.example.com",
-    invalid_names=["allowed.example.com"],
-    permitted_subtrees=[x509.DNSName("allowed.example.com")],
-)
-generate_name_constraints_test(
-    "allow_dns_san",
-    valid_names=["allowed.example.com"],
-    sans=[x509.DNSName("allowed.example.com")],
-    permitted_subtrees=[x509.DNSName("allowed.example.com")],
-)
-generate_name_constraints_test(
-    "allow_dns_san_and_subject_common_name",
-    valid_names=["allowed-san.example.com"],
-    invalid_names=["allowed-cn.example.com"],
-    sans=[x509.DNSName("allowed-san.example.com")],
-    subject_common_name="allowed-cn.example.com",
-    permitted_subtrees=[
-        x509.DNSName("allowed-san.example.com"),
-        x509.DNSName("allowed-cn.example.com"),
-    ],
-)
-generate_name_constraints_test(
-    "allow_dns_san_and_disallow_subject_common_name",
-    expected_error="UnknownIssuer",
-    sans=[x509.DNSName("allowed-san.example.com")],
-    subject_common_name="disallowed-cn.example.com",
-    permitted_subtrees=[x509.DNSName("allowed-san.example.com")],
-    excluded_subtrees=[x509.DNSName("disallowed-cn.example.com")],
-)
-generate_name_constraints_test(
-    "disallow_dns_san_and_allow_subject_common_name",
-    expected_error="UnknownIssuer",
-    sans=[
-        x509.DNSName("allowed-san.example.com"),
-        x509.DNSName("disallowed-san.example.com"),
-    ],
-    subject_common_name="allowed-cn.example.com",
-    permitted_subtrees=[
-        x509.DNSName("allowed-san.example.com"),
-        x509.DNSName("allowed-cn.example.com"),
-    ],
-    excluded_subtrees=[x509.DNSName("disallowed-san.example.com")],
-)
-
-# XXX: ideally this test case would be a negative one, because the name constraints
-# should apply to the subject name.
-# however, because we don't look at email addresses in subjects, it is accepted.
-generate_name_constraints_test(
-    "we_incorrectly_ignore_name_constraints_on_name_in_subject",
-    extra_subject_names=[
-        x509.NameAttribute(NameOID.EMAIL_ADDRESS, "joe@notexample.com")
-    ],
-    permitted_subtrees=[x509.RFC822Name("example.com")],
-)
-
-# this does work, however, because we process all SANs
-generate_name_constraints_test(
-    "reject_constraints_on_unimplemented_names",
-    expected_error="UnknownIssuer",
-    sans=[x509.RFC822Name("joe@example.com")],
-    permitted_subtrees=[x509.RFC822Name("example.com")],
-)
-
-# RFC5280 4.2.1.10:
-#   "If no name of the type is in the certificate,
-#    the certificate is acceptable."
-generate_name_constraints_test(
-    "we_ignore_constraints_on_names_that_do_not_appear_in_cert",
-    sans=[x509.DNSName("notexample.com")],
-    valid_names=["notexample.com"],
-    invalid_names=["example.com"],
-    permitted_subtrees=[x509.RFC822Name("example.com")],
-)
-
-generate_name_constraints_test(
-    "wildcard_san_accepted_if_in_subtree",
-    sans=[x509.DNSName("*.example.com")],
-    valid_names=["bob.example.com", "jane.example.com"],
-    invalid_names=["example.com", "uh.oh.example.com"],
-    permitted_subtrees=[x509.DNSName("example.com")],
-)
-
-generate_name_constraints_test(
-    "wildcard_san_rejected_if_in_excluded_subtree",
-    expected_error="UnknownIssuer",
-    sans=[x509.DNSName("*.example.com")],
-    excluded_subtrees=[x509.DNSName("example.com")],
-)
-
-generate_name_constraints_test(
-    "ip4_address_san_rejected_if_in_excluded_subtree",
-    expected_error="UnknownIssuer",
-    sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
-    excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
-)
-
-generate_name_constraints_test(
-    "ip4_address_san_allowed_if_outside_excluded_subtree",
-    valid_names=["12.34.56.78"],
-    sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
-    excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.252/30"))],
-)
-
-sparse_net_addr = ipaddress.ip_network("12.34.56.78/24", strict=False)
-sparse_net_addr.netmask = ipaddress.ip_address("255.255.255.1")
-generate_name_constraints_test(
-    "ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask",
-    expected_error="UnknownIssuer",
-    sans=[
-        # inside excluded network, if netmask is allowed to be sparse
-        x509.IPAddress(ipaddress.ip_address("12.34.56.79")),
-    ],
-    excluded_subtrees=[x509.IPAddress(sparse_net_addr)],
-)
-
-
-generate_name_constraints_test(
-    "ip4_address_san_allowed",
-    valid_names=["12.34.56.78"],
-    invalid_names=[
-        "12.34.56.77",
-        "12.34.56.79",
-        "0000:0000:0000:0000:0000:ffff:0c22:384e",
-    ],
-    sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
-    permitted_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
-)
-
-generate_name_constraints_test(
-    "ip6_address_san_rejected_if_in_excluded_subtree",
-    expected_error="UnknownIssuer",
-    sans=[x509.IPAddress(ipaddress.ip_address("2001:db8::1"))],
-    excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
-)
-
-generate_name_constraints_test(
-    "ip6_address_san_allowed_if_outside_excluded_subtree",
-    valid_names=["2001:0db9:0000:0000:0000:0000:0000:0001"],
-    sans=[x509.IPAddress(ipaddress.ip_address("2001:db9::1"))],
-    excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
-)
-
-generate_name_constraints_test(
-    "ip6_address_san_allowed",
-    valid_names=["2001:0db9:0000:0000:0000:0000:0000:0001"],
-    invalid_names=["12.34.56.78"],
-    sans=[x509.IPAddress(ipaddress.ip_address("2001:db9::1"))],
-    permitted_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db9::/48"))],
-)
-
-generate_name_constraints_test(
-    "ip46_mixed_address_san_allowed",
-    valid_names=["12.34.56.78", "2001:0db9:0000:0000:0000:0000:0000:0001"],
-    invalid_names=[
-        "12.34.56.77",
-        "12.34.56.79",
-        "0000:0000:0000:0000:0000:ffff:0c22:384e",
-    ],
-    sans=[
-        x509.IPAddress(ipaddress.ip_address("12.34.56.78")),
-        x509.IPAddress(ipaddress.ip_address("2001:db9::1")),
-    ],
-    permitted_subtrees=[
-        x509.IPAddress(ipaddress.ip_network("12.34.56.0/24")),
-        x509.IPAddress(ipaddress.ip_network("2001:db9::/48")),
-    ],
-)
-
-generate_name_constraints_test(
-    "permit_directory_name_not_implemented",
-    expected_error="UnknownIssuer",
-    permitted_subtrees=[
-        x509.DirectoryName(x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")]))
-    ],
-)
-
-generate_name_constraints_test(
-    "exclude_directory_name_not_implemented",
-    expected_error="UnknownIssuer",
-    excluded_subtrees=[
-        x509.DirectoryName(x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")]))
-    ],
-)
-
-output.close()
+name_constraints()
 subprocess.run("cargo fmt", shell=True, check=True)
