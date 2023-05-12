@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, padding
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 import ipaddress
 import datetime
 import subprocess
@@ -653,6 +653,120 @@ fn %(test_name)s() {
         )
 
 
+def generate_client_auth_test(output, test_name, ekus, expected_error=None):
+    # keys must be valid but are otherwise unimportant for these tests
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=default_backend(),
+    )
+    public_key = private_key.public_key()
+
+    issuer_name = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, "issuer.example.com"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
+        ]
+    )
+
+    # end-entity
+    builder = x509.CertificateBuilder()
+    builder = builder.subject_name(
+        x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)])
+    )
+    builder = builder.issuer_name(issuer_name)
+
+    builder = builder.not_valid_before(NOT_BEFORE)
+    builder = builder.not_valid_after(NOT_AFTER)
+    builder = builder.serial_number(x509.random_serial_number())
+    builder = builder.public_key(public_key)
+    if ekus:
+        builder = builder.add_extension(x509.ExtendedKeyUsage(ekus), critical=False)
+    builder = builder.add_extension(
+        x509.BasicConstraints(ca=False, path_length=None),
+        critical=True,
+    )
+    certificate = builder.sign(
+        private_key=ISSUER_PRIVATE_KEY,
+        algorithm=hashes.SHA256(),
+        backend=default_backend(),
+    )
+
+    if not os.path.isdir("client_auth/"):
+        os.mkdir("client_auth/")
+
+    with open("client_auth/" + test_name + ".ee.der", "wb") as f:
+        f.write(certificate.public_bytes(Encoding.DER))
+
+    # issuer
+    builder = x509.CertificateBuilder()
+    builder = builder.subject_name(issuer_name)
+    builder = builder.issuer_name(issuer_name)
+    builder = builder.not_valid_before(NOT_BEFORE)
+    builder = builder.not_valid_after(NOT_AFTER)
+    builder = builder.serial_number(x509.random_serial_number())
+    builder = builder.public_key(ISSUER_PUBLIC_KEY)
+    builder = builder.add_extension(
+        x509.BasicConstraints(ca=True, path_length=None),
+        critical=True,
+    )
+
+    certificate = builder.sign(
+        private_key=ISSUER_PRIVATE_KEY,
+        algorithm=hashes.SHA256(),
+        backend=default_backend(),
+    )
+
+    with open("client_auth/" + test_name + ".ca.der", "wb") as f:
+        f.write(certificate.public_bytes(Encoding.DER))
+
+    if expected_error is None:
+        expected = "Ok(())"
+    else:
+        expected = "Err(webpki::Error::" + expected_error + ")"
+
+    print(
+        """
+#[test]
+#[cfg(feature = "alloc")]
+fn %(test_name)s() {
+    let ee = include_bytes!("client_auth/%(test_name)s.ee.der");
+    let ca = include_bytes!("client_auth/%(test_name)s.ca.der");
+    assert_eq!(
+        check_cert(ee, ca),
+        %(expected)s
+    );
+}"""
+        % locals(),
+        file=output,
+    )
+
+
+def client_auth():
+    with trim_top("client_auth.rs") as output:
+        generate_client_auth_test(
+            output, "cert_with_no_eku_accepted_for_client_auth", ekus=None
+        )
+        generate_client_auth_test(
+            output,
+            "cert_with_clientauth_eku_accepted_for_client_auth",
+            ekus=[ExtendedKeyUsageOID.CLIENT_AUTH],
+        )
+        generate_client_auth_test(
+            output,
+            "cert_with_both_ekus_accepted_for_client_auth",
+            ekus=[ExtendedKeyUsageOID.CLIENT_AUTH, ExtendedKeyUsageOID.SERVER_AUTH],
+        )
+        generate_client_auth_test(
+            output,
+            "cert_with_serverauth_eku_rejected_for_client_auth",
+            ekus=[ExtendedKeyUsageOID.SERVER_AUTH],
+            expected_error="RequiredEkuNotFound",
+        )
+
+
 name_constraints()
 signatures()
+client_auth()
+
 subprocess.run("cargo fmt", shell=True, check=True)
