@@ -5,11 +5,11 @@ name-related parts of webpki.
 Run this script from tests/.  It edits the bottom part of tests/name_constraints.rs
 and drops files into tests/name_constraints.
 """
-
+import os
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, padding
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID
@@ -131,6 +131,9 @@ def generate_name_constraints_test(
         algorithm=hashes.SHA256(),
         backend=default_backend(),
     )
+
+    if not os.path.isdir("name_constraints/"):
+        os.mkdir("name_constraints/")
 
     with open(f"name_constraints/{test_name}.ee.der", "wb") as f:
         f.write(certificate.public_bytes(Encoding.DER))
@@ -431,5 +434,225 @@ def name_constraints():
         )
 
 
+def signatures():
+    rsa_pub_exponent = 0x10001
+    backend = default_backend()
+    all_key_types = {
+        "ed25519": ed25519.Ed25519PrivateKey.generate(),
+        "ecdsa_p256": ec.generate_private_key(ec.SECP256R1(), backend),
+        "ecdsa_p384": ec.generate_private_key(ec.SECP384R1(), backend),
+        "ecdsa_p521_not_supported": ec.generate_private_key(ec.SECP521R1(), backend),
+        "rsa_1024_not_supported": rsa.generate_private_key(
+            rsa_pub_exponent, 1024, backend
+        ),
+        "rsa_2048": rsa.generate_private_key(rsa_pub_exponent, 2048, backend),
+        "rsa_3072": rsa.generate_private_key(rsa_pub_exponent, 3072, backend),
+        "rsa_4096": rsa.generate_private_key(rsa_pub_exponent, 4096, backend),
+    }
+
+    rsa_types = [
+        "RSA_PKCS1_2048_8192_SHA256",
+        "RSA_PKCS1_2048_8192_SHA384",
+        "RSA_PKCS1_2048_8192_SHA512",
+        "RSA_PSS_2048_8192_SHA256_LEGACY_KEY",
+        "RSA_PSS_2048_8192_SHA384_LEGACY_KEY",
+        "RSA_PSS_2048_8192_SHA512_LEGACY_KEY",
+    ]
+
+    webpki_algs = {
+        "ed25519": ["ED25519"],
+        "ecdsa_p256": ["ECDSA_P256_SHA384", "ECDSA_P256_SHA256"],
+        "ecdsa_p384": ["ECDSA_P384_SHA384", "ECDSA_P384_SHA256"],
+        "rsa_2048": rsa_types,
+        "rsa_3072": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
+        "rsa_4096": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
+    }
+
+    pss_sha256 = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=32)
+    pss_sha384 = padding.PSS(mgf=padding.MGF1(hashes.SHA384()), salt_length=48)
+    pss_sha512 = padding.PSS(mgf=padding.MGF1(hashes.SHA512()), salt_length=64)
+
+    how_to_sign = {
+        "ED25519": lambda key, message: key.sign(message),
+        "ECDSA_P256_SHA256": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA256())
+        ),
+        "ECDSA_P256_SHA384": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA384())
+        ),
+        "ECDSA_P384_SHA256": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA256())
+        ),
+        "ECDSA_P384_SHA384": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA384())
+        ),
+        "RSA_PKCS1_2048_8192_SHA256": lambda key, message: key.sign(
+            message, padding.PKCS1v15(), hashes.SHA256()
+        ),
+        "RSA_PKCS1_2048_8192_SHA384": lambda key, message: key.sign(
+            message, padding.PKCS1v15(), hashes.SHA384()
+        ),
+        "RSA_PKCS1_2048_8192_SHA512": lambda key, message: key.sign(
+            message, padding.PKCS1v15(), hashes.SHA512()
+        ),
+        "RSA_PKCS1_3072_8192_SHA384": lambda key, message: key.sign(
+            message, padding.PKCS1v15(), hashes.SHA384()
+        ),
+        "RSA_PSS_2048_8192_SHA256_LEGACY_KEY": lambda key, message: key.sign(
+            message, pss_sha256, hashes.SHA256()
+        ),
+        "RSA_PSS_2048_8192_SHA384_LEGACY_KEY": lambda key, message: key.sign(
+            message, pss_sha384, hashes.SHA384()
+        ),
+        "RSA_PSS_2048_8192_SHA512_LEGACY_KEY": lambda key, message: key.sign(
+            message, pss_sha512, hashes.SHA512()
+        ),
+    }
+
+    if not os.path.isdir("signatures/"):
+        os.mkdir("signatures/")
+
+    for name, private_key in all_key_types.items():
+        # end-entity
+        builder = x509.CertificateBuilder()
+        builder = builder.subject_name(
+            x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " test")])
+        )
+        builder = builder.issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " issuer")])
+        )
+
+        builder = builder.not_valid_before(NOT_BEFORE)
+        builder = builder.not_valid_after(NOT_AFTER)
+        builder = builder.serial_number(x509.random_serial_number())
+        builder = builder.public_key(private_key.public_key())
+        builder = builder.add_extension(
+            x509.BasicConstraints(ca=False, path_length=None),
+            critical=True,
+        )
+        certificate = builder.sign(
+            private_key=ISSUER_PRIVATE_KEY,
+            algorithm=hashes.SHA256(),
+            backend=default_backend(),
+        )
+
+        with open("signatures/" + name + ".ee.der", "wb") as f:
+            f.write(certificate.public_bytes(Encoding.DER))
+
+    def _test(test_name, cert, algorithm, signature, expected):
+        test_name = test_name.lower()
+
+        with open("signatures/" + test_name + ".sig.bin", "wb") as f:
+            f.write(signature)
+
+        print(
+            """
+#[test]
+#[cfg(feature = "alloc")]
+fn %(test_name)s() {
+    let ee = include_bytes!("signatures/%(cert)s.ee.der");
+    let message = include_bytes!("signatures/message.bin");
+    let signature = include_bytes!("signatures/%(test_name)s.sig.bin");
+    assert_eq!(
+        check_sig(ee, &webpki::%(algorithm)s, message, signature),
+        %(expected)s
+    );
+}"""
+            % locals(),
+            file=output,
+        )
+
+    message = b"hello world!"
+
+    with open("signatures/message.bin", "wb") as f:
+        f.write(message)
+
+    def good_signature(test_name, cert, algorithm, signer):
+        signature = signer(all_key_types[cert], message)
+        _test(test_name, cert, algorithm, signature, expected="Ok(())")
+
+    def good_signature_but_rejected(test_name, cert, algorithm, signer):
+        signature = signer(all_key_types[cert], message)
+        _test(
+            test_name,
+            cert,
+            algorithm,
+            signature,
+            expected="Err(webpki::Error::InvalidSignatureForPublicKey)",
+        )
+
+    def bad_signature(test_name, cert, algorithm, signer):
+        signature = signer(all_key_types[cert], message + b"?")
+        _test(
+            test_name,
+            cert,
+            algorithm,
+            signature,
+            expected="Err(webpki::Error::InvalidSignatureForPublicKey)",
+        )
+
+    def bad_algorithms_for_key(test_name, cert, unusable_algs):
+        test_name = test_name.lower()
+        unusable_algs = ", ".join("&webpki::" + alg for alg in sorted(unusable_algs))
+        print(
+            """
+#[test]
+#[cfg(feature = "alloc")]
+fn %(test_name)s() {
+    let ee = include_bytes!("signatures/%(cert)s.ee.der");
+    for algorithm in &[ %(unusable_algs)s ] {
+        assert_eq!(
+            check_sig(ee, algorithm, b"", b""),
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
+        );
+    }
+}"""
+            % locals(),
+            file=output,
+        )
+
+    with trim_top("signatures.rs") as output:
+        # compute all webpki algorithms covered by these tests
+        all_webpki_algs = set([item for algs in webpki_algs.values() for item in algs])
+
+        for type, algs in webpki_algs.items():
+            for alg in algs:
+                signer = how_to_sign[alg]
+                good_signature(
+                    type + "_key_and_" + alg + "_good_signature",
+                    cert=type,
+                    algorithm=alg,
+                    signer=signer,
+                )
+                bad_signature(
+                    type + "_key_and_" + alg + "_detects_bad_signature",
+                    cert=type,
+                    algorithm=alg,
+                    signer=signer,
+                )
+
+            unusable_algs = set(all_webpki_algs)
+            for alg in algs:
+                unusable_algs.remove(alg)
+
+            # special case: tested separately below
+            if type == "rsa_2048":
+                unusable_algs.remove("RSA_PKCS1_3072_8192_SHA384")
+
+            bad_algorithms_for_key(
+                type + "_key_rejected_by_other_algorithms",
+                cert=type,
+                unusable_algs=unusable_algs,
+            )
+
+        good_signature_but_rejected(
+            "rsa_2048_key_rejected_by_RSA_PKCS1_3072_8192_SHA384",
+            cert="rsa_2048",
+            algorithm="RSA_PKCS1_3072_8192_SHA384",
+            signer=signer,
+        )
+
+
 name_constraints()
+signatures()
 subprocess.run("cargo fmt", shell=True, check=True)
