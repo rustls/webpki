@@ -48,3 +48,5 @@ jobs:
       - name: Generate test files
         working-directory: ./tests
         run: python3 generate.py
+      - name: Verify Rusts tests pass
+        run: cargo test
