@@ -6,7 +6,7 @@ Run this script from tests/.  It edits the bottom part of tests/name_constraints
 and drops files into tests/name_constraints.
 """
 import os
-from typing import TextIO, Optional, Union, Any, Callable, Iterable
+from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
@@ -54,9 +54,9 @@ def generate_name_constraints_test(
     test_name: str,
     expected_error: Optional[str] = None,
     subject_common_name: Optional[str] = None,
-    extra_subject_names: list[x509.NameAttribute] = [],
-    valid_names: list[str] = [],
-    invalid_names: list[str] = [],
+    extra_subject_names: Optional[List[x509.NameAttribute]] = None,
+    valid_names: Optional[List[str]] = None,
+    invalid_names: Optional[List[str]] = None,
     sans: Optional[Iterable[x509.GeneralName]] = None,
     permitted_subtrees: Optional[Iterable[x509.GeneralName]] = None,
     excluded_subtrees: Optional[Iterable[x509.GeneralName]] = None,
@@ -93,6 +93,12 @@ def generate_name_constraints_test(
     """
 
     # keys must be valid but are otherwise unimportant for these tests
+    if invalid_names is None:
+        invalid_names = []
+    if valid_names is None:
+        valid_names = []
+    if extra_subject_names is None:
+        extra_subject_names = []
     private_key: rsa.RSAPrivateKey = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
