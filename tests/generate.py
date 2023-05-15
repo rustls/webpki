@@ -6,6 +6,7 @@ Run this script from tests/.  It edits the bottom part of tests/name_constraints
 and drops files into tests/name_constraints.
 """
 import os
+from typing import TextIO, Optional, Union, Any, Callable, Iterable
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
@@ -17,16 +18,23 @@ import ipaddress
 import datetime
 import subprocess
 
-ISSUER_PRIVATE_KEY = rsa.generate_private_key(
+ISSUER_PRIVATE_KEY: rsa.RSAPrivateKey = rsa.generate_private_key(
     public_exponent=65537, key_size=2048, backend=default_backend()
 )
-ISSUER_PUBLIC_KEY = ISSUER_PRIVATE_KEY.public_key()
+ISSUER_PUBLIC_KEY: rsa.RSAPublicKey = ISSUER_PRIVATE_KEY.public_key()
 
-NOT_BEFORE = datetime.datetime.utcfromtimestamp(0x1FEDF00D - 30)
-NOT_AFTER = datetime.datetime.utcfromtimestamp(0x1FEDF00D + 30)
+NOT_BEFORE: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D - 30)
+NOT_AFTER: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D + 30)
+
+ANY_KEY = Union[
+    ed25519.Ed25519PrivateKey | ec.EllipticCurvePrivateKey | rsa.RSAPrivateKey
+]
+SIGNER = Callable[
+    [Any, bytes], Any
+]  # Note: a bit loosey-goosey here but good enough for tests.
 
 
-def trim_top(file_name):
+def trim_top(file_name: str) -> TextIO:
     """
     Reads `file_name`, then writes lines up to a particular comment (the "top"
     of the file) back to it and returns the file object for further writing.
@@ -42,17 +50,17 @@ def trim_top(file_name):
 
 
 def generate_name_constraints_test(
-    output,
-    test_name,
-    expected_error=None,
-    subject_common_name=None,
-    extra_subject_names=[],
-    valid_names=[],
-    invalid_names=[],
-    sans=None,
-    permitted_subtrees=None,
-    excluded_subtrees=None,
-):
+    output: TextIO,
+    test_name: str,
+    expected_error: Optional[str] = None,
+    subject_common_name: Optional[str] = None,
+    extra_subject_names: list[x509.NameAttribute] = [],
+    valid_names: list[str] = [],
+    invalid_names: list[str] = [],
+    sans: Optional[Iterable[x509.GeneralName]] = None,
+    permitted_subtrees: Optional[Iterable[x509.GeneralName]] = None,
+    excluded_subtrees: Optional[Iterable[x509.GeneralName]] = None,
+) -> None:
     """
     Generate a test case, writing a rust '#[test]' function into
     name_constraints.rs, and writing supporting files into the current
@@ -85,14 +93,14 @@ def generate_name_constraints_test(
     """
 
     # keys must be valid but are otherwise unimportant for these tests
-    private_key = rsa.generate_private_key(
+    private_key: rsa.RSAPrivateKey = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
         backend=default_backend(),
     )
-    public_key = private_key.public_key()
+    public_key: rsa.RSAPublicKey = private_key.public_key()
 
-    issuer_name = x509.Name(
+    issuer_name: x509.Name = x509.Name(
         [
             x509.NameAttribute(NameOID.COMMON_NAME, "issuer.example.com"),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
@@ -100,8 +108,8 @@ def generate_name_constraints_test(
     )
 
     # end-entity
-    builder = x509.CertificateBuilder()
-    builder = builder.subject_name(
+    ee_builder: x509.CertificateBuilder = x509.CertificateBuilder()
+    ee_builder = ee_builder.subject_name(
         x509.Name(
             (
                 [x509.NameAttribute(NameOID.COMMON_NAME, subject_common_name)]
@@ -112,21 +120,21 @@ def generate_name_constraints_test(
             + extra_subject_names
         )
     )
-    builder = builder.issuer_name(issuer_name)
+    ee_builder = ee_builder.issuer_name(issuer_name)
 
-    builder = builder.not_valid_before(NOT_BEFORE)
-    builder = builder.not_valid_after(NOT_AFTER)
-    builder = builder.serial_number(x509.random_serial_number())
-    builder = builder.public_key(public_key)
+    ee_builder = ee_builder.not_valid_before(NOT_BEFORE)
+    ee_builder = ee_builder.not_valid_after(NOT_AFTER)
+    ee_builder = ee_builder.serial_number(x509.random_serial_number())
+    ee_builder = ee_builder.public_key(public_key)
     if sans:
-        builder = builder.add_extension(
+        ee_builder = ee_builder.add_extension(
             x509.SubjectAlternativeName(sans), critical=False
         )
-    builder = builder.add_extension(
+    ee_builder = ee_builder.add_extension(
         x509.BasicConstraints(ca=False, path_length=None),
         critical=True,
     )
-    certificate = builder.sign(
+    ee_certificate: x509.Certificate = ee_builder.sign(
         private_key=ISSUER_PRIVATE_KEY,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
@@ -136,41 +144,42 @@ def generate_name_constraints_test(
         os.mkdir("name_constraints/")
 
     with open(f"name_constraints/{test_name}.ee.der", "wb") as f:
-        f.write(certificate.public_bytes(Encoding.DER))
+        f.write(ee_certificate.public_bytes(Encoding.DER))
 
     # issuer
-    builder = x509.CertificateBuilder()
-    builder = builder.subject_name(issuer_name)
-    builder = builder.issuer_name(issuer_name)
-    builder = builder.not_valid_before(NOT_BEFORE)
-    builder = builder.not_valid_after(NOT_AFTER)
-    builder = builder.serial_number(x509.random_serial_number())
-    builder = builder.public_key(ISSUER_PUBLIC_KEY)
-    builder = builder.add_extension(
+    ca_builder: x509.CertificateBuilder = x509.CertificateBuilder()
+    ca_builder = ca_builder.subject_name(issuer_name)
+    ca_builder = ca_builder.issuer_name(issuer_name)
+    ca_builder = ca_builder.not_valid_before(NOT_BEFORE)
+    ca_builder = ca_builder.not_valid_after(NOT_AFTER)
+    ca_builder = ca_builder.serial_number(x509.random_serial_number())
+    ca_builder = ca_builder.public_key(ISSUER_PUBLIC_KEY)
+    ca_builder = ca_builder.add_extension(
         x509.BasicConstraints(ca=True, path_length=None),
         critical=True,
     )
     if permitted_subtrees or excluded_subtrees:
-        builder = builder.add_extension(
+        ca_builder = ca_builder.add_extension(
             x509.NameConstraints(permitted_subtrees, excluded_subtrees), critical=True
         )
 
-    certificate = builder.sign(
+    ca: x509.Certificate = ca_builder.sign(
         private_key=ISSUER_PRIVATE_KEY,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
     )
 
     with open(f"name_constraints/{test_name}.ca.der", "wb") as f:
-        f.write(certificate.public_bytes(Encoding.DER))
+        f.write(ca.public_bytes(Encoding.DER))
 
+    expected: str = ""
     if expected_error is None:
         expected = "Ok(())"
     else:
         expected = "Err(webpki::Error::" + expected_error + ")"
 
-    valid_names = ", ".join('"' + name + '"' for name in valid_names)
-    invalid_names = ", ".join('"' + name + '"' for name in invalid_names)
+    valid_names_str: str = ", ".join('"' + name + '"' for name in valid_names)
+    invalid_names_str: str = ", ".join('"' + name + '"' for name in invalid_names)
 
     print(
         """
@@ -179,7 +188,7 @@ fn %(test_name)s() {
     let ee = include_bytes!("name_constraints/%(test_name)s.ee.der");
     let ca = include_bytes!("name_constraints/%(test_name)s.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[%(valid_names)s], &[%(invalid_names)s]),
+        check_cert(ee, ca, &[%(valid_names_str)s], &[%(invalid_names_str)s]),
         %(expected)s
     );
 }"""
@@ -188,7 +197,7 @@ fn %(test_name)s() {
     )
 
 
-def name_constraints():
+def name_constraints() -> None:
     with trim_top("name_constraints.rs") as output:
         generate_name_constraints_test(
             output,
@@ -434,10 +443,10 @@ def name_constraints():
         )
 
 
-def signatures():
-    rsa_pub_exponent = 0x10001
-    backend = default_backend()
-    all_key_types = {
+def signatures() -> None:
+    rsa_pub_exponent: int = 0x10001
+    backend: Any = default_backend()
+    all_key_types: dict[str, ANY_KEY] = {
         "ed25519": ed25519.Ed25519PrivateKey.generate(),
         "ecdsa_p256": ec.generate_private_key(ec.SECP256R1(), backend),
         "ecdsa_p384": ec.generate_private_key(ec.SECP384R1(), backend),
@@ -450,7 +459,7 @@ def signatures():
         "rsa_4096": rsa.generate_private_key(rsa_pub_exponent, 4096, backend),
     }
 
-    rsa_types = [
+    rsa_types: list[str] = [
         "RSA_PKCS1_2048_8192_SHA256",
         "RSA_PKCS1_2048_8192_SHA384",
         "RSA_PKCS1_2048_8192_SHA512",
@@ -459,7 +468,7 @@ def signatures():
         "RSA_PSS_2048_8192_SHA512_LEGACY_KEY",
     ]
 
-    webpki_algs = {
+    webpki_algs: dict[str, Iterable[str]] = {
         "ed25519": ["ED25519"],
         "ecdsa_p256": ["ECDSA_P256_SHA384", "ECDSA_P256_SHA256"],
         "ecdsa_p384": ["ECDSA_P384_SHA384", "ECDSA_P384_SHA256"],
@@ -468,11 +477,17 @@ def signatures():
         "rsa_4096": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
     }
 
-    pss_sha256 = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=32)
-    pss_sha384 = padding.PSS(mgf=padding.MGF1(hashes.SHA384()), salt_length=48)
-    pss_sha512 = padding.PSS(mgf=padding.MGF1(hashes.SHA512()), salt_length=64)
+    pss_sha256: padding.PSS = padding.PSS(
+        mgf=padding.MGF1(hashes.SHA256()), salt_length=32
+    )
+    pss_sha384: padding.PSS = padding.PSS(
+        mgf=padding.MGF1(hashes.SHA384()), salt_length=48
+    )
+    pss_sha512: padding.PSS = padding.PSS(
+        mgf=padding.MGF1(hashes.SHA512()), salt_length=64
+    )
 
-    how_to_sign = {
+    how_to_sign: dict[str, SIGNER] = {
         "ED25519": lambda key, message: key.sign(message),
         "ECDSA_P256_SHA256": lambda key, message: key.sign(
             message, ec.ECDSA(hashes.SHA256())
@@ -514,7 +529,7 @@ def signatures():
 
     for name, private_key in all_key_types.items():
         # end-entity
-        builder = x509.CertificateBuilder()
+        builder: x509.CertificateBuilder = x509.CertificateBuilder()
         builder = builder.subject_name(
             x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " test")])
         )
@@ -539,20 +554,22 @@ def signatures():
         with open("signatures/" + name + ".ee.der", "wb") as f:
             f.write(certificate.public_bytes(Encoding.DER))
 
-    def _test(test_name, cert, algorithm, signature, expected):
-        test_name = test_name.lower()
+    def _test(
+        test_name: str, cert_type: str, algorithm: str, signature: bytes, expected: str
+    ) -> None:
+        lower_test_name: str = test_name.lower()
 
-        with open("signatures/" + test_name + ".sig.bin", "wb") as f:
+        with open("signatures/" + lower_test_name + ".sig.bin", "wb") as f:
             f.write(signature)
 
         print(
             """
 #[test]
 #[cfg(feature = "alloc")]
-fn %(test_name)s() {
-    let ee = include_bytes!("signatures/%(cert)s.ee.der");
+fn %(lower_test_name)s() {
+    let ee = include_bytes!("signatures/%(cert_type)s.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/%(test_name)s.sig.bin");
+    let signature = include_bytes!("signatures/%(lower_test_name)s.sig.bin");
     assert_eq!(
         check_sig(ee, &webpki::%(algorithm)s, message, signature),
         %(expected)s
@@ -567,40 +584,50 @@ fn %(test_name)s() {
     with open("signatures/message.bin", "wb") as f:
         f.write(message)
 
-    def good_signature(test_name, cert, algorithm, signer):
-        signature = signer(all_key_types[cert], message)
-        _test(test_name, cert, algorithm, signature, expected="Ok(())")
+    def good_signature(
+        test_name: str, cert_type: str, algorithm: str, signer: SIGNER
+    ) -> None:
+        signature: bytes = signer(all_key_types[cert_type], message)
+        _test(test_name, cert_type, algorithm, signature, expected="Ok(())")
 
-    def good_signature_but_rejected(test_name, cert, algorithm, signer):
-        signature = signer(all_key_types[cert], message)
+    def good_signature_but_rejected(
+        test_name: str, cert_type: str, algorithm: str, signer: SIGNER
+    ) -> None:
+        signature: bytes = signer(all_key_types[cert_type], message)
         _test(
             test_name,
-            cert,
+            cert_type,
             algorithm,
             signature,
             expected="Err(webpki::Error::InvalidSignatureForPublicKey)",
         )
 
-    def bad_signature(test_name, cert, algorithm, signer):
-        signature = signer(all_key_types[cert], message + b"?")
+    def bad_signature(
+        test_name: str, cert_type: str, algorithm: str, signer: SIGNER
+    ) -> None:
+        signature: bytes = signer(all_key_types[cert_type], message + b"?")
         _test(
             test_name,
-            cert,
+            cert_type,
             algorithm,
             signature,
             expected="Err(webpki::Error::InvalidSignatureForPublicKey)",
         )
 
-    def bad_algorithms_for_key(test_name, cert, unusable_algs):
-        test_name = test_name.lower()
-        unusable_algs = ", ".join("&webpki::" + alg for alg in sorted(unusable_algs))
+    def bad_algorithms_for_key(
+        test_name: str, cert_type: str, unusable_algs: set[str]
+    ) -> None:
+        test_name_lower: str = test_name.lower()
+        unusable_algs_str: str = ", ".join(
+            "&webpki::" + alg for alg in sorted(unusable_algs)
+        )
         print(
             """
 #[test]
 #[cfg(feature = "alloc")]
-fn %(test_name)s() {
-    let ee = include_bytes!("signatures/%(cert)s.ee.der");
-    for algorithm in &[ %(unusable_algs)s ] {
+fn %(test_name_lower)s() {
+    let ee = include_bytes!("signatures/%(cert_type)s.ee.der");
+    for algorithm in &[ %(unusable_algs_str)s ] {
         assert_eq!(
             check_sig(ee, algorithm, b"", b""),
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
@@ -613,20 +640,22 @@ fn %(test_name)s() {
 
     with trim_top("signatures.rs") as output:
         # compute all webpki algorithms covered by these tests
-        all_webpki_algs = set([item for algs in webpki_algs.values() for item in algs])
+        all_webpki_algs: set[str] = set(
+            [item for algs in webpki_algs.values() for item in algs]
+        )
 
         for type, algs in webpki_algs.items():
             for alg in algs:
-                signer = how_to_sign[alg]
+                signer: SIGNER = how_to_sign[alg]
                 good_signature(
                     type + "_key_and_" + alg + "_good_signature",
-                    cert=type,
+                    cert_type=type,
                     algorithm=alg,
                     signer=signer,
                 )
                 bad_signature(
                     type + "_key_and_" + alg + "_detects_bad_signature",
-                    cert=type,
+                    cert_type=type,
                     algorithm=alg,
                     signer=signer,
                 )
@@ -641,28 +670,33 @@ fn %(test_name)s() {
 
             bad_algorithms_for_key(
                 type + "_key_rejected_by_other_algorithms",
-                cert=type,
+                cert_type=type,
                 unusable_algs=unusable_algs,
             )
 
         good_signature_but_rejected(
             "rsa_2048_key_rejected_by_RSA_PKCS1_3072_8192_SHA384",
-            cert="rsa_2048",
+            cert_type="rsa_2048",
             algorithm="RSA_PKCS1_3072_8192_SHA384",
             signer=signer,
         )
 
 
-def generate_client_auth_test(output, test_name, ekus, expected_error=None):
+def generate_client_auth_test(
+    output: TextIO,
+    test_name: str,
+    ekus: Optional[Iterable[x509.ObjectIdentifier]],
+    expected_error: Optional[str] = None,
+) -> None:
     # keys must be valid but are otherwise unimportant for these tests
-    private_key = rsa.generate_private_key(
+    private_key: rsa.RSAPrivateKey = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
         backend=default_backend(),
     )
-    public_key = private_key.public_key()
+    public_key: rsa.RSAPublicKey = private_key.public_key()
 
-    issuer_name = x509.Name(
+    issuer_name: x509.Name = x509.Name(
         [
             x509.NameAttribute(NameOID.COMMON_NAME, "issuer.example.com"),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
@@ -670,23 +704,25 @@ def generate_client_auth_test(output, test_name, ekus, expected_error=None):
     )
 
     # end-entity
-    builder = x509.CertificateBuilder()
-    builder = builder.subject_name(
+    ee_builder: x509.CertificateBuilder = x509.CertificateBuilder()
+    ee_builder = ee_builder.subject_name(
         x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)])
     )
-    builder = builder.issuer_name(issuer_name)
+    ee_builder = ee_builder.issuer_name(issuer_name)
 
-    builder = builder.not_valid_before(NOT_BEFORE)
-    builder = builder.not_valid_after(NOT_AFTER)
-    builder = builder.serial_number(x509.random_serial_number())
-    builder = builder.public_key(public_key)
+    ee_builder = ee_builder.not_valid_before(NOT_BEFORE)
+    ee_builder = ee_builder.not_valid_after(NOT_AFTER)
+    ee_builder = ee_builder.serial_number(x509.random_serial_number())
+    ee_builder = ee_builder.public_key(public_key)
     if ekus:
-        builder = builder.add_extension(x509.ExtendedKeyUsage(ekus), critical=False)
-    builder = builder.add_extension(
+        ee_builder = ee_builder.add_extension(
+            x509.ExtendedKeyUsage(ekus), critical=False
+        )
+    ee_builder = ee_builder.add_extension(
         x509.BasicConstraints(ca=False, path_length=None),
         critical=True,
     )
-    certificate = builder.sign(
+    ee_certificate: x509.Certificate = ee_builder.sign(
         private_key=ISSUER_PRIVATE_KEY,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
@@ -696,30 +732,31 @@ def generate_client_auth_test(output, test_name, ekus, expected_error=None):
         os.mkdir("client_auth/")
 
     with open("client_auth/" + test_name + ".ee.der", "wb") as f:
-        f.write(certificate.public_bytes(Encoding.DER))
+        f.write(ee_certificate.public_bytes(Encoding.DER))
 
     # issuer
-    builder = x509.CertificateBuilder()
-    builder = builder.subject_name(issuer_name)
-    builder = builder.issuer_name(issuer_name)
-    builder = builder.not_valid_before(NOT_BEFORE)
-    builder = builder.not_valid_after(NOT_AFTER)
-    builder = builder.serial_number(x509.random_serial_number())
-    builder = builder.public_key(ISSUER_PUBLIC_KEY)
-    builder = builder.add_extension(
+    ca_builder: x509.CertificateBuilder = x509.CertificateBuilder()
+    ca_builder = ca_builder.subject_name(issuer_name)
+    ca_builder = ca_builder.issuer_name(issuer_name)
+    ca_builder = ca_builder.not_valid_before(NOT_BEFORE)
+    ca_builder = ca_builder.not_valid_after(NOT_AFTER)
+    ca_builder = ca_builder.serial_number(x509.random_serial_number())
+    ca_builder = ca_builder.public_key(ISSUER_PUBLIC_KEY)
+    ca_builder = ca_builder.add_extension(
         x509.BasicConstraints(ca=True, path_length=None),
         critical=True,
     )
 
-    certificate = builder.sign(
+    ca: x509.Certificate = ca_builder.sign(
         private_key=ISSUER_PRIVATE_KEY,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
     )
 
     with open("client_auth/" + test_name + ".ca.der", "wb") as f:
-        f.write(certificate.public_bytes(Encoding.DER))
+        f.write(ca.public_bytes(Encoding.DER))
 
+    expected: str = ""
     if expected_error is None:
         expected = "Ok(())"
     else:
@@ -742,7 +779,7 @@ fn %(test_name)s() {
     )
 
 
-def client_auth():
+def client_auth() -> None:
     with trim_top("client_auth.rs") as output:
         generate_client_auth_test(
             output, "cert_with_no_eku_accepted_for_client_auth", ekus=None

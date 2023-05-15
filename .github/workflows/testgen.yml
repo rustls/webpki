@@ -18,8 +18,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip' # caching pip dependencies
+      - name: Install Python requirements.
+        run: pip install -r requirements.txt
       - name: flake8 Lint
         uses: py-actions/flake8@v2
+      - name: mypy Typecheck
+        run: mypy ./tests
       - name: Black Format
         uses: psf/black@stable
         with:
