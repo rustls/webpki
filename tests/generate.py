@@ -214,10 +214,14 @@ def generate_name_constraints_test(
         sans=sans,
     )
 
-    if not os.path.isdir("name_constraints/"):
-        os.mkdir("name_constraints/")
+    output_dir: str = "name_constraints"
+    ee_cert_path: str = os.path.join(output_dir, f"{test_name}.ee.der")
+    ca_cert_path: str = os.path.join(output_dir, f"{test_name}.ca.der")
 
-    with open(f"name_constraints/{test_name}.ee.der", "wb") as f:
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
+
+    with open(ee_cert_path, "wb") as f:
         f.write(ee_certificate.public_bytes(Encoding.DER))
 
     # issuer
@@ -228,7 +232,7 @@ def generate_name_constraints_test(
         excluded_subtrees=excluded_subtrees,
     )
 
-    with open(f"name_constraints/{test_name}.ca.der", "wb") as f:
+    with open(ca_cert_path, "wb") as f:
         f.write(ca.public_bytes(Encoding.DER))
 
     expected: str = ""
@@ -244,8 +248,8 @@ def generate_name_constraints_test(
         """
 #[test]
 fn %(test_name)s() {
-    let ee = include_bytes!("name_constraints/%(test_name)s.ee.der");
-    let ca = include_bytes!("name_constraints/%(test_name)s.ca.der");
+    let ee = include_bytes!("%(ee_cert_path)s");
+    let ca = include_bytes!("%(ca_cert_path)s");
     assert_eq!(
         check_cert(ee, ca, &[%(valid_names_str)s], &[%(invalid_names_str)s]),
         %(expected)s
@@ -583,8 +587,17 @@ def signatures() -> None:
         ),
     }
 
-    if not os.path.isdir("signatures/"):
-        os.mkdir("signatures/")
+    output_dir: str = "signatures"
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
+
+    message = b"hello world!"
+    message_path: str = os.path.join(output_dir, "message.bin")
+    with open(message_path, "wb") as f:
+        f.write(message)
+
+    def _cert_path(cert_type: str) -> str:
+        return os.path.join(output_dir, f"{cert_type}.ee.der")
 
     for name, private_key in all_key_types.items():
         ee_subject = x509.Name(
@@ -599,15 +612,18 @@ def signatures() -> None:
             issuer_name=issuer_subject,
         )
 
-        with open("signatures/" + name + ".ee.der", "wb") as f:
+        with open(_cert_path(name), "wb") as f:
             f.write(certificate.public_bytes(Encoding.DER))
 
     def _test(
         test_name: str, cert_type: str, algorithm: str, signature: bytes, expected: str
     ) -> None:
+        nonlocal message_path
+        cert_path: str = _cert_path(cert_type)
         lower_test_name: str = test_name.lower()
 
-        with open("signatures/" + lower_test_name + ".sig.bin", "wb") as f:
+        sig_path: str = os.path.join(output_dir, f"{lower_test_name}.sig.bin")
+        with open(sig_path, "wb") as f:
             f.write(signature)
 
         print(
@@ -615,9 +631,9 @@ def signatures() -> None:
 #[test]
 #[cfg(feature = "alloc")]
 fn %(lower_test_name)s() {
-    let ee = include_bytes!("signatures/%(cert_type)s.ee.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/%(lower_test_name)s.sig.bin");
+    let ee = include_bytes!("%(cert_path)s");
+    let message = include_bytes!("%(message_path)s");
+    let signature = include_bytes!("%(sig_path)s");
     assert_eq!(
         check_sig(ee, &webpki::%(algorithm)s, message, signature),
         %(expected)s
@@ -626,11 +642,6 @@ fn %(lower_test_name)s() {
             % locals(),
             file=output,
         )
-
-    message = b"hello world!"
-
-    with open("signatures/message.bin", "wb") as f:
-        f.write(message)
 
     def good_signature(
         test_name: str, cert_type: str, algorithm: str, signer: SIGNER
@@ -665,6 +676,7 @@ fn %(lower_test_name)s() {
     def bad_algorithms_for_key(
         test_name: str, cert_type: str, unusable_algs: set[str]
     ) -> None:
+        cert_path: str = _cert_path(cert_type)
         test_name_lower: str = test_name.lower()
         unusable_algs_str: str = ", ".join(
             "&webpki::" + alg for alg in sorted(unusable_algs)
@@ -674,7 +686,7 @@ fn %(lower_test_name)s() {
 #[test]
 #[cfg(feature = "alloc")]
 fn %(test_name_lower)s() {
-    let ee = include_bytes!("signatures/%(cert_type)s.ee.der");
+    let ee = include_bytes!("%(cert_path)s");
     for algorithm in &[ %(unusable_algs_str)s ] {
         assert_eq!(
             check_sig(ee, algorithm, b"", b""),
@@ -748,10 +760,12 @@ def generate_client_auth_test(
         issuer_name=issuer_name,
     )
 
-    if not os.path.isdir("client_auth/"):
-        os.mkdir("client_auth/")
+    output_dir: str = "client_auth"
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
 
-    with open("client_auth/" + test_name + ".ee.der", "wb") as f:
+    ee_cert_path: str = os.path.join(output_dir, f"{test_name}.ee.der")
+    with open(ee_cert_path, "wb") as f:
         f.write(ee_certificate.public_bytes(Encoding.DER))
 
     # issuer
@@ -759,7 +773,8 @@ def generate_client_auth_test(
         subject_name=issuer_name, subject_key=ISSUER_PRIVATE_KEY
     )
 
-    with open("client_auth/" + test_name + ".ca.der", "wb") as f:
+    ca_cert_path: str = os.path.join(output_dir, f"{test_name}.ca.der")
+    with open(ca_cert_path, "wb") as f:
         f.write(ca.public_bytes(Encoding.DER))
 
     expected: str = ""
@@ -773,8 +788,8 @@ def generate_client_auth_test(
 #[test]
 #[cfg(feature = "alloc")]
 fn %(test_name)s() {
-    let ee = include_bytes!("client_auth/%(test_name)s.ee.der");
-    let ca = include_bytes!("client_auth/%(test_name)s.ca.der");
+    let ee = include_bytes!("%(ee_cert_path)s");
+    let ca = include_bytes!("%(ca_cert_path)s");
     assert_eq!(
         check_cert(ee, ca),
         %(expected)s
