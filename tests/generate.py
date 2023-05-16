@@ -9,6 +9,7 @@ drops testcase data into subdirectories as required.
 """
 import argparse
 import os
+from enum import Enum
 from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
 
 from cryptography import x509
@@ -102,6 +103,15 @@ def end_entity_cert(
         private_key=issuer_key if issuer_key is not None else ROOT_PRIVATE_KEY,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
+    )
+
+
+def subject_name_for_test(subject_cn: str, test_name: str) -> x509.Name:
+    return x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, subject_cn),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
+        ]
     )
 
 
@@ -843,6 +853,461 @@ def client_auth() -> None:
         )
 
 
+def client_auth_revocation() -> None:
+    output_dir: str = "client_auth_revocation"
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
+
+    class RevocationCheckDepth(Enum):
+        EndEntity = "EndEntity"
+        Chain = "Chain"
+
+    def _chain(
+        *, chain_name: str, key_usage: Optional[x509.KeyUsage]
+    ) -> list[tuple[x509.Certificate, str, ANY_PRIV_KEY]]:
+        """
+        Generate a short test certificate chain:
+        ee -> intermediate -> root.
+
+        :param chain_name: the name of the certificate chain. Used to generate subject/issuer names and to
+        choose the filename to write DER contents to disk.
+
+        :param key_usage: the KeyUsage to include in the issuer certificates (both the intermediate and the root).
+
+        :return: Return a list comprising the chain starting from the end entity and ending at the root trust anchor.
+        Each entry in the list is a tuple of three values: the x509.Certificate object, the path the DER encoding
+        was written to, and lastly the corresponding private key.
+        """
+        ee_subj: x509.Name = subject_name_for_test("test.example.com", chain_name)
+        int_subj: x509.Name = issuer_name_for_test(f"int.{chain_name}")
+        ca_subj: x509.Name = issuer_name_for_test(f"ca.{chain_name}")
+        ee_key: rsa.RSAPrivateKey = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend(),
+        )
+        int_key: rsa.RSAPrivateKey = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend(),
+        )
+
+        # EE cert issued by intermediate.
+        ee_cert: x509.Certificate = end_entity_cert(
+            subject_name=ee_subj, issuer_name=int_subj, issuer_key=int_key
+        )
+        ee_cert_path: str = os.path.join(output_dir, f"{chain_name}.ee.der")
+        with open(ee_cert_path, "wb") as f:
+            f.write(ee_cert.public_bytes(Encoding.DER))
+
+        # intermediate cert issued by root.
+        int_cert: x509.Certificate = ca_cert(
+            subject_name=int_subj,
+            subject_key=int_key,
+            issuer_name=ca_subj,
+            issuer_key=ROOT_PRIVATE_KEY,
+            key_usage=key_usage,
+        )
+        int_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.ca.der")
+        with open(int_cert_path, "wb") as f:
+            f.write(int_cert.public_bytes(Encoding.DER))
+
+        # root cert issued by itself.
+        root_cert: x509.Certificate = ca_cert(
+            subject_name=ca_subj,
+            subject_key=ROOT_PRIVATE_KEY,
+            key_usage=key_usage,
+        )
+        root_cert_path: str = os.path.join(output_dir, f"{chain_name}.root.ca.der")
+        with open(root_cert_path, "wb") as f:
+            f.write(root_cert.public_bytes(Encoding.DER))
+
+        return [
+            (ee_cert, ee_cert_path, ee_key),
+            (int_cert, int_cert_path, int_key),
+            (root_cert, root_cert_path, ROOT_PRIVATE_KEY),
+        ]
+
+    def _crl(
+        *,
+        serials: Iterable[int],
+        issuer_name: x509.Name,
+        issuer_key: Optional[ANY_PRIV_KEY],
+    ) -> x509.CertificateRevocationList:
+        """
+        Generate a certificate revocation list.
+        :param serials: list of serial numbers to include in the CRL as revoked certificates.
+        :param issuer_name: the name of the CRL issuer.
+        :param issuer_key: the key used to sign the CRL.
+        :return: a generated x509.CertificateRevocationList.
+        """
+        issuer_priv_key: ANY_PRIV_KEY = key_or_generate(issuer_key)
+        crl_builder: x509.CertificateRevocationListBuilder = (
+            x509.CertificateRevocationListBuilder()
+        )
+        crl_builder = crl_builder.issuer_name(issuer_name)
+        crl_builder = crl_builder.last_update(NOT_BEFORE)
+        crl_builder = crl_builder.next_update(NOT_AFTER)
+        for serial in serials:
+            revoked_cert_builder: x509.RevokedCertificateBuilder = (
+                x509.RevokedCertificateBuilder()
+            )
+            revoked_cert_builder = revoked_cert_builder.serial_number(serial)
+            revoked_cert_builder = revoked_cert_builder.revocation_date(NOT_BEFORE)
+            revoked_cert_builder = revoked_cert_builder.add_extension(
+                x509.CRLReason(x509.ReasonFlags.key_compromise), critical=False
+            )
+            crl_builder = crl_builder.add_revoked_certificate(
+                revoked_cert_builder.build()
+            )
+        crl_builder = crl_builder.add_extension(
+            x509.CRLNumber(x509.random_serial_number()), critical=False
+        )
+
+        return crl_builder.sign(
+            private_key=issuer_priv_key,
+            algorithm=hashes.SHA256(),
+        )
+
+    def _revocation_test(
+        *,
+        test_name: str,
+        chain: list[tuple[x509.Certificate, str, ANY_PRIV_KEY]],
+        crl_paths: Iterable[str],
+        depth: RevocationCheckDepth,
+        expected_error: Optional[str],
+    ) -> None:
+        """
+        Generate a Rust unit test for a revocation checking scenario and write it to the output file.
+
+        :param test_name: the name of the unit test.
+        :param chain: the certificate chain to use for validation.
+        :param crl_paths: paths to zero or more
+        :param depth: whether to validate the revocation status of the chain, or just the end entity.
+        :param expected_error: an optional error to expect to be returned from validation.
+        """
+        if len(chain) != 3:
+            raise RuntimeError("invalid chain length")
+
+        ee_cert, ee_cert_path, _ = chain[0]
+        int_cert, int_cert_path, _ = chain[1]
+        root_cert, root_cert_path, _ = chain[2]
+
+        intermediates_str: str = f'&[include_bytes!("{int_cert_path}").as_slice()]'
+        crl_includes: str = "\n".join(
+            [
+                f'webpki::CertRevocationList::try_from(include_bytes!("{path}").as_slice()).unwrap(),'
+                for path in crl_paths
+            ]
+        )
+        crls: str = f"&[{crl_includes}]"
+        depth_str: str = (
+            "RevocationCheckDepth::Chain"
+            if depth == RevocationCheckDepth.Chain
+            else "RevocationCheckDepth::EndEntity"
+        )
+        expected: str = (
+            f"Err(webpki::Error::{expected_error})" if expected_error else "Ok(())"
+        )
+
+        print(
+            """
+        #[test]
+        #[cfg(feature = "alloc")]
+        fn %(test_name)s() {
+          let ee = include_bytes!("%(ee_cert_path)s");
+          let intermediates = %(intermediates_str)s;
+          let ca = include_bytes!("%(root_cert_path)s");
+          let crls = %(crls)s;
+          assert_eq!(check_cert(ee, intermediates, ca, %(depth_str)s, crls), %(expected)s);
+        }
+        """
+            % locals(),
+            file=output,
+        )
+
+    # Build a simple certificate chain where the issuers don't have a key usage specified.
+    no_ku_chain = _chain(chain_name="no_ku_chain", key_usage=None)
+
+    def _no_crls_test_ee_depth() -> None:
+        # Providing no CRLs means the EE cert should verify without err.
+        _revocation_test(
+            test_name="no_crls_test_ee_depth",
+            chain=no_ku_chain,
+            crl_paths=[],
+            depth=RevocationCheckDepth.EndEntity,
+            expected_error=None,
+        )
+
+    def _no_relevant_crl_ee_depth() -> None:
+        test_name = "no_relevant_crl_ee_depth"
+        # Generate a CRL that includes the EE cert's serial, but that is issued by an unknown issuer.
+        ee_cert = no_ku_chain[0][0]
+        no_match_crl = _crl(
+            serials=[ee_cert.serial_number],
+            issuer_name=subject_name_for_test("whatev", test_name),
+            issuer_key=None,
+        )
+        no_match_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(no_match_crl_path, "wb") as f:
+            f.write(no_match_crl.public_bytes(Encoding.DER))
+
+        # Providing no relevant CRL means the EE cert should verify without err.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[no_match_crl_path],
+            depth=RevocationCheckDepth.EndEntity,
+            expected_error=None,
+        )
+
+    def _ee_not_revoked_ee_depth() -> None:
+        test_name = "ee_not_revoked_ee_depth"
+        ee_cert = no_ku_chain[0][0]
+        int_key = no_ku_chain[1][2]
+        # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        ee_not_revoked_crl = _crl(
+            serials=[12345],  # Some serial that isn't the ee_cert.serial.
+            issuer_name=ee_cert.issuer,
+            issuer_key=int_key,
+        )
+        ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(ee_not_revoked_crl_path, "wb") as f:
+            f.write(ee_not_revoked_crl.public_bytes(Encoding.DER))
+
+        # Providing a CRL that's relevant and verifies, but that doesn't include the EE cert serial should verify
+        # without err.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[ee_not_revoked_crl_path],
+            depth=RevocationCheckDepth.EndEntity,
+            expected_error=None,
+        )
+
+    def _ee_revoked_badsig_ee_depth() -> None:
+        test_name = "ee_revoked_badsig_ee_depth"
+        ee_cert = no_ku_chain[0][0]
+        # Generate a CRL that includes the EE cert's serial, and that is issued the same issuer, but that
+        # has an invalid signature.
+        ee_revoked_badsig = _crl(
+            serials=[ee_cert.serial_number],
+            issuer_name=ee_cert.issuer,
+            issuer_key=None,  # NB: Using a random key to sign, not int_key.
+        )
+        ee_revoked_badsig_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(ee_revoked_badsig_path, "wb") as f:
+            f.write(ee_revoked_badsig.public_bytes(Encoding.DER))
+
+        # Providing a relevant CRL that includes the EE cert serial but does not verify should error.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[ee_revoked_badsig_path],
+            depth=RevocationCheckDepth.EndEntity,
+            # TODO(@cpu): Adapt to more relevant error type (CRL signature bad).
+            expected_error="UnknownIssuer",
+        )
+
+    def _ee_revoked_no_ku_ee_depth() -> None:
+        test_name = "ee_revoked_no_ku_ee_depth"
+        ee_cert = no_ku_chain[0][0]
+        int_key = no_ku_chain[1][2]
+        # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (without any KU
+        # specified).
+        ee_revoked_crl = _crl(
+            serials=[ee_cert.serial_number],
+            issuer_name=ee_cert.issuer,
+            issuer_key=int_key,
+        )
+        ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(ee_revoked_crl_path, "wb") as f:
+            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+
+        # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
+        # was revoked.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            depth=RevocationCheckDepth.EndEntity,
+            # TODO(@cpu): Adapt to more relevant error type (cert revoked).
+            expected_error="UnknownIssuer",
+        )
+
+    def _no_crls_test_chain_depth() -> None:
+        # Providing no CRLs means the chain should verify without err.
+        _revocation_test(
+            test_name="no_crls_test_chain_depth",
+            chain=no_ku_chain,
+            crl_paths=[],
+            depth=RevocationCheckDepth.Chain,
+            expected_error=None,
+        )
+
+    def _no_relevant_crl_chain_depth() -> None:
+        test_name = "no_relevant_crl_chain_depth"
+        # Generate a CRL that includes the intermediate cert's serial, but that is issued by an unknown issuer.
+        int_cert = no_ku_chain[1][0]
+        no_match_crl = _crl(
+            serials=[int_cert.serial_number],
+            issuer_name=subject_name_for_test("whatev", test_name),
+            issuer_key=None,
+        )
+        no_match_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(no_match_crl_path, "wb") as f:
+            f.write(no_match_crl.public_bytes(Encoding.DER))
+
+        # Providing no relevant CRL means the chain should verify without err.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[no_match_crl_path],
+            depth=RevocationCheckDepth.Chain,
+            expected_error=None,
+        )
+
+    def _int_not_revoked_chain_depth() -> None:
+        test_name = "int_not_revoked_chain_depth"
+        int_cert = no_ku_chain[1][0]
+        ca_key = no_ku_chain[2][2]
+        # Generate a CRL that doesn't include the intermediate cert's serial, but that is issued the same issuer.
+        int_not_revoked_crl = _crl(
+            serials=[12345],  # Some serial that isn't the int_cert.serial.
+            issuer_name=int_cert.issuer,
+            issuer_key=ca_key,
+        )
+        int_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(int_not_revoked_crl_path, "wb") as f:
+            f.write(int_not_revoked_crl.public_bytes(Encoding.DER))
+
+        # Providing a CRL that's relevant and verifies, but that doesn't include the intermediate cert serial should
+        # verify the chain without err.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[int_not_revoked_crl_path],
+            depth=RevocationCheckDepth.Chain,
+            expected_error=None,
+        )
+
+    def _int_revoked_badsig_chain_depth() -> None:
+        test_name = "int_revoked_badsig_chain_depth"
+        int_cert = no_ku_chain[1][0]
+        # Generate a CRL that includes the intermediate cert's serial, and that is issued the same issuer, but that
+        # has an invalid signature.
+        int_revoked_badsig = _crl(
+            serials=[int_cert.serial_number],
+            issuer_name=int_cert.issuer,
+            issuer_key=None,  # NB: Using a random key to sign, not CA cert's key.
+        )
+        int_revoked_badsig_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(int_revoked_badsig_path, "wb") as f:
+            f.write(int_revoked_badsig.public_bytes(Encoding.DER))
+
+        # Providing a relevant CRL that includes the EE cert serial but does not verify should error.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[int_revoked_badsig_path],
+            depth=RevocationCheckDepth.Chain,
+            # TODO(@cpu): Adapt to more relevant error type (CRL signature bad).
+            expected_error="UnknownIssuer",
+        )
+
+    def _ee_revoked_chain_depth() -> None:
+        test_name = "ee_revoked_chain_depth"
+        ee_cert = no_ku_chain[0][0]
+        int_key = no_ku_chain[1][2]
+        # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (without any KU
+        # specified).
+        ee_revoked_crl = _crl(
+            serials=[ee_cert.serial_number],
+            issuer_name=ee_cert.issuer,
+            issuer_key=int_key,
+        )
+        ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(ee_revoked_crl_path, "wb") as f:
+            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+
+        # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
+        # was revoked when using the Chain revocation check depth (since it implies EndEntity).
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            depth=RevocationCheckDepth.Chain,
+            # TODO(@cpu): Adapt to more relevant error type (cert revoked).
+            expected_error="UnknownIssuer",
+        )
+
+    def _int_revoked_ee_depth() -> None:
+        test_name = "int_revoked_ee_depth"
+        int_cert, _, int_key = no_ku_chain[1]
+        # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer
+        # (without any KU specified).
+        ee_revoked_crl = _crl(
+            serials=[int_cert.serial_number],
+            issuer_name=int_cert.issuer,
+            issuer_key=int_key,
+        )
+        int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(int_revoked_crl_path, "wb") as f:
+            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+
+        # Providing a relevant CRL that includes the intermediate cert serial and verifies, but only using the
+        # EndEntity depth should not error even though the intermediate cert is revoked. We don't check it!
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[int_revoked_crl_path],
+            depth=RevocationCheckDepth.EndEntity,
+            expected_error=None,
+        )
+
+    def _int_revoked_no_ku_chain_depth() -> None:
+        test_name = "int_revoked_no_ku_chain_depth"
+        int_cert, _, int_key = no_ku_chain[1]
+        # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer
+        # (without any KU specified).
+        ee_revoked_crl = _crl(
+            serials=[int_cert.serial_number],
+            issuer_name=int_cert.issuer,
+            issuer_key=int_key,
+        )
+        int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        with open(int_revoked_crl_path, "wb") as f:
+            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+
+        # Providing a relevant CRL that includes the intermediate cert serial and verifies, and using the
+        # Chain depth should error since an intermediate cert is revoked.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[int_revoked_crl_path],
+            depth=RevocationCheckDepth.Chain,
+            # TODO(@cpu): Adapt to more relevant error type (intermediate cert revoked).
+            expected_error="UnknownIssuer",
+        )
+
+    with trim_top("client_auth_revocation.rs") as output:
+        # Revocation checking at end entity depth test cases.
+        _no_crls_test_ee_depth()
+        _no_relevant_crl_ee_depth()
+        _ee_not_revoked_ee_depth()
+        _ee_revoked_badsig_ee_depth()
+        _ee_revoked_no_ku_ee_depth()
+
+        # Revocation checking at chain depth test cases.
+        _no_crls_test_chain_depth()
+        _no_relevant_crl_chain_depth()
+        _int_not_revoked_chain_depth()
+        _int_revoked_badsig_chain_depth()
+        _ee_revoked_chain_depth()
+        _int_revoked_ee_depth()
+        _int_revoked_no_ku_chain_depth()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -864,6 +1329,12 @@ if __name__ == "__main__":
         help="Generate client auth testcases",
     )
     parser.add_argument(
+        "--clientauthrevocation",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate client auth revocation testcases",
+    )
+    parser.add_argument(
         "--format",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -883,6 +1354,8 @@ if __name__ == "__main__":
         signatures()
     if args.clientauth:
         client_auth()
+    if args.clientauthrevocation:
+        client_auth_revocation()
 
     if args.format:
         subprocess.run("cargo fmt", shell=True, check=True)
