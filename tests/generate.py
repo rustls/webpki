@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Generates test cases that aim to validate name constraints and other
 name-related parts of webpki.
@@ -808,8 +810,9 @@ def client_auth() -> None:
         )
 
 
-name_constraints()
-signatures()
-client_auth()
+if __name__ == "__main__":
+    name_constraints()
+    signatures()
+    client_auth()
 
-subprocess.run("cargo fmt", shell=True, check=True)
+    subprocess.run("cargo fmt", shell=True, check=True)
