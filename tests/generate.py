@@ -4,8 +4,8 @@
 Generates test cases that aim to validate name constraints and other
 name-related parts of webpki.
 
-Run this script from tests/.  It edits the bottom part of tests/name_constraints.rs
-and drops files into tests/name_constraints.
+Run this script from tests/.  It edits the bottom part of some .rs files and
+drops testcase data into subdirectories as required.
 """
 import argparse
 import os
