@@ -7,6 +7,7 @@ name-related parts of webpki.
 Run this script from tests/.  It edits the bottom part of tests/name_constraints.rs
 and drops files into tests/name_constraints.
 """
+import argparse
 import os
 from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
 
@@ -824,8 +825,47 @@ def client_auth() -> None:
 
 
 if __name__ == "__main__":
-    name_constraints()
-    signatures()
-    client_auth()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--name-constraints",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate name constraint testcases",
+    )
+    parser.add_argument(
+        "--signatures",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate signature testcases",
+    )
+    parser.add_argument(
+        "--clientauth",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate client auth testcases",
+    )
+    parser.add_argument(
+        "--format",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run cargo fmt post-generation",
+    )
+    parser.add_argument(
+        "--test",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run cargo test post-generation",
+    )
+    args = parser.parse_args()
 
-    subprocess.run("cargo fmt", shell=True, check=True)
+    if args.name_constraints:
+        name_constraints()
+    if args.signatures:
+        signatures()
+    if args.clientauth:
+        client_auth()
+
+    if args.format:
+        subprocess.run("cargo fmt", shell=True, check=True)
+    if args.test:
+        subprocess.run("cargo test", shell=True, check=True)
