@@ -28,8 +28,11 @@ ISSUER_PUBLIC_KEY: rsa.RSAPublicKey = ISSUER_PRIVATE_KEY.public_key()
 NOT_BEFORE: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D - 30)
 NOT_AFTER: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D + 30)
 
-ANY_KEY = Union[
+ANY_PRIV_KEY = Union[
     ed25519.Ed25519PrivateKey | ec.EllipticCurvePrivateKey | rsa.RSAPrivateKey
+]
+ANY_PUB_KEY = Union[
+    ed25519.Ed25519PublicKey | ec.EllipticCurvePublicKey | rsa.RSAPublicKey
 ]
 SIGNER = Callable[
     [Any, bytes], Any
@@ -49,6 +52,98 @@ def trim_top(file_name: str) -> TextIO:
     for line in top:
         output.write(line)
     return output
+
+
+def key_or_generate(key: Optional[ANY_PRIV_KEY] = None) -> ANY_PRIV_KEY:
+    return (
+        key
+        if key is not None
+        else rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend(),
+        )
+    )
+
+
+def end_entity_cert(
+    *,
+    subject_name: x509.Name,
+    issuer_name: x509.Name,
+    issuer_key: Optional[ANY_PRIV_KEY] = None,
+    subject_key: Optional[ANY_PRIV_KEY] = None,
+    sans: Optional[Iterable[x509.GeneralName]] = None,
+    ekus: Optional[Iterable[x509.ObjectIdentifier]] = None,
+) -> x509.Certificate:
+    subject_priv_key = key_or_generate(subject_key)
+    subject_key_pub: ANY_PUB_KEY = subject_priv_key.public_key()
+
+    ee_builder: x509.CertificateBuilder = x509.CertificateBuilder()
+    ee_builder = ee_builder.subject_name(subject_name)
+    ee_builder = ee_builder.issuer_name(issuer_name)
+    ee_builder = ee_builder.not_valid_before(NOT_BEFORE)
+    ee_builder = ee_builder.not_valid_after(NOT_AFTER)
+    ee_builder = ee_builder.serial_number(x509.random_serial_number())
+    ee_builder = ee_builder.public_key(subject_key_pub)
+    if sans:
+        ee_builder = ee_builder.add_extension(
+            x509.SubjectAlternativeName(sans), critical=False
+        )
+    if ekus:
+        ee_builder = ee_builder.add_extension(
+            x509.ExtendedKeyUsage(ekus), critical=False
+        )
+    ee_builder = ee_builder.add_extension(
+        x509.BasicConstraints(ca=False, path_length=None),
+        critical=True,
+    )
+    return ee_builder.sign(
+        private_key=issuer_key if issuer_key is not None else ISSUER_PRIVATE_KEY,
+        algorithm=hashes.SHA256(),
+        backend=default_backend(),
+    )
+
+
+def issuer_name_for_test(test_name: str) -> x509.Name:
+    return x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, "issuer.example.com"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
+        ]
+    )
+
+
+def ca_cert(
+    *,
+    subject_name: x509.Name,
+    subject_key: Optional[ANY_PRIV_KEY] = None,
+    permitted_subtrees: Optional[Iterable[x509.GeneralName]] = None,
+    excluded_subtrees: Optional[Iterable[x509.GeneralName]] = None,
+) -> x509.Certificate:
+    subject_priv_key = key_or_generate(subject_key)
+    subject_key_pub: ANY_PUB_KEY = subject_priv_key.public_key()
+
+    ca_builder: x509.CertificateBuilder = x509.CertificateBuilder()
+    ca_builder = ca_builder.subject_name(subject_name)
+    ca_builder = ca_builder.issuer_name(subject_name)
+    ca_builder = ca_builder.not_valid_before(NOT_BEFORE)
+    ca_builder = ca_builder.not_valid_after(NOT_AFTER)
+    ca_builder = ca_builder.serial_number(x509.random_serial_number())
+    ca_builder = ca_builder.public_key(subject_key_pub)
+    ca_builder = ca_builder.add_extension(
+        x509.BasicConstraints(ca=True, path_length=None),
+        critical=True,
+    )
+    if permitted_subtrees is not None or excluded_subtrees is not None:
+        ca_builder = ca_builder.add_extension(
+            x509.NameConstraints(permitted_subtrees, excluded_subtrees), critical=True
+        )
+
+    return ca_builder.sign(
+        private_key=subject_priv_key,
+        algorithm=hashes.SHA256(),
+        backend=default_backend(),
+    )
 
 
 def generate_name_constraints_test(
@@ -94,58 +189,29 @@ def generate_name_constraints_test(
       end-entity  certificate does not have a `nameConstraints` extension.
     """
 
-    # keys must be valid but are otherwise unimportant for these tests
     if invalid_names is None:
         invalid_names = []
     if valid_names is None:
         valid_names = []
     if extra_subject_names is None:
         extra_subject_names = []
-    private_key: rsa.RSAPrivateKey = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend(),
-    )
-    public_key: rsa.RSAPublicKey = private_key.public_key()
 
-    issuer_name: x509.Name = x509.Name(
-        [
-            x509.NameAttribute(NameOID.COMMON_NAME, "issuer.example.com"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
-        ]
-    )
+    issuer_name: x509.Name = issuer_name_for_test(test_name)
 
     # end-entity
-    ee_builder: x509.CertificateBuilder = x509.CertificateBuilder()
-    ee_builder = ee_builder.subject_name(
-        x509.Name(
-            (
-                [x509.NameAttribute(NameOID.COMMON_NAME, subject_common_name)]
-                if subject_common_name
-                else []
-            )
-            + [x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)]
-            + extra_subject_names
+    ee_subject = x509.Name(
+        (
+            [x509.NameAttribute(NameOID.COMMON_NAME, subject_common_name)]
+            if subject_common_name
+            else []
         )
+        + [x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)]
+        + extra_subject_names
     )
-    ee_builder = ee_builder.issuer_name(issuer_name)
-
-    ee_builder = ee_builder.not_valid_before(NOT_BEFORE)
-    ee_builder = ee_builder.not_valid_after(NOT_AFTER)
-    ee_builder = ee_builder.serial_number(x509.random_serial_number())
-    ee_builder = ee_builder.public_key(public_key)
-    if sans:
-        ee_builder = ee_builder.add_extension(
-            x509.SubjectAlternativeName(sans), critical=False
-        )
-    ee_builder = ee_builder.add_extension(
-        x509.BasicConstraints(ca=False, path_length=None),
-        critical=True,
-    )
-    ee_certificate: x509.Certificate = ee_builder.sign(
-        private_key=ISSUER_PRIVATE_KEY,
-        algorithm=hashes.SHA256(),
-        backend=default_backend(),
+    ee_certificate: x509.Certificate = end_entity_cert(
+        subject_name=ee_subject,
+        issuer_name=issuer_name,
+        sans=sans,
     )
 
     if not os.path.isdir("name_constraints/"):
@@ -155,26 +221,11 @@ def generate_name_constraints_test(
         f.write(ee_certificate.public_bytes(Encoding.DER))
 
     # issuer
-    ca_builder: x509.CertificateBuilder = x509.CertificateBuilder()
-    ca_builder = ca_builder.subject_name(issuer_name)
-    ca_builder = ca_builder.issuer_name(issuer_name)
-    ca_builder = ca_builder.not_valid_before(NOT_BEFORE)
-    ca_builder = ca_builder.not_valid_after(NOT_AFTER)
-    ca_builder = ca_builder.serial_number(x509.random_serial_number())
-    ca_builder = ca_builder.public_key(ISSUER_PUBLIC_KEY)
-    ca_builder = ca_builder.add_extension(
-        x509.BasicConstraints(ca=True, path_length=None),
-        critical=True,
-    )
-    if permitted_subtrees or excluded_subtrees:
-        ca_builder = ca_builder.add_extension(
-            x509.NameConstraints(permitted_subtrees, excluded_subtrees), critical=True
-        )
-
-    ca: x509.Certificate = ca_builder.sign(
-        private_key=ISSUER_PRIVATE_KEY,
-        algorithm=hashes.SHA256(),
-        backend=default_backend(),
+    ca: x509.Certificate = ca_cert(
+        subject_name=issuer_name,
+        subject_key=ISSUER_PRIVATE_KEY,
+        permitted_subtrees=permitted_subtrees,
+        excluded_subtrees=excluded_subtrees,
     )
 
     with open(f"name_constraints/{test_name}.ca.der", "wb") as f:
@@ -454,7 +505,7 @@ def name_constraints() -> None:
 def signatures() -> None:
     rsa_pub_exponent: int = 0x10001
     backend: Any = default_backend()
-    all_key_types: dict[str, ANY_KEY] = {
+    all_key_types: dict[str, ANY_PRIV_KEY] = {
         "ed25519": ed25519.Ed25519PrivateKey.generate(),
         "ecdsa_p256": ec.generate_private_key(ec.SECP256R1(), backend),
         "ecdsa_p384": ec.generate_private_key(ec.SECP384R1(), backend),
@@ -536,27 +587,16 @@ def signatures() -> None:
         os.mkdir("signatures/")
 
     for name, private_key in all_key_types.items():
-        # end-entity
-        builder: x509.CertificateBuilder = x509.CertificateBuilder()
-        builder = builder.subject_name(
-            x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " test")])
+        ee_subject = x509.Name(
+            [x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " test")]
         )
-        builder = builder.issuer_name(
-            x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " issuer")])
+        issuer_subject = x509.Name(
+            [x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " issuer")]
         )
-
-        builder = builder.not_valid_before(NOT_BEFORE)
-        builder = builder.not_valid_after(NOT_AFTER)
-        builder = builder.serial_number(x509.random_serial_number())
-        builder = builder.public_key(private_key.public_key())
-        builder = builder.add_extension(
-            x509.BasicConstraints(ca=False, path_length=None),
-            critical=True,
-        )
-        certificate = builder.sign(
-            private_key=ISSUER_PRIVATE_KEY,
-            algorithm=hashes.SHA256(),
-            backend=default_backend(),
+        certificate: x509.Certificate = end_entity_cert(
+            subject_name=ee_subject,
+            subject_key=private_key,
+            issuer_name=issuer_subject,
         )
 
         with open("signatures/" + name + ".ee.der", "wb") as f:
@@ -696,44 +736,16 @@ def generate_client_auth_test(
     ekus: Optional[Iterable[x509.ObjectIdentifier]],
     expected_error: Optional[str] = None,
 ) -> None:
-    # keys must be valid but are otherwise unimportant for these tests
-    private_key: rsa.RSAPrivateKey = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend(),
-    )
-    public_key: rsa.RSAPublicKey = private_key.public_key()
-
-    issuer_name: x509.Name = x509.Name(
-        [
-            x509.NameAttribute(NameOID.COMMON_NAME, "issuer.example.com"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
-        ]
-    )
+    issuer_name: x509.Name = issuer_name_for_test(test_name)
 
     # end-entity
-    ee_builder: x509.CertificateBuilder = x509.CertificateBuilder()
-    ee_builder = ee_builder.subject_name(
-        x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)])
+    ee_subject: x509.Name = x509.Name(
+        [x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)]
     )
-    ee_builder = ee_builder.issuer_name(issuer_name)
-
-    ee_builder = ee_builder.not_valid_before(NOT_BEFORE)
-    ee_builder = ee_builder.not_valid_after(NOT_AFTER)
-    ee_builder = ee_builder.serial_number(x509.random_serial_number())
-    ee_builder = ee_builder.public_key(public_key)
-    if ekus:
-        ee_builder = ee_builder.add_extension(
-            x509.ExtendedKeyUsage(ekus), critical=False
-        )
-    ee_builder = ee_builder.add_extension(
-        x509.BasicConstraints(ca=False, path_length=None),
-        critical=True,
-    )
-    ee_certificate: x509.Certificate = ee_builder.sign(
-        private_key=ISSUER_PRIVATE_KEY,
-        algorithm=hashes.SHA256(),
-        backend=default_backend(),
+    ee_certificate: x509.Certificate = end_entity_cert(
+        subject_name=ee_subject,
+        ekus=ekus,
+        issuer_name=issuer_name,
     )
 
     if not os.path.isdir("client_auth/"):
@@ -743,22 +755,8 @@ def generate_client_auth_test(
         f.write(ee_certificate.public_bytes(Encoding.DER))
 
     # issuer
-    ca_builder: x509.CertificateBuilder = x509.CertificateBuilder()
-    ca_builder = ca_builder.subject_name(issuer_name)
-    ca_builder = ca_builder.issuer_name(issuer_name)
-    ca_builder = ca_builder.not_valid_before(NOT_BEFORE)
-    ca_builder = ca_builder.not_valid_after(NOT_AFTER)
-    ca_builder = ca_builder.serial_number(x509.random_serial_number())
-    ca_builder = ca_builder.public_key(ISSUER_PUBLIC_KEY)
-    ca_builder = ca_builder.add_extension(
-        x509.BasicConstraints(ca=True, path_length=None),
-        critical=True,
-    )
-
-    ca: x509.Certificate = ca_builder.sign(
-        private_key=ISSUER_PRIVATE_KEY,
-        algorithm=hashes.SHA256(),
-        backend=default_backend(),
+    ca: x509.Certificate = ca_cert(
+        subject_name=issuer_name, subject_key=ISSUER_PRIVATE_KEY
     )
 
     with open("client_auth/" + test_name + ".ca.der", "wb") as f:
