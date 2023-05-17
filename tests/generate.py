@@ -118,15 +118,18 @@ def ca_cert(
     *,
     subject_name: x509.Name,
     subject_key: Optional[ANY_PRIV_KEY] = None,
+    issuer_name: Optional[x509.Name] = None,
+    issuer_key: Optional[ANY_PRIV_KEY] = None,
     permitted_subtrees: Optional[Iterable[x509.GeneralName]] = None,
     excluded_subtrees: Optional[Iterable[x509.GeneralName]] = None,
+    key_usage: Optional[x509.KeyUsage] = None,
 ) -> x509.Certificate:
     subject_priv_key = key_or_generate(subject_key)
     subject_key_pub: ANY_PUB_KEY = subject_priv_key.public_key()
 
     ca_builder: x509.CertificateBuilder = x509.CertificateBuilder()
     ca_builder = ca_builder.subject_name(subject_name)
-    ca_builder = ca_builder.issuer_name(subject_name)
+    ca_builder = ca_builder.issuer_name(issuer_name if issuer_name else subject_name)
     ca_builder = ca_builder.not_valid_before(NOT_BEFORE)
     ca_builder = ca_builder.not_valid_after(NOT_AFTER)
     ca_builder = ca_builder.serial_number(x509.random_serial_number())
@@ -139,9 +142,14 @@ def ca_cert(
         ca_builder = ca_builder.add_extension(
             x509.NameConstraints(permitted_subtrees, excluded_subtrees), critical=True
         )
+    if key_usage is not None:
+        ca_builder = ca_builder.add_extension(
+            key_usage,
+            critical=True,
+        )
 
     return ca_builder.sign(
-        private_key=subject_priv_key,
+        private_key=issuer_key if issuer_key else subject_priv_key,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
     )
