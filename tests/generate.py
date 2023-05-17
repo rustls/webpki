@@ -21,10 +21,10 @@ import ipaddress
 import datetime
 import subprocess
 
-ISSUER_PRIVATE_KEY: rsa.RSAPrivateKey = rsa.generate_private_key(
+ROOT_PRIVATE_KEY: rsa.RSAPrivateKey = rsa.generate_private_key(
     public_exponent=65537, key_size=2048, backend=default_backend()
 )
-ISSUER_PUBLIC_KEY: rsa.RSAPublicKey = ISSUER_PRIVATE_KEY.public_key()
+ROOT_PUBLIC_KEY: rsa.RSAPublicKey = ROOT_PRIVATE_KEY.public_key()
 
 NOT_BEFORE: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D - 30)
 NOT_AFTER: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D + 30)
@@ -99,7 +99,7 @@ def end_entity_cert(
         critical=True,
     )
     return ee_builder.sign(
-        private_key=issuer_key if issuer_key is not None else ISSUER_PRIVATE_KEY,
+        private_key=issuer_key if issuer_key is not None else ROOT_PRIVATE_KEY,
         algorithm=hashes.SHA256(),
         backend=default_backend(),
     )
@@ -228,7 +228,7 @@ def generate_name_constraints_test(
     # issuer
     ca: x509.Certificate = ca_cert(
         subject_name=issuer_name,
-        subject_key=ISSUER_PRIVATE_KEY,
+        subject_key=ROOT_PRIVATE_KEY,
         permitted_subtrees=permitted_subtrees,
         excluded_subtrees=excluded_subtrees,
     )
@@ -771,7 +771,7 @@ def generate_client_auth_test(
 
     # issuer
     ca: x509.Certificate = ca_cert(
-        subject_name=issuer_name, subject_key=ISSUER_PRIVATE_KEY
+        subject_name=issuer_name, subject_key=ROOT_PRIVATE_KEY
     )
 
     ca_cert_path: str = os.path.join(output_dir, f"{test_name}.ca.der")
