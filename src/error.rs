@@ -38,6 +38,9 @@ pub enum Error {
     /// for is earlier than the certificate's notBefore time.
     CertNotValidYet,
 
+    /// The private key provided does not match the subject public key of the certificate.
+    CertPrivateKeyMismatch,
+
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 

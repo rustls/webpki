@@ -14,6 +14,10 @@
 
 use crate::{calendar, time, Error};
 pub(crate) use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
+#[cfg(feature = "alloc")]
+use ring::signature::{
+    EcdsaSigningAlgorithm, ECDSA_P256_SHA256_ASN1_SIGNING, ECDSA_P384_SHA384_ASN1_SIGNING,
+};
 
 // Copied (and extended) from ring's src/der.rs
 #[allow(clippy::upper_case_acronyms)]
@@ -223,6 +227,93 @@ macro_rules! oid {
     )
 }
 
+/// helper function for converting DER encoded [RFC 5915] format "Sec1" elliptic curve
+/// private key material into a more standard DER encoded PKCS8 format.
+///
+/// Requires `alloc` feature.
+///
+/// This can be removed once https://github.com/briansmith/ring/pull/1456
+/// (or equivalent) is landed.
+///
+/// [RFC 5915]: <https://datatracker.ietf.org/doc/html/rfc5915>
+#[cfg(feature = "alloc")]
+pub(crate) fn convert_sec1_to_pkcs8(
+    sigalg: &EcdsaSigningAlgorithm,
+    maybe_sec1_der: &[u8],
+) -> Result<Vec<u8>, Error> {
+    let pkcs8_prefix = if sigalg == &ECDSA_P256_SHA256_ASN1_SIGNING {
+        PKCS8_PREFIX_ECDSA_NISTP256
+    } else if sigalg == &ECDSA_P384_SHA384_ASN1_SIGNING {
+        PKCS8_PREFIX_ECDSA_NISTP384
+    } else {
+        return Err(Error::UnsupportedSignatureAlgorithm);
+    };
+
+    // wrap sec1 encoding in an OCTET STRING
+    let mut sec1_wrap = Vec::with_capacity(maybe_sec1_der.len() + 8);
+    sec1_wrap.extend_from_slice(maybe_sec1_der);
+    wrap_in_asn1_len(&mut sec1_wrap);
+    #[allow(clippy::as_conversions)] // Infallible conversion.
+    sec1_wrap.insert(0, Tag::OctetString as u8);
+
+    let mut pkcs8 = Vec::with_capacity(pkcs8_prefix.len() + sec1_wrap.len() + 4);
+    pkcs8.extend_from_slice(pkcs8_prefix);
+    pkcs8.extend_from_slice(&sec1_wrap);
+    wrap_in_sequence(&mut pkcs8);
+
+    Ok(pkcs8)
+}
+
+#[cfg(feature = "alloc")]
+pub(crate) fn wrap_in_asn1_len(bytes: &mut Vec<u8>) {
+    let len = bytes.len();
+
+    if len <= 0x7f {
+        #[allow(clippy::as_conversions)] // Infallible conversion.
+        bytes.insert(0, len as u8);
+    } else {
+        bytes.insert(0, 0x80u8);
+        let mut left = len;
+        while left > 0 {
+            #[allow(clippy::as_conversions)] // Safe to truncate.
+            let byte: u8 = (left & 0xff) as u8;
+            bytes.insert(1, byte);
+            bytes[0] += 1;
+            left >>= 8;
+        }
+    }
+}
+
+/// Prepend stuff to `bytes` to put it in a DER SEQUENCE.
+#[cfg(feature = "alloc")]
+pub(crate) fn wrap_in_sequence(bytes: &mut Vec<u8>) {
+    wrap_in_asn1_len(bytes);
+    #[allow(clippy::as_conversions)] // Infallible conversion.
+    bytes.insert(0, Tag::Sequence as u8);
+}
+
+// This is (line-by-line):
+// - INTEGER Version = 0
+// - SEQUENCE (privateKeyAlgorithm)
+//   - id-ecPublicKey OID
+//   - prime256v1 OID
+#[cfg(feature = "alloc")]
+const PKCS8_PREFIX_ECDSA_NISTP256: &[u8] = b"\x02\x01\x00\
+      \x30\x13\
+      \x06\x07\x2a\x86\x48\xce\x3d\x02\x01\
+      \x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07";
+
+// This is (line-by-line):
+// - INTEGER Version = 0
+// - SEQUENCE (privateKeyAlgorithm)
+//   - id-ecPublicKey OID
+//   - secp384r1 OID
+#[cfg(feature = "alloc")]
+const PKCS8_PREFIX_ECDSA_NISTP384: &[u8] = b"\x02\x01\x00\
+     \x30\x10\
+     \x06\x07\x2a\x86\x48\xce\x3d\x02\x01\
+     \x06\x05\x2b\x81\x04\x00\x22";
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -286,5 +377,78 @@ mod tests {
 
     fn bytes_reader(bytes: &[u8]) -> untrusted::Reader {
         return untrusted::Reader::new(untrusted::Input::from(bytes));
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "alloc")]
+mod der_helper_tests {
+    use crate::der::wrap_in_sequence;
+
+    #[test]
+    fn test_empty() {
+        let mut val = Vec::new();
+        wrap_in_sequence(&mut val);
+        assert_eq!(vec![0x30, 0x00], val);
+    }
+
+    #[test]
+    fn test_small() {
+        let mut val = Vec::new();
+        val.insert(0, 0x00);
+        val.insert(1, 0x11);
+        val.insert(2, 0x22);
+        val.insert(3, 0x33);
+        wrap_in_sequence(&mut val);
+        assert_eq!(vec![0x30, 0x04, 0x00, 0x11, 0x22, 0x33], val);
+    }
+
+    #[test]
+    fn test_medium() {
+        let mut val = Vec::new();
+        val.resize(255, 0x12);
+        wrap_in_sequence(&mut val);
+        assert_eq!(vec![0x30, 0x81, 0xff, 0x12, 0x12, 0x12], val[..6].to_vec());
+    }
+
+    #[test]
+    fn test_large() {
+        let mut val = Vec::new();
+        val.resize(4660, 0x12);
+        wrap_in_sequence(&mut val);
+        assert_eq!(vec![0x30, 0x82, 0x12, 0x34, 0x12, 0x12], val[..6].to_vec());
+    }
+
+    #[test]
+    fn test_huge() {
+        let mut val = Vec::new();
+        val.resize(0xffff, 0x12);
+        wrap_in_sequence(&mut val);
+        assert_eq!(vec![0x30, 0x82, 0xff, 0xff, 0x12, 0x12], val[..6].to_vec());
+        assert_eq!(val.len(), 0xffff + 4);
+    }
+
+    #[test]
+    fn test_gigantic() {
+        let mut val = Vec::new();
+        val.resize(0x100000, 0x12);
+        wrap_in_sequence(&mut val);
+        assert_eq!(
+            vec![0x30, 0x83, 0x10, 0x00, 0x00, 0x12, 0x12],
+            val[..7].to_vec()
+        );
+        assert_eq!(val.len(), 0x100000 + 5);
+    }
+
+    #[test]
+    fn test_ludicrous() {
+        let mut val = Vec::new();
+        val.resize(0x1000000, 0x12);
+        wrap_in_sequence(&mut val);
+        assert_eq!(
+            vec![0x30, 0x84, 0x01, 0x00, 0x00, 0x00, 0x12, 0x12],
+            val[..8].to_vec()
+        );
+        assert_eq!(val.len(), 0x1000000 + 6);
     }
 }

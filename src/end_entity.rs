@@ -12,12 +12,21 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#[cfg(feature = "alloc")]
-use crate::subject_name::GeneralDnsNameRef;
 use crate::{
-    cert, signed_data, subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef, Time,
+    cert,
+    signed_data::{self, parse_spki_value},
+    subject_name, verify_cert, Error, SignatureAlgorithm, SubjectNameRef, Time,
     TlsClientTrustAnchors, TlsServerTrustAnchors,
 };
+#[cfg(feature = "alloc")]
+use crate::{der, subject_name::GeneralDnsNameRef};
+
+use ring::signature::{
+    EcdsaKeyPair, Ed25519KeyPair, KeyPair, ECDSA_P256_SHA256_ASN1_SIGNING,
+    ECDSA_P384_SHA384_ASN1_SIGNING,
+};
+#[cfg(feature = "alloc")]
+use ring::signature::{EcdsaSigningAlgorithm, RsaKeyPair};
 
 /// An end-entity certificate.
 ///
@@ -184,5 +193,98 @@ impl<'a> EndEntityCert<'a> {
     #[cfg(feature = "alloc")]
     pub fn dns_names(&'a self) -> Result<impl Iterator<Item = GeneralDnsNameRef<'a>>, Error> {
         subject_name::list_cert_dns_names(self)
+    }
+
+    /// This function tries to verify that the DER encoded `private_key_der` bytes correspond
+    /// to the public key described in the end-entity certificate's subject public key information.
+    /// If the provided key isn't usable for this EE certificate [`Error::CertPrivateKeyMismatch`]
+    /// will be returned.
+    ///
+    /// This function supports the following private key algorithms and encodings (matching the
+    /// supported formats used by Rustls):
+    /// Key algorithms:
+    ///   * RSA
+    ///   * ECDSA (P-256 or P-384)
+    ///   * Ed25519
+    /// Encodings:
+    ///   * PKCS8v1 (RSA, ECDSA, Ed25519)
+    ///   * PKCS8v2 (Ed25519 only)
+    ///   * PKCS1 (RSA only)
+    ///   * Sec1 (ECDSA only)
+    pub fn verify_private_key(&self, private_key_der: &[u8]) -> Result<(), Error> {
+        // Parse the SPKI of the EE cert and extract the DER encoded bytes of the public key.
+        let cert_pub_key = parse_spki_value(self.inner.spki.value())?
+            .key_value
+            .as_slice_less_safe();
+
+        #[cfg(feature = "alloc")]
+        if let Some(result) = extract_and_compare(private_key_der, rsa_from_der, cert_pub_key) {
+            return result;
+        }
+
+        if let Some(result) = extract_and_compare(private_key_der, ecdsa_from_pkcs8, cert_pub_key) {
+            return result;
+        }
+
+        #[cfg(feature = "alloc")]
+        if let Some(result) = extract_and_compare(private_key_der, ecdsa_from_sec1, cert_pub_key) {
+            return result;
+        }
+
+        if let Some(result) = extract_and_compare(private_key_der, ed25519_from_pkcs8, cert_pub_key)
+        {
+            return result;
+        }
+
+        Err(Error::CertPrivateKeyMismatch)
+    }
+}
+
+#[cfg(feature = "alloc")]
+fn rsa_from_der(private_key_der: &[u8]) -> Option<RsaKeyPair> {
+    RsaKeyPair::from_pkcs8(private_key_der)
+        .or_else(|_| RsaKeyPair::from_der(private_key_der))
+        .ok()
+}
+
+fn ecdsa_from_pkcs8(pkcs8_der: &[u8]) -> Option<EcdsaKeyPair> {
+    EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, pkcs8_der)
+        .ok()
+        .or_else(|| EcdsaKeyPair::from_pkcs8(&ECDSA_P384_SHA384_ASN1_SIGNING, pkcs8_der).ok())
+}
+
+#[cfg(feature = "alloc")]
+fn try_sec1_curve(sigalg: &'static EcdsaSigningAlgorithm, sec1_der: &[u8]) -> Option<EcdsaKeyPair> {
+    der::convert_sec1_to_pkcs8(sigalg, sec1_der)
+        .and_then(|pkcs8_der| {
+            EcdsaKeyPair::from_pkcs8(sigalg, &pkcs8_der).map_err(|_| Error::BadDer)
+        })
+        .ok()
+}
+
+#[cfg(feature = "alloc")]
+fn ecdsa_from_sec1(sec1_der: &[u8]) -> Option<EcdsaKeyPair> {
+    try_sec1_curve(&ECDSA_P256_SHA256_ASN1_SIGNING, sec1_der)
+        .or_else(|| try_sec1_curve(&ECDSA_P384_SHA384_ASN1_SIGNING, sec1_der))
+}
+
+fn ed25519_from_pkcs8(pkcs8_der: &[u8]) -> Option<Ed25519KeyPair> {
+    Ed25519KeyPair::from_pkcs8_maybe_unchecked(pkcs8_der).ok()
+}
+
+// use extractor to try and read a `KeyPair` from the `private_key_der`. If the extraction fails,
+// return None indicating the caller should try a different extractor. If the extraction succeeds,
+// return a result indicating whether the extracted keypair matches the `cert_pub_key`.
+fn extract_and_compare<K: KeyPair>(
+    private_key_der: &[u8],
+    extractor: impl Fn(&[u8]) -> Option<K>,
+    cert_pub_key: &[u8],
+) -> Option<Result<(), Error>> {
+    match extractor(private_key_der) {
+        Some(keypair) => match cert_pub_key == keypair.public_key().as_ref() {
+            true => Some(Ok(())),
+            false => Some(Err(Error::CertPrivateKeyMismatch)),
+        },
+        None => None,
     }
 }

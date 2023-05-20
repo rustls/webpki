@@ -12,9 +12,13 @@ import os
 from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
 
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, padding
-from cryptography.hazmat.primitives.serialization import Encoding
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PrivateFormat,
+    NoEncryption,
+)
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 import ipaddress
@@ -32,12 +36,24 @@ NOT_AFTER: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D + 3
 ANY_PRIV_KEY = Union[
     ed25519.Ed25519PrivateKey | ec.EllipticCurvePrivateKey | rsa.RSAPrivateKey
 ]
+ANY_KEY = Union[
+    ed25519.Ed25519PrivateKey | ec.EllipticCurvePrivateKey | rsa.RSAPrivateKey
+]
 ANY_PUB_KEY = Union[
     ed25519.Ed25519PublicKey | ec.EllipticCurvePublicKey | rsa.RSAPublicKey
 ]
 SIGNER = Callable[
     [Any, bytes], Any
 ]  # Note: a bit loosey-goosey here but good enough for tests.
+
+
+def subject_name_for_test(subject_cn: str, test_name: str) -> x509.Name:
+    return x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, subject_cn),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name),
+        ]
+    )
 
 
 def trim_top(file_name: str) -> TextIO:
@@ -843,6 +859,121 @@ def client_auth() -> None:
         )
 
 
+def ee_keyverify() -> None:
+    output_dir = "ee_keyverify"
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
+
+    def _rsa_privkey(key_size: int) -> ANY_PRIV_KEY:
+        return rsa.generate_private_key(
+            public_exponent=65537, key_size=key_size, backend=default_backend()
+        )
+
+    def _ec_privkey(curve: ec.EllipticCurve) -> ANY_PRIV_KEY:
+        return ec.generate_private_key(curve=curve, backend=default_backend())
+
+    def _ed25519_privkey() -> ANY_PRIV_KEY:
+        return ed25519.Ed25519PrivateKey.generate()
+
+    def _generate_testcert(
+        name: str,
+        privkey: ANY_PRIV_KEY,
+        privkey_format: serialization.PrivateFormat,
+    ) -> None:
+        subject: x509.Name = subject_name_for_test("test.example.com", name)
+        builder: x509.CertificateBuilder = x509.CertificateBuilder()
+        builder = builder.subject_name(subject)
+        builder = builder.issuer_name(subject)
+        builder = builder.not_valid_before(NOT_BEFORE)
+        builder = builder.not_valid_after(NOT_AFTER)
+        builder = builder.serial_number(x509.random_serial_number())
+        builder = builder.public_key(privkey.public_key())
+        builder = builder.add_extension(
+            x509.BasicConstraints(ca=False, path_length=None),
+            critical=True,
+        )
+
+        algorithm: Union[hashes.SHA256 | None] = hashes.SHA256()
+        if isinstance(privkey, ed25519.Ed25519PrivateKey):
+            algorithm = None  # Must be none for ED25519
+
+        cert: x509.Certificate = builder.sign(
+            private_key=privkey, algorithm=algorithm, backend=default_backend()
+        )
+
+        with open(os.path.join(output_dir, f"{name}.key.der"), "wb") as f:
+            f.write(
+                privkey.private_bytes(
+                    encoding=Encoding.DER,
+                    format=privkey_format,
+                    encryption_algorithm=NoEncryption(),
+                )
+            )
+        with open(os.path.join(output_dir, f"{name}.cert.der"), "wb") as f:
+            f.write(cert.public_bytes(encoding=Encoding.DER))
+
+    all_keys: list[tuple[str, ANY_PRIV_KEY, serialization.PrivateFormat]] = [
+        ("rsa_2048_pkcs8", _rsa_privkey(2048), PrivateFormat.PKCS8),
+        ("rsa_3072_pkcs8", _rsa_privkey(3072), PrivateFormat.PKCS8),
+        ("rsa_4096_pkcs8", _rsa_privkey(4096), PrivateFormat.PKCS8),
+        ("rsa_2048_pkcs1", _rsa_privkey(2048), PrivateFormat.TraditionalOpenSSL),
+        ("rsa_3072_pkcs1", _rsa_privkey(3072), PrivateFormat.TraditionalOpenSSL),
+        ("rsa_4096_pkcs1", _rsa_privkey(4096), PrivateFormat.TraditionalOpenSSL),
+        ("ec_p256_pkcs8", _ec_privkey(ec.SECP256R1()), PrivateFormat.PKCS8),
+        ("ec_p384_pkcs8", _ec_privkey(ec.SECP384R1()), PrivateFormat.PKCS8),
+        ("ec_p256_sec1", _ec_privkey(ec.SECP256R1()), PrivateFormat.TraditionalOpenSSL),
+        ("ec_p384_sec1", _ec_privkey(ec.SECP384R1()), PrivateFormat.TraditionalOpenSSL),
+        ("ed25519_pkcs8", _ed25519_privkey(), PrivateFormat.PKCS8),
+    ]
+
+    def _write_test(test_name: str) -> None:
+        ee_cert_path = os.path.join(output_dir, f"{test_name}.cert.der")
+        privkey_path = os.path.join(output_dir, f"{test_name}.key.der")
+
+        other_keys = [key_name for key_name, _, _ in all_keys if key_name != test_name]
+        other_keys_include_strs = []
+        other_keys_assert_strs = []
+        for key_name in other_keys:
+            key_path = os.path.join(output_dir, f"{key_name}.key.der")
+            other_keys_include_strs.append(
+                f'let {key_name} = include_bytes!("{key_path}");'
+            )
+            other_keys_assert_strs.append(
+                f"assert!(matches!(ee.verify_private_key({key_name}.as_ref()), Err(Error::CertPrivateKeyMismatch)));"
+            )
+
+        alloc_gate = (
+            '#[cfg(feature = "alloc")]'
+            if test_name.startswith("rsa") or test_name.endswith("sec1")
+            else ""
+        )
+        other_keys_include_str = "\n".join(other_keys_include_strs)
+        other_keys_assert_str = "\n".join(other_keys_assert_strs)
+        print(
+            """
+        %(alloc_gate)s
+        #[test]
+        fn %(test_name)s() {
+          let ee = include_bytes!("%(ee_cert_path)s");
+          let ee = EndEntityCert::try_from(ee.as_ref()).unwrap();
+          let privkey = include_bytes!("%(privkey_path)s");
+
+          %(other_keys_include_str)s
+
+          assert!(ee.verify_private_key(privkey.as_ref()).is_ok());
+          %(other_keys_assert_str)s
+        }
+        """
+            % locals(),
+            file=output,
+        )
+
+    with trim_top("ee_keyverify.rs") as output:
+        for name, privkey, serialization_format in all_keys:
+            _generate_testcert(name, privkey, serialization_format)
+            _write_test(name)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -864,6 +995,12 @@ if __name__ == "__main__":
         help="Generate client auth testcases",
     )
     parser.add_argument(
+        "--keyverify",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate end entity key verification testcases",
+    )
+    parser.add_argument(
         "--format",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -875,14 +1012,16 @@ if __name__ == "__main__":
         default=True,
         help="Run cargo test post-generation",
     )
-    args = parser.parse_args()
 
+    args = parser.parse_args()
     if args.tls_server_certs:
         tls_server_certs()
     if args.signatures:
         signatures()
     if args.clientauth:
         client_auth()
+    if args.keyverify:
+        ee_keyverify()
 
     if args.format:
         subprocess.run("cargo fmt", shell=True, check=True)
