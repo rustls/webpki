@@ -40,10 +40,10 @@ pub(crate) fn verify_cert_dns_name(
         Err(Error::CertNotValidForName),
         &mut |name| {
             if let GeneralName::DnsName(presented_id) = name {
-                match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-                    Ok(true) => return NameIteration::Stop(Ok(())),
-                    Ok(false) => (),
-                    Err(e) => return NameIteration::Stop(Err(e)),
+                if let Ok(true) =
+                    dns_name::presented_id_matches_reference_id(presented_id, dns_name)
+                {
+                    return NameIteration::Stop(Ok(()));
                 }
             }
             NameIteration::KeepGoing
