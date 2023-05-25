@@ -31,7 +31,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: mk/clippy.sh
+      - run: cargo clippy --all-features --all-targets
 
   deny:
     runs-on: ubuntu-20.04
