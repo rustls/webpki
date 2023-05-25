@@ -27,6 +27,15 @@
 #![doc(html_root_url = "https://briansmith.org/rustdoc/")]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(unreachable_pub)]
+#![deny(warnings, missing_docs, clippy::as_conversions)]
+#![allow(
+    clippy::len_without_is_empty,
+    clippy::new_without_default,
+    clippy::single_match,
+    clippy::single_match_else,
+    clippy::type_complexity,
+    clippy::upper_case_acronyms
+)]
 
 #[cfg(any(test, feature = "alloc"))]
 #[cfg_attr(test, macro_use)]
