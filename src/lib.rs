@@ -62,13 +62,19 @@ pub use {
         SignatureAlgorithm, ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256,
         ECDSA_P384_SHA384, ED25519,
     },
-    subject_name::{
-        AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,
-        SubjectNameRef,
-    },
     time::Time,
     trust_anchor::{TlsClientTrustAnchors, TlsServerTrustAnchors, TrustAnchor},
 };
+
+// TODO(XXX): An interaction between Rust 1.57 and clippy requires working around 'unreachable_pub'
+//            false positives by breaking out these 'pub use' statements individually. Once MSRV
+//            increases they can be collapsed into one as part of the larger 'pub use' above.
+pub use subject_name::AddrParseError;
+pub use subject_name::DnsNameRef;
+pub use subject_name::InvalidDnsNameError;
+pub use subject_name::InvalidSubjectNameError;
+pub use subject_name::IpAddrRef;
+pub use subject_name::SubjectNameRef;
 
 #[cfg(feature = "alloc")]
 pub use {
@@ -77,5 +83,9 @@ pub use {
         RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     },
-    subject_name::{DnsName, IpAddr},
+    subject_name::IpAddr,
 };
+
+// TODO(XXX): Similar to above, we break this individual 'pub use' for Rust 1.57.
+#[cfg(feature = "alloc")]
+pub use subject_name::DnsName;
