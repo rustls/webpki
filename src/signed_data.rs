@@ -312,7 +312,10 @@ struct AlgorithmIdentifier {
 
 impl AlgorithmIdentifier {
     fn matches_algorithm_id_value(&self, encoded: untrusted::Input) -> bool {
-        encoded.as_slice_less_safe() == self.asn1_id_value.as_slice_less_safe()
+        return ring::constant_time::verify_slices_are_equal(
+            encoded.as_slice_less_safe(),
+            self.asn1_id_value.as_slice_less_safe()
+        ).is_ok()
     }
 }
 

@@ -56,8 +56,12 @@ pub(crate) fn parse_cert<'a>(
         // TODO: In mozilla::pkix, the comparison is done based on the
         // normalized value (ignoring whether or not there is an optional NULL
         // parameter for RSA-based algorithms), so this may be too strict.
-        if signature.as_slice_less_safe() != signed_data.algorithm.as_slice_less_safe() {
-            return Err(Error::SignatureAlgorithmMismatch);
+        match ring::constant_time::verify_slices_are_equal(
+            signature.as_slice_less_safe(),
+            signed_data.algorithm.as_slice_less_safe())
+        {
+            Ok(_) => (),
+            Err(_) => return Err(Error::SignatureAlgorithmMismatch),
         }
 
         let issuer = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;

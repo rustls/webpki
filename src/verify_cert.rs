@@ -54,8 +54,10 @@ pub(crate) fn build_chain(
     // for the purpose of name constraints checking, only end-entity server certificates
     // could plausibly have a DNS name as a subject commonName that could contribute to
     // path validity
-    let subject_common_name_contents = if required_eku_if_present.oid_value.as_slice_less_safe()
-        == EKU_SERVER_AUTH.oid_value.as_slice_less_safe()
+    let subject_common_name_contents =
+        if ring::constant_time::verify_slices_are_equal(
+            required_eku_if_present.oid_value.as_slice_less_safe(),
+            EKU_SERVER_AUTH.oid_value.as_slice_less_safe()).is_ok()
         && used_as_ca == UsedAsCa::No
     {
         subject_name::SubjectCommonNameContents::DnsName
@@ -67,9 +69,13 @@ pub(crate) fn build_chain(
 
     let result = loop_while_non_fatal_error(trust_anchors, |trust_anchor: &TrustAnchor| {
         let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject);
-        if cert.issuer.as_slice_less_safe() != trust_anchor_subject.as_slice_less_safe() {
-            return Err(Error::UnknownIssuer);
-        }
+        match ring::constant_time::verify_slices_are_equal(
+            cert.issuer.as_slice_less_safe() ,
+            trust_anchor_subject.as_slice_less_safe())
+        {
+            Ok(_) => (),
+            Err(_) => return Err(Error::UnknownIssuer),
+        };
 
         let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
 
@@ -95,17 +101,23 @@ pub(crate) fn build_chain(
         let potential_issuer =
             cert::parse_cert(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
 
-        if potential_issuer.subject.as_slice_less_safe() != cert.issuer.as_slice_less_safe() {
-            return Err(Error::UnknownIssuer);
-        }
+        match ring::constant_time::verify_slices_are_equal(
+            potential_issuer.subject.as_slice_less_safe() ,
+            cert.issuer.as_slice_less_safe())
+        {
+            Ok(_) => (),
+            Err(_) => return Err(Error::UnknownIssuer),
+        };
 
         // Prevent loops; see RFC 4158 section 5.2.
         let mut prev = cert;
         loop {
-            if potential_issuer.spki.value().as_slice_less_safe()
-                == prev.spki.value().as_slice_less_safe()
-                && potential_issuer.subject.as_slice_less_safe()
-                    == prev.subject.as_slice_less_safe()
+            if ring::constant_time::verify_slices_are_equal(
+                potential_issuer.spki.value().as_slice_less_safe(),
+                prev.spki.value().as_slice_less_safe()).is_ok()
+                && ring::constant_time::verify_slices_are_equal(
+                potential_issuer.subject.as_slice_less_safe(),
+                prev.subject.as_slice_less_safe()).is_ok()
             {
                 return Err(Error::UnknownIssuer);
             }
@@ -314,8 +326,9 @@ fn check_eku(
         Some(input) => {
             loop {
                 let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
-                if value.as_slice_less_safe()
-                    == required_eku_if_present.oid_value.as_slice_less_safe()
+                if ring::constant_time::verify_slices_are_equal(
+                    value.as_slice_less_safe(),
+                    required_eku_if_present.oid_value.as_slice_less_safe()).is_ok()
                 {
                     input.skip_to_end();
                     break;
@@ -336,8 +349,9 @@ fn check_eku(
             // important that id-kp-OCSPSigning is explicit so that a normal
             // end-entity certificate isn't able to sign trusted OCSP responses
             // for itself or for other certificates issued by its issuing CA.
-            if required_eku_if_present.oid_value.as_slice_less_safe()
-                == EKU_OCSP_SIGNING.oid_value.as_slice_less_safe()
+            if ring::constant_time::verify_slices_are_equal(
+                required_eku_if_present.oid_value.as_slice_less_safe(),
+                EKU_OCSP_SIGNING.oid_value.as_slice_less_safe()).is_ok()
             {
                 return Err(Error::RequiredEkuNotFound);
             }
