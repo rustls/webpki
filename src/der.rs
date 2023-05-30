@@ -108,6 +108,50 @@ pub(crate) fn read_tag_and_get_value<'a>(
     ring::io::der::read_tag_and_get_value(input).map_err(|_| Error::BadDer)
 }
 
+#[inline(always)]
+#[allow(dead_code)]
+pub(crate) fn read_tag_and_get_value_limited<'a>(
+    input: &mut untrusted::Reader<'a>,
+) -> Result<(u8, untrusted::Input<'a>), Error> {
+    fn read_byte(input: &mut untrusted::Reader) -> Result<u8, Error> {
+        input.read_byte().map_err(|_| Error::BadDer)
+    }
+
+    let tag = read_byte(input)?;
+    if (tag & 0x1F) == 0x1F {
+        return Err(Error::BadDer); // High tag number form is not allowed.
+    }
+
+    // If the high order bit of the first byte is set to zero then the length
+    // is encoded in the seven remaining bits of that byte. Otherwise, those
+    // seven bits represent the number of bytes used to encode the length.
+    let length = match read_byte(input)? {
+        n if (n & 0x80) == 0 => usize::from(n),
+        0x81 => {
+            let second_byte = read_byte(input)?;
+            if second_byte < 128 {
+                return Err(Error::BadDer); // Not the canonical encoding.
+            }
+            usize::from(second_byte)
+        }
+        0x82 => {
+            let second_byte = usize::from(read_byte(input)?);
+            let third_byte = usize::from(read_byte(input)?);
+            let combined = (second_byte << 8) | third_byte;
+            if combined < 256 {
+                return Err(Error::BadDer); // Not the canonical encoding.
+            }
+            combined
+        }
+        _ => {
+            return Err(Error::BadDer); // We don't support longer lengths.
+        }
+    };
+
+    let inner = input.read_bytes(length).map_err(|_| Error::BadDer)?;
+    Ok((tag, inner))
+}
+
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
 pub(crate) fn nested_of_mut<'a, E>(
