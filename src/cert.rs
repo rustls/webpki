@@ -71,12 +71,10 @@ pub(crate) fn parse_cert<'a>(
     ee_or_ca: EndEntityOrCa<'a>,
 ) -> Result<Cert<'a>, Error> {
     let (tbs, signed_data) = cert_der.read_all(Error::BadDer, |cert_der| {
-        der::nested(
-            cert_der,
-            der::Tag::Sequence,
-            Error::BadDer,
-            signed_data::parse_signed_data,
-        )
+        der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |der| {
+            // limited to SEQUENCEs of size 2^16 or less.
+            signed_data::parse_signed_data(der, der::TWO_BYTE_DER_SIZE)
+        })
     })?;
 
     tbs.read_all(Error::BadDer, |tbs| {

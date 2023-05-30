@@ -65,11 +65,16 @@ pub(crate) struct SignedData<'a> {
 /// The return value's first component is the contents of
 /// `tbsCertificate`/`tbsResponseData`; the second component is a `SignedData`
 /// structure that can be passed to `verify_signed_data`.
+///
+/// The provided size_limit will enforce the largest possible outermost `SEQUENCE` this
+/// function will read.
 pub(crate) fn parse_signed_data<'a>(
     der: &mut untrusted::Reader<'a>,
+    size_limit: usize,
 ) -> Result<(untrusted::Input<'a>, SignedData<'a>), Error> {
-    let (data, tbs) =
-        der.read_partial(|input| der::expect_tag_and_get_value(input, der::Tag::Sequence))?;
+    let (data, tbs) = der.read_partial(|input| {
+        der::expect_tag_and_get_value_limited(input, der::Tag::Sequence, size_limit)
+    })?;
     let algorithm = der::expect_tag_and_get_value(der, der::Tag::Sequence)?;
     let signature = der::bit_string_with_no_unused_bits(der)?;
 

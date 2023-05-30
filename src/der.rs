@@ -64,6 +64,19 @@ pub(crate) fn expect_tag_and_get_value<'a>(
     Ok(inner)
 }
 
+#[inline(always)]
+pub(crate) fn expect_tag_and_get_value_limited<'a>(
+    input: &mut untrusted::Reader<'a>,
+    tag: Tag,
+    size_limit: usize,
+) -> Result<untrusted::Input<'a>, Error> {
+    let (actual_tag, inner) = read_tag_and_get_value_limited(input, size_limit)?;
+    if usize::from(tag) != usize::from(actual_tag) {
+        return Err(Error::BadDer);
+    }
+    Ok(inner)
+}
+
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
 pub(crate) fn nested<'a, F, R, E: Copy>(
@@ -105,13 +118,13 @@ pub(crate) fn expect_tag<'a>(
 pub(crate) fn read_tag_and_get_value<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
-    ring::io::der::read_tag_and_get_value(input).map_err(|_| Error::BadDer)
+    read_tag_and_get_value_limited(input, TWO_BYTE_DER_SIZE)
 }
 
 #[inline(always)]
-#[allow(dead_code)]
 pub(crate) fn read_tag_and_get_value_limited<'a>(
     input: &mut untrusted::Reader<'a>,
+    size_limit: usize,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
     let tag = input.read_byte()?;
     if (tag & HIGH_TAG_RANGE_START) == HIGH_TAG_RANGE_START {
@@ -168,9 +181,26 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
         }
     };
 
+    if length >= size_limit {
+        return Err(Error::BadDer); // The length is larger than the caller accepts.
+    }
+
     let inner = input.read_bytes(length)?;
     Ok((tag, inner))
 }
+
+// Long-form DER encoded lengths of two bytes can express lengths up to the following limit.
+//
+// The upstream ring::io::der::read_tag_and_get_value() function limits itself to up to two byte
+// long-form DER lengths, and so this limit represents the maximum length that was possible to
+// read before the introduction of the read_tag_and_get_value_limited function.
+pub(crate) const TWO_BYTE_DER_SIZE: usize = LONG_FORM_LEN_TWO_BYTES_MAX;
+
+// The maximum size of a DER value that Webpki can support reading.
+//
+// Webpki limits itself to four byte long-form DER lengths, and so this limit represents
+// the maximum size tagged DER value that can be read for any purpose.
+pub(crate) const MAX_DER_SIZE: usize = LONG_FORM_LEN_FOUR_BYTES_MAX;
 
 // DER Tag identifiers have two forms:
 // * Low tag number form (for tags values in the range [0..30]
@@ -203,6 +233,9 @@ const LONG_FORM_LEN_THREE_BYTES_MAX: usize = (1 << (8 * 3)) - 1;
 
 // Leading octet for long definite form DER length expressed in subsequent four bytes.
 const LONG_FORM_LEN_FOUR_BYTES: u8 = 0x84;
+
+// Maximum size that can be expressed in a four byte long form der len.
+const LONG_FORM_LEN_FOUR_BYTES_MAX: usize = (1 << (8 * 4)) - 1;
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
