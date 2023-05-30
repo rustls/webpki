@@ -138,11 +138,12 @@ impl<'a> TryFrom<&'a [u8]> for CertRevocationList<'a> {
     ///   * CRLs missing the next update field.
     ///   * CRLs missing certificate revocation list extensions.
     ///   * Delta CRLs.
+    ///   * CRLs larger than (2^32)-1 bytes in size.
     ///
     /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
     fn try_from(crl_der: &'a [u8]) -> Result<Self, Self::Error> {
         // Try to parse the CRL.
-        let crl = parse_crl(untrusted::Input::from(crl_der))?;
+        let crl = parse_crl(untrusted::Input::from(crl_der), der::MAX_DER_SIZE)?;
 
         // Iterate through the revoked certificate entries to ensure they are valid so we can
         // yield an error up-front instead of on first iteration by the caller.
@@ -169,14 +170,11 @@ impl<'a> CertRevocationList<'a> {
     }
 }
 
-fn parse_crl(crl_der: untrusted::Input) -> Result<CertRevocationList, Error> {
+fn parse_crl(crl_der: untrusted::Input, size_limit: usize) -> Result<CertRevocationList, Error> {
     let (tbs_cert_list, signed_data) = crl_der.read_all(Error::BadDer, |crl_der| {
-        der::nested(
-            crl_der,
-            Tag::Sequence,
-            Error::BadDer,
-            signed_data::parse_signed_data,
-        )
+        der::nested(crl_der, Tag::Sequence, Error::BadDer, |signed_der| {
+            signed_data::parse_signed_data(signed_der, size_limit)
+        })
     })?;
 
     tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
