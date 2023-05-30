@@ -139,6 +139,30 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
             }
             combined
         }
+        LONG_FORM_LEN_THREE_BYTES => {
+            let length_byte_one = usize::from(input.read_byte()?);
+            let length_byte_two = usize::from(input.read_byte()?);
+            let length_byte_three = usize::from(input.read_byte()?);
+            let combined = (length_byte_one << 16) | (length_byte_two << 8) | length_byte_three;
+            if combined <= LONG_FORM_LEN_TWO_BYTES_MAX {
+                return Err(Error::BadDer); // Not the canonical encoding.
+            }
+            combined
+        }
+        LONG_FORM_LEN_FOUR_BYTES => {
+            let length_byte_one = usize::from(input.read_byte()?);
+            let length_byte_two = usize::from(input.read_byte()?);
+            let length_byte_three = usize::from(input.read_byte()?);
+            let length_byte_four = usize::from(input.read_byte()?);
+            let combined = (length_byte_one << 24)
+                | (length_byte_two << 16)
+                | (length_byte_three << 8)
+                | length_byte_four;
+            if combined <= LONG_FORM_LEN_THREE_BYTES_MAX {
+                return Err(Error::BadDer); // Not the canonical encoding.
+            }
+            combined
+        }
         _ => {
             return Err(Error::BadDer); // We don't support longer lengths.
         }
@@ -167,6 +191,18 @@ const LONG_FORM_LEN_ONE_BYTE_MAX: usize = (1 << 8) - 1;
 
 // Leading octet for long definite form DER length expressed in subsequent two bytes.
 const LONG_FORM_LEN_TWO_BYTES: u8 = 0x82;
+
+// Maximum size that can be expressed in a two byte long form len.
+const LONG_FORM_LEN_TWO_BYTES_MAX: usize = (1 << (8 * 2)) - 1;
+
+// Leading octet for long definite form DER length expressed in subsequent three bytes.
+const LONG_FORM_LEN_THREE_BYTES: u8 = 0x83;
+
+// Maximum size that can be expressed in a three byte long form len.
+const LONG_FORM_LEN_THREE_BYTES_MAX: usize = (1 << (8 * 3)) - 1;
+
+// Leading octet for long definite form DER length expressed in subsequent four bytes.
+const LONG_FORM_LEN_FOUR_BYTES: u8 = 0x84;
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
