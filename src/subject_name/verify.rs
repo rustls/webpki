@@ -75,11 +75,8 @@ pub(crate) fn verify_cert_subject_name(
         &mut |name| {
             if let GeneralName::IpAddress(presented_id) = name {
                 match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
-                    Ok(true) => return NameIteration::Stop(Ok(())),
-                    Ok(false) => (),
-                    Err(_) => {
-                        return NameIteration::Stop(Err(Error::BadDer));
-                    }
+                    true => return NameIteration::Stop(Ok(())),
+                    false => (),
                 }
             }
             NameIteration::KeepGoing
