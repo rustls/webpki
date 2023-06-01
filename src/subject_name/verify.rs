@@ -42,7 +42,7 @@ pub(crate) fn verify_cert_dns_name(
             if let GeneralName::DnsName(presented_id) = name {
                 match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
                     Ok(true) => return NameIteration::Stop(Ok(())),
-                    Ok(false) => (),
+                    Ok(false) | Err(Error::MalformedDnsIdentifier) => (),
                     Err(e) => return NameIteration::Stop(Err(e)),
                 }
             }
