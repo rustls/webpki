@@ -513,7 +513,7 @@ def name_constraints() -> None:
                 )
             ],
         )
-    
+
         generate_name_constraints_test(
             output,
             "invalid_dns_name_matching",
@@ -521,6 +521,7 @@ def name_constraints() -> None:
             subject_common_name="subject.example.com",
             sans=[x509.DNSName("{invalid}.example.com"), x509.DNSName("dns.example.com")],
         )
+
 
 def signatures() -> None:
     rsa_pub_exponent: int = 0x10001
