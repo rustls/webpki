@@ -169,7 +169,7 @@ def generate_name_constraints_test(
 ) -> None:
     """
     Generate a test case, writing a rust '#[test]' function into
-    name_constraints.rs, and writing supporting files into the current
+    tls_server_certs.rs, and writing supporting files into the current
     directory.
 
     - `test_name`: name of the test, must be a rust identifier.
@@ -270,7 +270,7 @@ fn %(test_name)s() {
 
 
 def name_constraints() -> None:
-    with trim_top("name_constraints.rs") as output:
+    with trim_top("tls_server_certs.rs") as output:
         generate_name_constraints_test(
             output,
             "no_name_constraints",
