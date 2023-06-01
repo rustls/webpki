@@ -519,7 +519,10 @@ def name_constraints() -> None:
             "invalid_dns_name_matching",
             valid_names=["dns.example.com"],
             subject_common_name="subject.example.com",
-            sans=[x509.DNSName("{invalid}.example.com"), x509.DNSName("dns.example.com")],
+            sans=[
+                x509.DNSName("{invalid}.example.com"),
+                x509.DNSName("dns.example.com"),
+            ],
         )
 
 
