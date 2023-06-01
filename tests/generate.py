@@ -155,7 +155,7 @@ def ca_cert(
     )
 
 
-def generate_name_constraints_test(
+def generate_tls_server_cert_test(
     output: TextIO,
     test_name: str,
     expected_error: Optional[str] = None,
@@ -223,7 +223,7 @@ def generate_name_constraints_test(
         sans=sans,
     )
 
-    output_dir: str = "name_constraints"
+    output_dir: str = "tls_server_certs"
     ee_cert_path: str = os.path.join(output_dir, f"{test_name}.ee.der")
     ca_cert_path: str = os.path.join(output_dir, f"{test_name}.ca.der")
 
@@ -269,9 +269,9 @@ fn %(test_name)s() {
     )
 
 
-def name_constraints() -> None:
+def tls_server_certs() -> None:
     with trim_top("tls_server_certs.rs") as output:
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "no_name_constraints",
             subject_common_name="subject.example.com",
@@ -280,7 +280,7 @@ def name_constraints() -> None:
             sans=[x509.DNSName("dns.example.com")],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "additional_dns_labels",
             subject_common_name="subject.example.com",
@@ -290,14 +290,14 @@ def name_constraints() -> None:
             permitted_subtrees=[x509.DNSName(".example.com")],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "disallow_subject_common_name",
             expected_error="UnknownIssuer",
             subject_common_name="disallowed.example.com",
             excluded_subtrees=[x509.DNSName("disallowed.example.com")],
         )
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "disallow_dns_san",
             expected_error="UnknownIssuer",
@@ -305,21 +305,21 @@ def name_constraints() -> None:
             excluded_subtrees=[x509.DNSName("disallowed.example.com")],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "allow_subject_common_name",
             subject_common_name="allowed.example.com",
             invalid_names=["allowed.example.com"],
             permitted_subtrees=[x509.DNSName("allowed.example.com")],
         )
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "allow_dns_san",
             valid_names=["allowed.example.com"],
             sans=[x509.DNSName("allowed.example.com")],
             permitted_subtrees=[x509.DNSName("allowed.example.com")],
         )
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "allow_dns_san_and_subject_common_name",
             valid_names=["allowed-san.example.com"],
@@ -331,7 +331,7 @@ def name_constraints() -> None:
                 x509.DNSName("allowed-cn.example.com"),
             ],
         )
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "allow_dns_san_and_disallow_subject_common_name",
             expected_error="UnknownIssuer",
@@ -340,7 +340,7 @@ def name_constraints() -> None:
             permitted_subtrees=[x509.DNSName("allowed-san.example.com")],
             excluded_subtrees=[x509.DNSName("disallowed-cn.example.com")],
         )
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "disallow_dns_san_and_allow_subject_common_name",
             expected_error="UnknownIssuer",
@@ -359,7 +359,7 @@ def name_constraints() -> None:
         # XXX: ideally this test case would be a negative one, because the name constraints
         # should apply to the subject name.
         # however, because we don't look at email addresses in subjects, it is accepted.
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "we_incorrectly_ignore_name_constraints_on_name_in_subject",
             extra_subject_names=[
@@ -369,7 +369,7 @@ def name_constraints() -> None:
         )
 
         # this does work, however, because we process all SANs
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "reject_constraints_on_unimplemented_names",
             expected_error="UnknownIssuer",
@@ -380,7 +380,7 @@ def name_constraints() -> None:
         # RFC5280 4.2.1.10:
         #   "If no name of the type is in the certificate,
         #    the certificate is acceptable."
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "we_ignore_constraints_on_names_that_do_not_appear_in_cert",
             sans=[x509.DNSName("notexample.com")],
@@ -389,7 +389,7 @@ def name_constraints() -> None:
             permitted_subtrees=[x509.RFC822Name("example.com")],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "wildcard_san_accepted_if_in_subtree",
             sans=[x509.DNSName("*.example.com")],
@@ -398,7 +398,7 @@ def name_constraints() -> None:
             permitted_subtrees=[x509.DNSName("example.com")],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "wildcard_san_rejected_if_in_excluded_subtree",
             expected_error="UnknownIssuer",
@@ -406,7 +406,7 @@ def name_constraints() -> None:
             excluded_subtrees=[x509.DNSName("example.com")],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip4_address_san_rejected_if_in_excluded_subtree",
             expected_error="UnknownIssuer",
@@ -414,7 +414,7 @@ def name_constraints() -> None:
             excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip4_address_san_allowed_if_outside_excluded_subtree",
             valid_names=["12.34.56.78"],
@@ -424,7 +424,7 @@ def name_constraints() -> None:
 
         sparse_net_addr = ipaddress.ip_network("12.34.56.78/24", strict=False)
         sparse_net_addr.netmask = ipaddress.ip_address("255.255.255.1")
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask",
             expected_error="UnknownIssuer",
@@ -435,7 +435,7 @@ def name_constraints() -> None:
             excluded_subtrees=[x509.IPAddress(sparse_net_addr)],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip4_address_san_allowed",
             valid_names=["12.34.56.78"],
@@ -448,7 +448,7 @@ def name_constraints() -> None:
             permitted_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip6_address_san_rejected_if_in_excluded_subtree",
             expected_error="UnknownIssuer",
@@ -456,7 +456,7 @@ def name_constraints() -> None:
             excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip6_address_san_allowed_if_outside_excluded_subtree",
             valid_names=["2001:0db9:0000:0000:0000:0000:0000:0001"],
@@ -464,7 +464,7 @@ def name_constraints() -> None:
             excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip6_address_san_allowed",
             valid_names=["2001:0db9:0000:0000:0000:0000:0000:0001"],
@@ -473,7 +473,7 @@ def name_constraints() -> None:
             permitted_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db9::/48"))],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "ip46_mixed_address_san_allowed",
             valid_names=["12.34.56.78", "2001:0db9:0000:0000:0000:0000:0000:0001"],
@@ -492,7 +492,7 @@ def name_constraints() -> None:
             ],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "permit_directory_name_not_implemented",
             expected_error="UnknownIssuer",
@@ -503,7 +503,7 @@ def name_constraints() -> None:
             ],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "exclude_directory_name_not_implemented",
             expected_error="UnknownIssuer",
@@ -514,7 +514,7 @@ def name_constraints() -> None:
             ],
         )
 
-        generate_name_constraints_test(
+        generate_tls_server_cert_test(
             output,
             "invalid_dns_name_matching",
             valid_names=["dns.example.com"],
@@ -846,10 +846,10 @@ def client_auth() -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--name-constraints",
+        "--tls-server-certs",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Generate name constraint testcases",
+        help="Generate TLS server certificate testcases",
     )
     parser.add_argument(
         "--signatures",
@@ -877,8 +877,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.name_constraints:
-        name_constraints()
+    if args.tls_server_certs:
+        tls_server_certs()
     if args.signatures:
         signatures()
     if args.clientauth:
