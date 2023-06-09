@@ -152,3 +152,9 @@ impl fmt::Display for Error {
 /// Requires the `std` feature.
 #[cfg(feature = "std")]
 impl ::std::error::Error for Error {}
+
+impl From<untrusted::EndOfInput> for Error {
+    fn from(_: untrusted::EndOfInput) -> Self {
+        Error::BadDer
+    }
+}
