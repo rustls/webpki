@@ -417,4 +417,152 @@ mod tests {
     fn bytes_reader(bytes: &[u8]) -> untrusted::Reader {
         return untrusted::Reader::new(untrusted::Input::from(bytes));
     }
+
+    #[test]
+    fn read_tag_and_get_value_default_limit() {
+        use super::{read_tag_and_get_value, Error};
+
+        let inputs = &[
+            // DER with short-form length encoded as three bytes.
+            &[EXAMPLE_TAG, 0x83, 0xFF, 0xFF, 0xFF].as_slice(),
+            // DER with short-form length encoded as four bytes.
+            &[EXAMPLE_TAG, 0x84, 0xFF, 0xFF, 0xFF, 0xFF].as_slice(),
+        ];
+
+        for input in inputs {
+            let mut bytes = untrusted::Reader::new(untrusted::Input::from(input));
+            // read_tag_and_get_value should reject DER with encoded lengths larger than two
+            // bytes as BadDer.
+            assert!(matches!(
+                read_tag_and_get_value(&mut bytes),
+                Err(Error::BadDer)
+            ));
+        }
+    }
+
+    #[test]
+    fn read_tag_and_get_value_limited_high_form() {
+        use super::{read_tag_and_get_value_limited, Error, LONG_FORM_LEN_TWO_BYTES_MAX};
+
+        let mut bytes = untrusted::Reader::new(untrusted::Input::from(&[0xFF]));
+        // read_tag_and_get_value_limited_high_form should reject DER with "high tag number form" tags.
+        assert!(matches!(
+            read_tag_and_get_value_limited(&mut bytes, LONG_FORM_LEN_TWO_BYTES_MAX),
+            Err(Error::BadDer)
+        ));
+    }
+
+    #[test]
+    fn read_tag_and_get_value_limited_non_canonical() {
+        use super::{read_tag_and_get_value_limited, Error, LONG_FORM_LEN_TWO_BYTES_MAX};
+
+        let inputs = &[
+            // Two byte length, with expressed length < 128.
+            &[EXAMPLE_TAG, 0x81, 0x01].as_slice(),
+            // Three byte length, with expressed length < 256.
+            &[EXAMPLE_TAG, 0x82, 0x00, 0x01].as_slice(),
+            // Four byte length, with expressed length, < 65536.
+            &[EXAMPLE_TAG, 0x83, 0x00, 0x00, 0x01].as_slice(),
+            // Five byte length, with expressed length < 16777216.
+            &[EXAMPLE_TAG, 0x84, 0x00, 0x00, 0x00, 0x01].as_slice(),
+        ];
+
+        for input in inputs {
+            let mut bytes = untrusted::Reader::new(untrusted::Input::from(input));
+            // read_tag_and_get_value_limited should reject DER with non-canonical lengths.
+            assert!(matches!(
+                read_tag_and_get_value_limited(&mut bytes, LONG_FORM_LEN_TWO_BYTES_MAX),
+                Err(Error::BadDer)
+            ));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn read_tag_and_get_value_limited_limits() {
+        use super::{read_tag_and_get_value_limited, Error};
+
+        let short_input = &[0xFF];
+        let short_input_encoded = &[
+            &[EXAMPLE_TAG],
+            der_encode_length(short_input.len()).as_slice(),
+            short_input,
+        ]
+        .concat();
+
+        let long_input = &[1_u8; 65537];
+        let long_input_encoded = &[
+            &[EXAMPLE_TAG],
+            der_encode_length(long_input.len()).as_slice(),
+            long_input,
+        ]
+        .concat();
+
+        struct Testcase<'a> {
+            input: &'a [u8],
+            limit: usize,
+            err: Option<Error>,
+        }
+
+        let testcases = &[
+            Testcase {
+                input: short_input_encoded,
+                limit: 1,
+                err: Some(Error::BadDer),
+            },
+            Testcase {
+                input: short_input_encoded,
+                limit: short_input_encoded.len() + 1,
+                err: None,
+            },
+            Testcase {
+                input: long_input_encoded,
+                limit: long_input.len(),
+                err: Some(Error::BadDer),
+            },
+            Testcase {
+                input: long_input_encoded,
+                limit: long_input.len() + 1,
+                err: None,
+            },
+        ];
+
+        for tc in testcases {
+            let mut bytes = untrusted::Reader::new(untrusted::Input::from(tc.input));
+
+            let res = read_tag_and_get_value_limited(&mut bytes, tc.limit);
+            match tc.err {
+                None => assert!(res.is_ok()),
+                Some(e) => {
+                    let actual = res.unwrap_err();
+                    assert_eq!(actual, e)
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::as_conversions)] // infallible.
+    const EXAMPLE_TAG: u8 = super::Tag::Sequence as u8;
+
+    #[cfg(feature = "alloc")]
+    #[allow(clippy::as_conversions)] // test code.
+    fn der_encode_length(length: usize) -> Vec<u8> {
+        if length < 128 {
+            vec![length as u8]
+        } else {
+            let mut encoded: Vec<u8> = Vec::new();
+            let mut remaining_length = length;
+
+            while remaining_length > 0 {
+                let byte = (remaining_length & 0xFF) as u8;
+                encoded.insert(0, byte);
+                remaining_length >>= 8;
+            }
+
+            let length_octet = encoded.len() as u8 | 0x80;
+            encoded.insert(0, length_octet);
+
+            encoded
+        }
+    }
 }
