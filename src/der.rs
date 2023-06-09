@@ -114,7 +114,7 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
     let tag = input.read_byte()?;
-    if (tag & 0x1F) == 0x1F {
+    if (tag & HIGH_TAG_RANGE_START) == HIGH_TAG_RANGE_START {
         return Err(Error::BadDer); // High tag number form is not allowed.
     }
 
@@ -122,19 +122,19 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
     // is encoded in the seven remaining bits of that byte. Otherwise, those
     // seven bits represent the number of bytes used to encode the length.
     let length = match input.read_byte()? {
-        n if (n & 0x80) == 0 => usize::from(n),
-        0x81 => {
-            let second_byte = input.read_byte()?;
-            if second_byte < 128 {
+        n if (n & SHORT_FORM_LEN_MAX) == 0 => usize::from(n),
+        LONG_FORM_LEN_ONE_BYTE => {
+            let length_byte = input.read_byte()?;
+            if length_byte < SHORT_FORM_LEN_MAX {
                 return Err(Error::BadDer); // Not the canonical encoding.
             }
-            usize::from(second_byte)
+            usize::from(length_byte)
         }
-        0x82 => {
-            let second_byte = usize::from(input.read_byte()?);
-            let third_byte = usize::from(input.read_byte()?);
-            let combined = (second_byte << 8) | third_byte;
-            if combined < 256 {
+        LONG_FORM_LEN_TWO_BYTES => {
+            let length_byte_one = usize::from(input.read_byte()?);
+            let length_byte_two = usize::from(input.read_byte()?);
+            let combined = (length_byte_one << 8) | length_byte_two;
+            if combined <= LONG_FORM_LEN_ONE_BYTE_MAX {
                 return Err(Error::BadDer); // Not the canonical encoding.
             }
             combined
@@ -147,6 +147,26 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
     let inner = input.read_bytes(length)?;
     Ok((tag, inner))
 }
+
+// DER Tag identifiers have two forms:
+// * Low tag number form (for tags values in the range [0..30]
+// * High tag number form (for tag values in the range [31..]
+// We only support low tag number form.
+const HIGH_TAG_RANGE_START: u8 = 31;
+
+// DER length octets have two forms:
+// * Short form: 1 octet supporting lengths between 0 and 127.
+// * Long definite form: 2 to 127 octets, number of octets encoded into first octet.
+const SHORT_FORM_LEN_MAX: u8 = 128;
+
+// Leading octet for long definite form DER length expressed in second byte.
+const LONG_FORM_LEN_ONE_BYTE: u8 = 0x81;
+
+// Maximum size that can be expressed in a one byte long form len.
+const LONG_FORM_LEN_ONE_BYTE_MAX: usize = (1 << 8) - 1;
+
+// Leading octet for long definite form DER length expressed in subsequent two bytes.
+const LONG_FORM_LEN_TWO_BYTES: u8 = 0x82;
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
