@@ -113,11 +113,7 @@ pub(crate) fn read_tag_and_get_value<'a>(
 pub(crate) fn read_tag_and_get_value_limited<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
-    fn read_byte(input: &mut untrusted::Reader) -> Result<u8, Error> {
-        input.read_byte().map_err(|_| Error::BadDer)
-    }
-
-    let tag = read_byte(input)?;
+    let tag = input.read_byte()?;
     if (tag & 0x1F) == 0x1F {
         return Err(Error::BadDer); // High tag number form is not allowed.
     }
@@ -125,18 +121,18 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
     // If the high order bit of the first byte is set to zero then the length
     // is encoded in the seven remaining bits of that byte. Otherwise, those
     // seven bits represent the number of bytes used to encode the length.
-    let length = match read_byte(input)? {
+    let length = match input.read_byte()? {
         n if (n & 0x80) == 0 => usize::from(n),
         0x81 => {
-            let second_byte = read_byte(input)?;
+            let second_byte = input.read_byte()?;
             if second_byte < 128 {
                 return Err(Error::BadDer); // Not the canonical encoding.
             }
             usize::from(second_byte)
         }
         0x82 => {
-            let second_byte = usize::from(read_byte(input)?);
-            let third_byte = usize::from(read_byte(input)?);
+            let second_byte = usize::from(input.read_byte()?);
+            let third_byte = usize::from(input.read_byte()?);
             let combined = (second_byte << 8) | third_byte;
             if combined < 256 {
                 return Err(Error::BadDer); // Not the canonical encoding.
@@ -148,7 +144,7 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
         }
     };
 
-    let inner = input.read_bytes(length).map_err(|_| Error::BadDer)?;
+    let inner = input.read_bytes(length)?;
     Ok((tag, inner))
 }
 
