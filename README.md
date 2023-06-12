@@ -102,7 +102,5 @@ is being licensed under the same terms as the existing webpki code.
 Bug Reporting
 =============
 
-Please report bugs either as pull requests or as issues in [the issue
-tracker](https://github.com/briansmith/webpki/issues). webpki has a
-**full disclosure** vulnerability policy. **Please do NOT attempt to report
-any security vulnerability in this code privately to anybody.**
+Please refer to the [SECURITY](SECURITY.md) policy for security issues. All
+other bugs should be reported as [GitHub issues](https://github.com/rustls/webpki/issues/new).
