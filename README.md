@@ -84,7 +84,7 @@ Changelog
 Demo
 ====
 
-See https://github.com/ctz/rustls#example-code for an example of using
+See https://github.com/rustls/rustls#example-code for an example of using
 webpki.
 
 
