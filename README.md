@@ -32,19 +32,6 @@ and it maintains a tight bound on the amount of stack memory it uses. webpki
 avoids all superfluous PKIX features in order to keep its object code size
 small. Further reducing the code size of webpki is an important goal.
 
-Lots of improvements are planned, including:
-
-* An extensive automated test suite.
-* Key pinning.
-* Certificate Transparency support.
-* Short-lived certificate, OCSP stapling, and CRLSet support.
-* Customization of the supported algorithms, key sizes, and elliptic curves
-  allowed during a validation.
-* A C language wrapper interface to allow using webpki in non-Rust
-  applications.
-* A specification of precisely what the Web PKI is.
-
-
 About this fork
 ===============
 
