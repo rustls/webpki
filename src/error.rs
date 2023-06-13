@@ -71,6 +71,10 @@ pub enum Error {
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
 
+    /// A CRL was signed by an issuer that has a KeyUsage bitstring that does not include
+    /// the cRLSign key usage bit.
+    IssuerNotCrlSigner,
+
     /// A presented or reference DNS identifier was malformed, potentially
     /// containing invalid characters or invalid labels.
     MalformedDnsIdentifier,

@@ -272,12 +272,10 @@ pub(crate) fn bit_string_with_no_unused_bits<'a>(
     })
 }
 
-#[allow(unused)] // TODO(@cpu): remove once used for CRLs.
 pub(crate) struct BitStringFlags<'a> {
     raw_bits: &'a [u8],
 }
 
-#[allow(unused)] // TODO(@cpu): remove once used for CRLs.
 impl<'a> BitStringFlags<'a> {
     pub(crate) fn bit_set(&self, bit: usize) -> bool {
         let byte_index = bit / 8;
@@ -298,7 +296,6 @@ impl<'a> BitStringFlags<'a> {
 //
 // [0]: https://security.stackexchange.com/a/10396
 // [1]: https://www.itu.int/ITU-T/studygroups/com17/languages/X.690-0207.pdf
-#[allow(unused)] // TODO(@cpu): remove once used for CRLs.
 pub(crate) fn bit_string_flags<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<BitStringFlags<'a>, Error> {
