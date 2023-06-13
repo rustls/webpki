@@ -146,7 +146,6 @@ impl<'a> TryFrom<&'a [u8]> for CertRevocationList<'a> {
 
         // Iterate through the revoked certificate entries to ensure they are valid so we can
         // yield an error up-front instead of on first iteration by the caller.
-        // TODO(@cpu): Should we do this up-front, or accept late discovery of CRL entry errs?
         for cert_result in crl.into_iter() {
             cert_result?;
         }
