@@ -38,6 +38,11 @@ pub struct Cert<'a> {
     pub(crate) spki: der::Value<'a>,
 
     pub(crate) basic_constraints: Option<untrusted::Input<'a>>,
+    // key usage (KU) extension (if any). When validating certificate revocation lists (CRLs) this
+    // field will be consulted to determine if the cert is allowed to sign CRLs. For cert validation
+    // this field is ignored (for more detail see in `verify_cert.rs` and
+    // `check_issuer_independent_properties`).
+    pub(crate) key_usage: Option<untrusted::Input<'a>>,
     pub(crate) eku: Option<untrusted::Input<'a>>,
     pub(crate) name_constraints: Option<untrusted::Input<'a>>,
     pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
@@ -111,6 +116,7 @@ pub(crate) fn parse_cert<'a>(
             spki,
 
             basic_constraints: None,
+            key_usage: None,
             eku: None,
             name_constraints: None,
             subject_alt_name: None,
@@ -183,14 +189,8 @@ fn remember_cert_extension<'a>(
 
     remember_extension(extension, |id| {
         let out = match id {
-            // id-ce-keyUsage 2.5.29.15. We ignore the KeyUsage extension. For CA
-            // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
-            // and other common browsers do not check KeyUsage for end-entities,
-            // though it would be kind of nice to ensure that a KeyUsage without
-            // the keyEncipherment bit could not be used for RSA key exchange.
-            15 => {
-                return Ok(());
-            }
+            // id-ce-keyUsage 2.5.29.15.
+            15 => &mut cert.key_usage,
 
             // id-ce-subjectAltName 2.5.29.17
             17 => &mut cert.subject_alt_name,
@@ -209,8 +209,12 @@ fn remember_cert_extension<'a>(
         };
 
         set_extension_once(out, || {
-            extension.value.read_all(Error::BadDer, |value| {
-                der::expect_tag_and_get_value(value, der::Tag::Sequence)
+            extension.value.read_all(Error::BadDer, |value| match id {
+                // Unlike the other extensions we remember KU is a BitString and not a Sequence. We
+                // read the raw bytes here and parse at the time of use.
+                15 => Ok(value.read_bytes_to_end()),
+                // All other remembered certificate extensions are wrapped in a Sequence.
+                _ => der::expect_tag_and_get_value(value, Tag::Sequence),
             })
         })
     })
