@@ -147,6 +147,68 @@ pub enum Error {
     UnsupportedSignatureAlgorithmForPublicKey,
 }
 
+impl Error {
+    // Compare the Error with the new error by rank, returning the higher rank of the two as
+    // the most specific error.
+    pub(crate) fn most_specific(self, new: Error) -> Error {
+        // Assign an error a numeric value ranking it by specificity.
+        if self.rank() >= new.rank() {
+            self
+        } else {
+            new
+        }
+    }
+
+    // Return a numeric indication of how specific the error is, where an error with a higher rank
+    // is considered more useful to an end user than an error with a lower rank. This is used by
+    // Error::most_specific to compare two errors in order to return which is more specific.
+    #[allow(clippy::as_conversions)] // We won't exceed u32 errors.
+    pub(crate) fn rank(&self) -> u32 {
+        match &self {
+            // Errors related to certificate validity
+            Error::CertNotValidYet | Error::CertExpired => 27,
+            Error::CertNotValidForName => 26,
+            Error::CertRevoked => 25,
+            Error::InvalidSignatureForPublicKey => 24,
+            Error::SignatureAlgorithmMismatch => 23,
+            Error::RequiredEkuNotFound => 22,
+            Error::NameConstraintViolation => 21,
+            Error::PathLenConstraintViolated => 20,
+            Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 19,
+            Error::IssuerNotCrlSigner => 18,
+
+            // Errors related to supported features used in an invalid way.
+            Error::InvalidCertValidity => 17,
+            Error::InvalidNetworkMaskConstraint => 16,
+            Error::InvalidSerialNumber => 15,
+            Error::InvalidCrlNumber => 14,
+
+            // Errors related to unsupported features.
+            Error::UnsupportedSignatureAlgorithmForPublicKey => 13,
+            Error::UnsupportedSignatureAlgorithm => 12,
+            Error::UnsupportedCriticalExtension => 11,
+            Error::UnsupportedCertVersion => 11,
+            Error::UnsupportedCrlVersion => 10,
+            Error::UnsupportedDeltaCrl => 9,
+            Error::UnsupportedIndirectCrl => 8,
+            Error::UnsupportedRevocationReason => 7,
+
+            // Errors related to malformed data.
+            Error::MalformedDnsIdentifier => 6,
+            Error::MalformedNameConstraint => 5,
+            Error::MalformedExtensions => 4,
+            Error::ExtensionValueInvalid => 3,
+
+            // Generic DER errors.
+            Error::BadDerTime => 2,
+            Error::BadDer => 1,
+
+            // Default catch all error - should be renamed in the future.
+            Error::UnknownIssuer => 0,
+        }
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)

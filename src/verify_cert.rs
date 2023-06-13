@@ -70,6 +70,7 @@ fn build_chain_inner(
             const MAX_SUB_CA_COUNT: usize = 6;
 
             if sub_ca_count >= MAX_SUB_CA_COUNT {
+                // TODO(XXX): Candidate for a more specific error - Error::PathTooDeep?
                 return Err(Error::UnknownIssuer);
             }
         }
@@ -90,36 +91,40 @@ fn build_chain_inner(
 
     // TODO: revocation.
 
-    let result = loop_while_non_fatal_error(opts.trust_anchors, |trust_anchor: &TrustAnchor| {
-        let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject);
-        if cert.issuer != trust_anchor_subject {
-            return Err(Error::UnknownIssuer);
-        }
+    let result = loop_while_non_fatal_error(
+        Error::UnknownIssuer,
+        opts.trust_anchors,
+        |trust_anchor: &TrustAnchor| {
+            let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject);
+            if cert.issuer != trust_anchor_subject {
+                return Err(Error::UnknownIssuer);
+            }
 
-        let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
+            let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
 
-        untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
-            subject_name::check_name_constraints(value, cert, subject_common_name_contents)
-        })?;
+            untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
+                subject_name::check_name_constraints(value, cert, subject_common_name_contents)
+            })?;
 
-        // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
+            // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-        check_signatures(
-            opts.supported_sig_algs,
-            cert,
-            trust_anchor,
-            &opts.revocation,
-        )?;
+            check_signatures(
+                opts.supported_sig_algs,
+                cert,
+                trust_anchor,
+                &opts.revocation,
+            )?;
 
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 
-    // If the error is not fatal, then keep going.
-    if result.is_ok() {
-        return Ok(());
-    }
+    let err = match result {
+        Ok(()) => return Ok(()),
+        Err(err) => err,
+    };
 
-    loop_while_non_fatal_error(opts.intermediate_certs, |cert_der| {
+    loop_while_non_fatal_error(err, opts.intermediate_certs, |cert_der| {
         let potential_issuer =
             cert::parse_cert(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
 
@@ -443,17 +448,19 @@ fn check_key_usage(
 }
 
 fn loop_while_non_fatal_error<V>(
+    default_error: Error,
     values: V,
     f: impl Fn(V::Item) -> Result<(), Error>,
 ) -> Result<(), Error>
 where
     V: IntoIterator,
 {
+    let mut error = default_error;
     for v in values {
-        // If the error is not fatal, then keep going.
-        if f(v).is_ok() {
-            return Ok(());
+        match f(v) {
+            Ok(()) => return Ok(()),
+            Err(new_error) => error = error.most_specific(new_error),
         }
     }
-    Err(Error::UnknownIssuer)
+    Err(error)
 }
