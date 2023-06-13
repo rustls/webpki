@@ -272,6 +272,62 @@ pub(crate) fn bit_string_with_no_unused_bits<'a>(
     })
 }
 
+#[allow(unused)] // TODO(@cpu): remove once used for CRLs.
+pub(crate) struct BitStringFlags<'a> {
+    raw_bits: &'a [u8],
+}
+
+#[allow(unused)] // TODO(@cpu): remove once used for CRLs.
+impl<'a> BitStringFlags<'a> {
+    pub(crate) fn bit_set(&self, bit: usize) -> bool {
+        let byte_index = bit / 8;
+        let bit_shift = 7 - (bit % 8);
+
+        if self.raw_bits.len() < (byte_index + 1) {
+            false
+        } else {
+            ((self.raw_bits[byte_index] >> bit_shift) & 1) != 0
+        }
+    }
+}
+
+// ASN.1 BIT STRING fields for sets of flags are encoded in DER with some peculiar details related
+// to padding. Notably this means we expect a Tag::BitString, a length, an indicator of the number
+// of bits of padding, and then the actual bit values. See this Stack Overflow discussion[0], and
+// ITU X690-0207[1] Section 8.6 and Section 11.2 for more information.
+//
+// [0]: https://security.stackexchange.com/a/10396
+// [1]: https://www.itu.int/ITU-T/studygroups/com17/languages/X.690-0207.pdf
+#[allow(unused)] // TODO(@cpu): remove once used for CRLs.
+pub(crate) fn bit_string_flags<'a>(
+    input: &mut untrusted::Reader<'a>,
+) -> Result<BitStringFlags<'a>, Error> {
+    expect_tag_and_get_value(input, Tag::BitString)?.read_all(Error::BadDer, |bit_string| {
+        // ITU X690-0207 11.2:
+        //   "The initial octet shall encode, as an unsigned binary integer with bit 1 as the least
+        //   significant bit, the number of unused bits in the final subsequent octet.
+        //   The number shall be in the range zero to seven"
+        let padding_bits = bit_string.read_byte().map_err(|_| Error::BadDer)?;
+        let raw_bits = bit_string.read_bytes_to_end().as_slice_less_safe();
+
+        // It's illegal to have more than 7 bits of padding. Similarly, if the raw bitflags
+        // are empty there should be no padding.
+        if padding_bits > 7 || (raw_bits.is_empty() && padding_bits != 0) {
+            return Err(Error::BadDer);
+        }
+
+        // If there are padding bits then the last bit of the last raw byte must be 0 or the
+        // distinguished encoding rules are not being followed.
+        let last_byte = raw_bits[raw_bits.len() - 1];
+        let padding_mask = (1 << padding_bits) - 1;
+
+        match padding_bits > 0 && (last_byte & padding_mask) != 0 {
+            true => Err(Error::BadDer),
+            false => Ok(BitStringFlags { raw_bits }),
+        }
+    })
+}
+
 // Like mozilla::pkix, we accept the nonconformant explicit encoding of
 // the default value (false) for compatibility with real-world certificates.
 pub(crate) fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
@@ -564,5 +620,73 @@ mod tests {
 
             encoded
         }
+    }
+
+    #[allow(clippy::as_conversions)] // infallible.
+    const BITSTRING_TAG: u8 = super::Tag::BitString as u8;
+
+    #[test]
+    fn misencoded_bit_string_flags() {
+        use super::{bit_string_flags, Error};
+
+        let mut bad_padding_example = untrusted::Reader::new(untrusted::Input::from(&[
+            BITSTRING_TAG, // BitString
+            0x2,           // 2 bytes of content.
+            0x08,          // 8 bit of padding (illegal!).
+            0x06,          // 1 byte of bit flags asserting bits 5 and 6.
+        ]));
+        assert!(matches!(
+            bit_string_flags(&mut bad_padding_example),
+            Err(Error::BadDer)
+        ));
+
+        let mut bad_padding_example = untrusted::Reader::new(untrusted::Input::from(&[
+            BITSTRING_TAG, // BitString
+            0x2,           // 2 bytes of content.
+            0x01,          // 1 bit of padding.
+                           // No flags value (illegal with padding!).
+        ]));
+        assert!(matches!(
+            bit_string_flags(&mut bad_padding_example),
+            Err(Error::BadDer)
+        ));
+
+        let mut trailing_zeroes = untrusted::Reader::new(untrusted::Input::from(&[
+            BITSTRING_TAG, // BitString
+            0x2,           // 2 bytes of content.
+            0x01,          // 1 bit of padding.
+            0xFF,          // Flag data with
+            0x00,          // trailing zeros.
+        ]));
+        assert!(matches!(
+            bit_string_flags(&mut trailing_zeroes),
+            Err(Error::BadDer)
+        ))
+    }
+
+    #[test]
+    fn valid_bit_string_flags() {
+        use super::bit_string_flags;
+
+        let mut example_key_usage = untrusted::Reader::new(untrusted::Input::from(&[
+            BITSTRING_TAG, // BitString
+            0x2,           // 2 bytes of content.
+            0x01,          // 1 bit of padding.
+            0x06,          // 1 byte of bit flags asserting bits 5 and 6.
+        ]));
+        let res = bit_string_flags(&mut example_key_usage).unwrap();
+
+        assert!(!res.bit_set(0));
+        assert!(!res.bit_set(1));
+        assert!(!res.bit_set(2));
+        assert!(!res.bit_set(3));
+        assert!(!res.bit_set(4));
+        // NB: Bits 5 and 6 should be set.
+        assert!(res.bit_set(5));
+        assert!(res.bit_set(6));
+        assert!(!res.bit_set(7));
+        assert!(!res.bit_set(8));
+        // Bits outside the range of values shouldn't be considered set.
+        assert!(!res.bit_set(256));
     }
 }
