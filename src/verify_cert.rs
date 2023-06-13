@@ -166,6 +166,7 @@ fn check_signatures(
 ) -> Result<(), Error> {
     let mut spki_value = untrusted::Input::from(trust_anchor.spki);
     let mut issuer_subject = untrusted::Input::from(trust_anchor.subject);
+    let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
     let mut cert = cert_chain;
     loop {
         signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
@@ -176,6 +177,7 @@ fn check_signatures(
                 cert,
                 issuer_subject,
                 spki_value,
+                issuer_key_usage,
                 revocation_opts.crl_provider,
             )?;
         }
@@ -184,6 +186,7 @@ fn check_signatures(
             EndEntityOrCa::Ca(child_cert) => {
                 spki_value = cert.spki.value();
                 issuer_subject = cert.subject;
+                issuer_key_usage = cert.key_usage;
                 cert = child_cert;
             }
             EndEntityOrCa::EndEntity => {
@@ -212,6 +215,7 @@ fn check_crl(
     cert: &Cert,
     issuer_subject: untrusted::Input,
     issuer_spki: untrusted::Input,
+    issuer_ku: Option<untrusted::Input>,
     crl_provider: &dyn CrlProvider,
 ) -> Result<Option<CertNotRevoked>, Error> {
     assert_eq!(cert.issuer, issuer_subject);
@@ -227,7 +231,8 @@ fn check_crl(
     //            https://github.com/rustls/webpki/issues/81
     signed_data::verify_signed_data(supported_sig_algs, issuer_spki, &crl.signed_data)?;
 
-    // TODO(@cpu): Verify the issuer has no KU, or KU with cRLSign.
+    // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
+    check_key_usage(issuer_ku, KeyUsageMode::CrlSign)?;
 
     // Try to find the cert serial in the verified CRL contents.
     let cert_serial = cert.serial.as_slice_less_safe();
@@ -399,6 +404,41 @@ fn check_eku(
 
             Ok(())
         }
+    }
+}
+
+// https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
+#[repr(u8)]
+enum KeyUsageMode {
+    // DigitalSignature = 0,
+    // ContentCommitment = 1,
+    // KeyEncipherment = 2,
+    // DataEncipherment = 3,
+    // KeyAgreement = 4,
+    // CertSign = 5,
+    CrlSign = 6,
+    // EncipherOnly = 7,
+    // DecipherOnly = 8,
+}
+
+// https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
+fn check_key_usage(
+    input: Option<untrusted::Input>,
+    required_ku_bit_if_present: KeyUsageMode,
+) -> Result<(), Error> {
+    let bit_string = match input {
+        Some(input) => input,
+        // While RFC 5280 requires KeyUsage be present, historically the absence of a KeyUsage
+        // has been treated as "Any Usage". We follow that convention here and assume the absence
+        // of KeyUsage implies the required_ku_bit_if_present we're checking for.
+        None => return Ok(()),
+    };
+
+    let flags = der::bit_string_flags(&mut untrusted::Reader::new(bit_string))?;
+    #[allow(clippy::as_conversions)] // u8 always fits in usize.
+    match flags.bit_set(required_ku_bit_if_present as usize) {
+        true => Ok(()),
+        false => Err(Error::IssuerNotCrlSigner),
     }
 }
 
