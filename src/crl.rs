@@ -159,6 +159,10 @@ impl<'a> CertRevocationList<'a> {
     /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
     /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
     pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert> {
+        // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
+        //            any allocation. It would be nice to offer a speedier alternative for
+        //            when the alloc feature is enabled:
+        //            https://github.com/rustls/webpki/issues/80
         self.into_iter()
             .filter_map(|parse_res| parse_res.ok())
             .find(|revoked_cert| revoked_cert.serial_number.eq(serial))
