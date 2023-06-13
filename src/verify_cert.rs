@@ -249,8 +249,11 @@ fn check_issuer_independent_properties(
     // TODO: Check SPKI like mozilla::pkix.
     // TODO: check for active distrust like mozilla::pkix.
 
-    // See the comment in `remember_extension` for why we don't check the
-    // KeyUsage extension.
+    // For cert validation, we ignore the KeyUsage extension. For CA
+    // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
+    // and other common browsers do not check KeyUsage for end-entities,
+    // though it would be kind of nice to ensure that a KeyUsage without
+    // the keyEncipherment bit could not be used for RSA key exchange.
 
     cert.validity
         .read_all(Error::BadDer, |value| check_validity(value, time))?;
