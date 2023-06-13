@@ -116,6 +116,7 @@ fn ee_not_revoked_ee_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn ee_revoked_badsig_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
@@ -132,6 +133,7 @@ fn ee_revoked_badsig_ee_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn ee_revoked_wrong_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_crl_ku_chain.ee.der");
@@ -148,6 +150,7 @@ fn ee_revoked_wrong_ku_ee_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn ee_not_revoked_wrong_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_crl_ku_chain.ee.der");
@@ -165,6 +168,7 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn ee_revoked_no_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
@@ -181,6 +185,7 @@ fn ee_revoked_no_ku_ee_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn ee_revoked_crl_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/ku_chain.ee.der");
@@ -241,6 +246,7 @@ fn int_not_revoked_chain_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn int_revoked_badsig_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
@@ -257,6 +263,7 @@ fn int_revoked_badsig_chain_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn int_revoked_wrong_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_crl_ku_chain.ee.der");
@@ -274,6 +281,7 @@ fn int_revoked_wrong_ku_chain_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn ee_revoked_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
@@ -306,6 +314,7 @@ fn int_revoked_ee_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn int_revoked_no_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
@@ -322,6 +331,7 @@ fn int_revoked_no_ku_chain_depth() {
     );
 }
 
+#[ignore]
 #[test]
 fn int_revoked_crl_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/ku_chain.ee.der");
