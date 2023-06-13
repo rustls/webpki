@@ -32,6 +32,7 @@ and it maintains a tight bound on the amount of stack memory it uses. webpki
 avoids all superfluous PKIX features in order to keep its object code size
 small. Further reducing the code size of webpki is an important goal.
 
+
 About this fork
 ===============
 
@@ -39,6 +40,7 @@ This is a fork of the [original webpki project](https://github.com/briansmith/we
 which adds a number of features required by the rustls project.  This fork is
 released as the `rustls-webpki` crate, with versions starting 0.100.0 so as to
 not confusingly overlap with `webpki` versions.
+
 
 Changelog
 ---------
@@ -66,7 +68,6 @@ See https://github.com/rustls/rustls#example-code for an example of using
 webpki.
 
 
-
 License
 =======
 
@@ -74,7 +75,6 @@ See [LICENSE](LICENSE). This project happily accepts pull requests without any
 formal copyright/contributor license agreement. Pull requests must explicitly
 indicate who owns the copyright to the code being contributed and that the code
 is being licensed under the same terms as the existing webpki code.
-
 
 
 Bug Reporting
