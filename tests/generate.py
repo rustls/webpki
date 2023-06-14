@@ -1189,10 +1189,8 @@ def client_auth_revocation() -> None:
             chain=no_crl_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
             depth=RevocationCheckDepth.EndEntity,
-            # TODO(@cpu): This test will pass only when KU is not being enforced. When it is, this should
-            #             expect UnknownIssuer for the short term, and then CRL not issued by CRL signer once
-            #             more specific errors can be returned.
-            expected_error=None,
+            # TODO(@cpu): Adapt to more relevant error type (CRL not issued by CRL signer).
+            expected_error="UnknownIssuer",
         )
 
     def _ee_revoked_no_ku_ee_depth() -> None:
