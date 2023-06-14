@@ -79,12 +79,12 @@ where
     inner.read_all(error, decoder)
 }
 
-pub struct Value<'a> {
+pub(crate) struct Value<'a> {
     value: untrusted::Input<'a>,
 }
 
 impl<'a> Value<'a> {
-    pub fn value(&self) -> untrusted::Input<'a> {
+    pub(crate) fn value(&self) -> untrusted::Input<'a> {
         self.value
     }
 }

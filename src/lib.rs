@@ -58,6 +58,7 @@ mod verify_cert;
 mod x509;
 
 pub use {
+    cert::{Cert, EndEntityOrCa},
     crl::{CertRevocationList, RevocationReason, RevokedCert},
     end_entity::EndEntityCert,
     error::Error,
