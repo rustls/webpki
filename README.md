@@ -72,9 +72,7 @@ License
 =======
 
 See [LICENSE](LICENSE). This project happily accepts pull requests without any
-formal copyright/contributor license agreement. Pull requests must explicitly
-indicate who owns the copyright to the code being contributed and that the code
-is being licensed under the same terms as the existing webpki code.
+formal copyright/contributor license agreement.
 
 
 Bug Reporting
