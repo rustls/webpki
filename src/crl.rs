@@ -18,24 +18,17 @@ use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, signed_data, Error, Time};
 
-/// A collection of Certificate Revocation Lists (CRLs) which may be used to check client                                                         
-/// certificates for revocation status.
-// TODO(@cpu): Remove allows once used.
-// TODO(@cpu): I suspect at this stage we mostly want to index this by issuer name. Is there
-//             a better way to express that while still being no-std/no-alloc?
-#[allow(unused, unreachable_pub)]
-pub struct CertificateRevocationLists<'a>(pub &'a [CertRevocationList<'a>]);
-
 /// Representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 pub struct CertRevocationList<'a> {
     /// A `SignedData` structure that can be passed to `verify_signed_data`.
-    pub signed_data: signed_data::SignedData<'a>,
+    #[allow(unused)] // TODO(@cpu): Remove when support for revocation checking is added.
+    pub(crate) signed_data: signed_data::SignedData<'a>,
 
     /// Identifies the entity that has signed and issued this
     /// CRL.
-    pub issuer: untrusted::Input<'a>,
+    pub(crate) issuer: untrusted::Input<'a>,
 
     /// Indicates the issue date of this CRL.
     pub this_update: Time,
@@ -44,14 +37,27 @@ pub struct CertRevocationList<'a> {
     pub next_update: Time,
 
     /// List of certificates revoked by the issuer in this CRL.
-    pub revoked_certs: untrusted::Input<'a>,
+    pub(crate) revoked_certs: untrusted::Input<'a>,
 
     /// Provides a means of identifying the public key corresponding to the private key used to
     /// sign this CRL.
-    pub authority_key_identifier: Option<untrusted::Input<'a>>,
+    pub(crate) authority_key_identifier: Option<untrusted::Input<'a>>,
 
     /// A monotonically increasing sequence number for a given CRL scope and CRL issuer.
     pub crl_number: Option<&'a [u8]>,
+}
+
+impl<'a> CertRevocationList<'a> {
+    /// Raw DER encoding of the issuer of the CRL.
+    pub fn issuer(&self) -> &[u8] {
+        self.issuer.as_slice_less_safe()
+    }
+
+    /// DER encoding of the authority key identifier (AKI) of the CRL.
+    pub fn authority_key_identifier(&self) -> Option<&[u8]> {
+        self.authority_key_identifier
+            .map(|input| input.as_slice_less_safe())
+    }
 }
 
 /// Representation of a RFC 5280[^1] profile Certificate Revocation List (CRL) revoked certificate
