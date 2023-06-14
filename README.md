@@ -3,38 +3,13 @@
 [![Documentation](https://docs.rs/rustls-webpki/badge.svg)](https://docs.rs/rustls-webpki/)
 [![Chat](https://img.shields.io/discord/976380008299917365?logo=discord)](https://discord.gg/MCSB76RU96)
 
-
-What is webpki?
-==================
-
-webpki is a library that validates Web PKI (TLS/SSL) certificates. webpki
-is designed to provide a **full** implementation of the client side of the
-**Web PKI** to a diverse range of applications and devices,
-including embedded (IoT) applications, mobile apps, desktop applications, and
-server infrastructure. webpki is intended to not only be the best
-implementation of the Web PKI, but to also *precisely define* what the Web PKI
-is.
+webpki is a library that validates Web PKI (TLS/SSL) certificates. It's
+used by [Rustls](https://github.com/rustls/rustls) to handle certificate-related
+tasks required for implementing TLS clients and servers.
 
 webpki is written in [Rust](https://www.rust-lang.org/) and uses
-[*ring*](https://github.com/briansmith/ring) for signature verification.
-
-webpki is strongly influenced by
-[mozilla::pkix](https://github.com/briansmith/mozillapkix). You can read a
-little about the ideas underlying both mozilla::pkix and webpki in
-[insanity::pkix: A New Certificate Path Building & Validation
-Library](https://briansmith.org/insanity-pkix).
-
-The Rust compiler statically guarantees there are no buffer overflows,
-uses-after-free, double-frees, data races, etc. in webpki. webpki takes
-advantage of Rust's borrow checker to ensure that its **zero-copy parsing**
-strategy is safe and efficient. webpki *never* allocates memory on the heap,
-and it maintains a tight bound on the amount of stack memory it uses. webpki
-avoids all superfluous PKIX features in order to keep its object code size
-small. Further reducing the code size of webpki is an important goal.
-
-
-About this fork
-===============
+[*ring*](https://github.com/briansmith/ring) for cryptographic operations and
+low-level parsing.
 
 This is a fork of the [original webpki project](https://github.com/briansmith/webpki)
 which adds a number of features required by the rustls project.  This fork is
@@ -42,8 +17,42 @@ released as the `rustls-webpki` crate, with versions starting 0.100.0 so as to
 not confusingly overlap with `webpki` versions.
 
 
+Features
+===============
+
+* Representing trust anchors - webpki requires the caller to bootstrap trust by 
+  explicitly specifying a set of trust anchors using the `TrustAnchor` type.
+
+* Parsing certificates - webpki can convert from the raw encoded form of
+  a certificate into something that can be used for making trust decisions.
+
+* Path building - webpki can determine if a certificate for an end entity like
+  a website or client identity was issued by a trust anchor, or a series of
+  intermediate certificates the trust anchor has endorsed.
+
+* Name/usage validation - webpki can determine if a certificate is valid for
+  a given DNS name or IP address by considering the allowed usage of the
+  certificate and additional constraints.
+
+  
+Limitations
+===============
+
+webpki offers a minimal feature set tailored to the needs of Rustls. Notably it
+does not offer:
+
+* Certificate or keypair generation
+* Access to arbitrary certificate extensions
+* Parsing/representation of certificate subjects, or human-friendly display of
+  these fields
+
+For these tasks you may prefer using webpki in combination with libraries like
+[x509-parser](https://github.com/rusticata/x509-parser) and
+[rcgen](https://github.com/est31/rcgen).
+
+
 Changelog
----------
+=========
 
 * 0.100.1 (2023-03-28)
   - Relax constraint on serial number length.
