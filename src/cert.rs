@@ -16,25 +16,54 @@ use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, signed_data, Error};
 
+/// An enumeration indicating whether a [`Cert`] is a leaf end-entity cert, or a linked
+/// list node from the CA `Cert` to a child `Cert` it issued.
 pub enum EndEntityOrCa<'a> {
+    /// The [`Cert`] is a leaf end-entity certificate.
     EndEntity,
+
+    /// The [`Cert`] is an issuer certificate, and issued the referenced child `Cert`.
     Ca(&'a Cert<'a>),
 }
 
+/// A parsed X509 certificate.
 pub struct Cert<'a> {
-    pub ee_or_ca: EndEntityOrCa<'a>,
+    pub(crate) ee_or_ca: EndEntityOrCa<'a>,
 
-    pub serial: untrusted::Input<'a>,
-    pub signed_data: signed_data::SignedData<'a>,
-    pub issuer: untrusted::Input<'a>,
-    pub validity: untrusted::Input<'a>,
-    pub subject: untrusted::Input<'a>,
-    pub spki: der::Value<'a>,
+    pub(crate) serial: untrusted::Input<'a>,
+    pub(crate) signed_data: signed_data::SignedData<'a>,
+    pub(crate) issuer: untrusted::Input<'a>,
+    pub(crate) validity: untrusted::Input<'a>,
+    pub(crate) subject: untrusted::Input<'a>,
+    pub(crate) spki: der::Value<'a>,
 
-    pub basic_constraints: Option<untrusted::Input<'a>>,
-    pub eku: Option<untrusted::Input<'a>>,
-    pub name_constraints: Option<untrusted::Input<'a>>,
-    pub subject_alt_name: Option<untrusted::Input<'a>>,
+    pub(crate) basic_constraints: Option<untrusted::Input<'a>>,
+    pub(crate) eku: Option<untrusted::Input<'a>>,
+    pub(crate) name_constraints: Option<untrusted::Input<'a>>,
+    pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
+}
+
+impl<'a> Cert<'a> {
+    /// Raw DER encoded certificate serial number.
+    pub fn serial(&self) -> &[u8] {
+        self.serial.as_slice_less_safe()
+    }
+
+    /// Raw DER encoded certificate issuer.
+    pub fn issuer(&self) -> &[u8] {
+        self.issuer.as_slice_less_safe()
+    }
+
+    /// Raw DER encoded certificate subject.
+    pub fn subject(&self) -> &[u8] {
+        self.subject.as_slice_less_safe()
+    }
+
+    /// Returns an indication of whether the certificate is an end-entity (leaf) certificate,
+    /// or a certificate authority.
+    pub fn end_entity_or_ca(&self) -> &EndEntityOrCa {
+        &self.ee_or_ca
+    }
 }
 
 pub(crate) fn parse_cert<'a>(
