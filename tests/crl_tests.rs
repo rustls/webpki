@@ -18,8 +18,8 @@ fn parse_valid_crl() {
         0x30, 0x16, 0x80, 0x14, 0x01, 0xDA, 0xBB, 0x7A, 0xCB, 0x25, 0x20, 0x8E, 0x5E, 0x79, 0xD6,
         0xF9, 0x96, 0x42, 0x2F, 0x02, 0x41, 0x29, 0x07, 0xBE,
     ];
-    let aki = crl.authority_key_identifier.expect("missing AKI");
-    assert_eq!(aki.as_slice_less_safe(), expected_aki);
+    let aki = crl.authority_key_identifier().expect("missing AKI");
+    assert_eq!(aki, expected_aki);
 
     // We should find the expected revoked certificate with the expected serial number.
     assert!(crl.find_serial(REVOKED_SERIAL).is_some())
