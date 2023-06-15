@@ -163,9 +163,6 @@ fn ee_revoked_wrong_ku_ee_depth() {
     );
 }
 
-/*
- * Uncomment to demonstrate KU enforcement failing a test.
- * Commented out to keep commit building clean - will be regenerated in subsequent comment.
 #[test]
 #[cfg(feature = "alloc")]
 fn ee_not_revoked_wrong_ku_ee_depth() {
@@ -180,10 +177,9 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::EndEntity, crls),
-        Ok(())
+        Err(webpki::Error::UnknownIssuer)
     );
 }
- */
 
 #[test]
 #[cfg(feature = "alloc")]
