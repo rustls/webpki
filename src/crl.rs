@@ -329,7 +329,7 @@ impl<'a> RevokedCert<'a> {
                     //   process, then the application MUST NOT use that CRL to determine the
                     //   status of any certificates.  However, applications may ignore
                     //   unrecognized non-critical CRL entry extensions.
-                    remember_revoked_cert_extension(&mut revoked_cert, &Extension::parse(ext_der)?)
+                    revoked_cert.remember_extension(&Extension::parse(ext_der)?)
                 })?;
                 if reader.at_end() {
                     break;
@@ -337,6 +337,34 @@ impl<'a> RevokedCert<'a> {
             }
 
             Ok(revoked_cert)
+        })
+    }
+
+    fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
+        remember_extension(extension, |id| {
+            match id {
+                // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
+                21 => set_extension_once(&mut self.reason_code, || {
+                    revocation_reason(extension.value)?.try_into()
+                }),
+
+                // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
+                24 => set_extension_once(&mut self.invalidity_date, || {
+                    extension.value.read_all(Error::BadDer, der::time_choice)
+                }),
+
+                // id-ce-certificateIssuer 2.5.29.29 - RFC 5280 §5.3.3.
+                //   This CRL entry extension identifies the certificate issuer associated
+                //   with an entry in an indirect CRL, that is, a CRL that has the
+                //   indirectCRL indicator set in its issuing distribution point
+                //   extension.
+                // We choose not to support indirect CRLs and so turn this into a more specific
+                // error rather than simply letting it fail as an unsupported critical extension.
+                29 => Err(Error::UnsupportedIndirectCrl),
+
+                // Unsupported extension
+                _ => extension.unsupported(),
+            }
         })
     }
 }
@@ -400,37 +428,6 @@ fn version2(input: &mut untrusted::Reader) -> Result<(), Error> {
         return Err(Error::UnsupportedCrlVersion);
     }
     Ok(())
-}
-
-fn remember_revoked_cert_extension<'a>(
-    revoked_cert: &mut RevokedCert<'a>,
-    extension: &Extension<'a>,
-) -> Result<(), Error> {
-    remember_extension(extension, |id| {
-        match id {
-            // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
-            21 => set_extension_once(&mut revoked_cert.reason_code, || {
-                revocation_reason(extension.value)?.try_into()
-            }),
-
-            // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
-            24 => set_extension_once(&mut revoked_cert.invalidity_date, || {
-                extension.value.read_all(Error::BadDer, der::time_choice)
-            }),
-
-            // id-ce-certificateIssuer 2.5.29.29 - RFC 5280 §5.3.3.
-            //   This CRL entry extension identifies the certificate issuer associated
-            //   with an entry in an indirect CRL, that is, a CRL that has the
-            //   indirectCRL indicator set in its issuing distribution point
-            //   extension.
-            // We choose not to support indirect CRLs and so turn this into a more specific
-            // error rather than simply letting it fail as an unsupported critical extension.
-            29 => Err(Error::UnsupportedIndirectCrl),
-
-            // Unsupported extension
-            _ => extension.unsupported(),
-        }
-    })
 }
 
 // RFC 5280 §5.3.1.
