@@ -303,14 +303,14 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "disallow_subject_common_name",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             subject_common_name="disallowed.example.com",
             excluded_subtrees=[x509.DNSName("disallowed.example.com")],
         )
         generate_tls_server_cert_test(
             output,
             "disallow_dns_san",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[x509.DNSName("disallowed.example.com")],
             excluded_subtrees=[x509.DNSName("disallowed.example.com")],
         )
@@ -344,7 +344,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "allow_dns_san_and_disallow_subject_common_name",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[x509.DNSName("allowed-san.example.com")],
             subject_common_name="disallowed-cn.example.com",
             permitted_subtrees=[x509.DNSName("allowed-san.example.com")],
@@ -353,7 +353,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "disallow_dns_san_and_allow_subject_common_name",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[
                 x509.DNSName("allowed-san.example.com"),
                 x509.DNSName("disallowed-san.example.com"),
@@ -382,7 +382,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "reject_constraints_on_unimplemented_names",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[x509.RFC822Name("joe@example.com")],
             permitted_subtrees=[x509.RFC822Name("example.com")],
         )
@@ -411,7 +411,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "wildcard_san_rejected_if_in_excluded_subtree",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[x509.DNSName("*.example.com")],
             excluded_subtrees=[x509.DNSName("example.com")],
         )
@@ -419,7 +419,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "ip4_address_san_rejected_if_in_excluded_subtree",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[x509.IPAddress(ipaddress.ip_address("12.34.56.78"))],
             excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("12.34.56.0/24"))],
         )
@@ -437,7 +437,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask",
-            expected_error="UnknownIssuer",
+            expected_error="InvalidNetworkMaskConstraint",
             sans=[
                 # inside excluded network, if netmask is allowed to be sparse
                 x509.IPAddress(ipaddress.ip_address("12.34.56.79")),
@@ -461,7 +461,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "ip6_address_san_rejected_if_in_excluded_subtree",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             sans=[x509.IPAddress(ipaddress.ip_address("2001:db8::1"))],
             excluded_subtrees=[x509.IPAddress(ipaddress.ip_network("2001:db8::/48"))],
         )
@@ -505,7 +505,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "permit_directory_name_not_implemented",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             permitted_subtrees=[
                 x509.DirectoryName(
                     x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")])
@@ -516,7 +516,7 @@ def tls_server_certs() -> None:
         generate_tls_server_cert_test(
             output,
             "exclude_directory_name_not_implemented",
-            expected_error="UnknownIssuer",
+            expected_error="NameConstraintViolation",
             excluded_subtrees=[
                 x509.DirectoryName(
                     x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "CN")])
@@ -905,12 +905,16 @@ def client_auth_revocation() -> None:
         was written to, and lastly the corresponding private key.
         """
         ee_subj: x509.Name = subject_name_for_test("test.example.com", chain_name)
-        int_subj: x509.Name = issuer_name_for_test(f"int.{chain_name}")
+        int_a_subj: x509.Name = issuer_name_for_test(f"int.a.{chain_name}")
+        int_b_subj: x509.Name = issuer_name_for_test(f"int.b.{chain_name}")
         ca_subj: x509.Name = issuer_name_for_test(f"ca.{chain_name}")
         ee_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
             ec.SECP256R1(), default_backend()
         )
-        int_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+        int_a_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+            ec.SECP256R1(), default_backend()
+        )
+        int_b_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
             ec.SECP256R1(), default_backend()
         )
         root_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
@@ -919,23 +923,35 @@ def client_auth_revocation() -> None:
 
         # EE cert issued by intermediate.
         ee_cert: x509.Certificate = end_entity_cert(
-            subject_name=ee_subj, issuer_name=int_subj, issuer_key=int_key
+            subject_name=ee_subj, issuer_name=int_a_subj, issuer_key=int_a_key
         )
         ee_cert_path: str = os.path.join(output_dir, f"{chain_name}.ee.der")
         with open(ee_cert_path, "wb") as f:
             f.write(ee_cert.public_bytes(Encoding.DER))
 
-        # intermediate cert issued by root.
-        int_cert: x509.Certificate = ca_cert(
-            subject_name=int_subj,
-            subject_key=int_key,
+        # intermediate a cert issued by intermediate b.
+        int_a_cert: x509.Certificate = ca_cert(
+            subject_name=int_a_subj,
+            subject_key=int_a_key,
+            issuer_name=int_b_subj,
+            issuer_key=int_b_key,
+            key_usage=key_usage,
+        )
+        int_a_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.a.ca.der")
+        with open(int_a_cert_path, "wb") as f:
+            f.write(int_a_cert.public_bytes(Encoding.DER))
+
+        # intermediate b cert issued by root cert.
+        int_b_cert: x509.Certificate = ca_cert(
+            subject_name=int_b_subj,
+            subject_key=int_b_key,
             issuer_name=ca_subj,
             issuer_key=root_key,
             key_usage=key_usage,
         )
-        int_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.ca.der")
-        with open(int_cert_path, "wb") as f:
-            f.write(int_cert.public_bytes(Encoding.DER))
+        int_b_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.b.ca.der")
+        with open(int_b_cert_path, "wb") as f:
+            f.write(int_b_cert.public_bytes(Encoding.DER))
 
         # root cert issued by itself.
         root_cert: x509.Certificate = ca_cert(
@@ -949,7 +965,8 @@ def client_auth_revocation() -> None:
 
         return [
             (ee_cert, ee_cert_path, ee_key),
-            (int_cert, int_cert_path, int_key),
+            (int_a_cert, int_a_cert_path, int_a_key),
+            (int_b_cert, int_b_cert_path, int_b_key),
             (root_cert, root_cert_path, root_key),
         ]
 
@@ -1011,14 +1028,17 @@ def client_auth_revocation() -> None:
         :param depth: whether to validate the revocation status of the chain, or just the end entity.
         :param expected_error: an optional error to expect to be returned from validation.
         """
-        if len(chain) != 3:
+        if len(chain) != 4:
             raise RuntimeError("invalid chain length")
 
         ee_cert, ee_cert_path, _ = chain[0]
-        int_cert, int_cert_path, _ = chain[1]
-        root_cert, root_cert_path, _ = chain[2]
+        int_a_cert, int_a_cert_path, _ = chain[1]
+        int_b_cert, int_b_cert_path, _ = chain[2]
+        root_cert, root_cert_path, _ = chain[3]
 
-        intermediates_str: str = f'&[include_bytes!("{int_cert_path}").as_slice()]'
+        int_a_str = f'include_bytes!("{int_a_cert_path}").as_slice()'
+        int_b_str = f'include_bytes!("{int_b_cert_path}").as_slice()'
+        intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
         crl_includes: str = "\n".join(
             [
                 f'webpki::CertRevocationList::from_der(include_bytes!("{path}").as_slice()).unwrap(),'
@@ -1095,12 +1115,12 @@ def client_auth_revocation() -> None:
     def _ee_not_revoked_ee_depth() -> None:
         test_name = "ee_not_revoked_ee_depth"
         ee_cert = no_ku_chain[0][0]
-        int_key = no_ku_chain[1][2]
+        int_a_key = no_ku_chain[1][2]
         # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
-            issuer_key=int_key,
+            issuer_key=int_a_key,
         )
         ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_not_revoked_crl_path, "wb") as f:
@@ -1121,10 +1141,13 @@ def client_auth_revocation() -> None:
         ee_cert = no_ku_chain[0][0]
         # Generate a CRL that includes the EE cert's serial, and that is issued the same issuer, but that
         # has an invalid signature.
+        rand_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+            ec.SECP256R1(), default_backend()
+        )
         ee_revoked_badsig = _crl(
             serials=[ee_cert.serial_number],
             issuer_name=ee_cert.issuer,
-            issuer_key=None,  # NB: Using a random key to sign, not int_key.
+            issuer_key=rand_key,  # NB: Using a random key to sign, not int_a_key.
         )
         ee_revoked_badsig_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_revoked_badsig_path, "wb") as f:
@@ -1136,20 +1159,19 @@ def client_auth_revocation() -> None:
             chain=no_ku_chain,
             crl_paths=[ee_revoked_badsig_path],
             depth=RevocationCheckDepth.EndEntity,
-            # TODO(@cpu): Adapt to more relevant error type (CRL signature bad).
-            expected_error="UnknownIssuer",
+            expected_error="InvalidSignatureForPublicKey",
         )
 
     def _ee_revoked_wrong_ku_ee_depth() -> None:
         test_name = "ee_revoked_wrong_ku_ee_depth"
         ee_cert = no_crl_ku_chain[0][0]
-        int_key = no_crl_ku_chain[1][2]
+        int_a_key = no_crl_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (with a KU specified
         # but no cRLSign bit)
         ee_revoked_crl = _crl(
             serials=[ee_cert.serial_number],
             issuer_name=ee_cert.issuer,
-            issuer_key=int_key,
+            issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_revoked_crl_path, "wb") as f:
@@ -1162,19 +1184,18 @@ def client_auth_revocation() -> None:
             chain=no_crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
             depth=RevocationCheckDepth.EndEntity,
-            # TODO(@cpu): Adapt to more relevant error type (CRL not issued by CRL signer).
-            expected_error="UnknownIssuer",
+            expected_error="IssuerNotCrlSigner",
         )
 
     def _ee_not_revoked_wrong_ku_ee_depth() -> None:
         test_name = "ee_not_revoked_wrong_ku_ee_depth"
         ee_cert = no_crl_ku_chain[0][0]
-        int_key = no_crl_ku_chain[1][2]
+        int_a_key = no_crl_ku_chain[1][2]
         # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
-            issuer_key=int_key,
+            issuer_key=int_a_key,
         )
         ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_not_revoked_crl_path, "wb") as f:
@@ -1187,20 +1208,19 @@ def client_auth_revocation() -> None:
             chain=no_crl_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
             depth=RevocationCheckDepth.EndEntity,
-            # TODO(@cpu): Adapt to more relevant error type (CRL not issued by CRL signer).
-            expected_error="UnknownIssuer",
+            expected_error="IssuerNotCrlSigner",
         )
 
     def _ee_revoked_no_ku_ee_depth() -> None:
         test_name = "ee_revoked_no_ku_ee_depth"
         ee_cert = no_ku_chain[0][0]
-        int_key = no_ku_chain[1][2]
+        int_a_key = no_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (without any KU
         # specified).
         ee_revoked_crl = _crl(
             serials=[ee_cert.serial_number],
             issuer_name=ee_cert.issuer,
-            issuer_key=int_key,
+            issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_revoked_crl_path, "wb") as f:
@@ -1213,20 +1233,19 @@ def client_auth_revocation() -> None:
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
             depth=RevocationCheckDepth.EndEntity,
-            # TODO(@cpu): Adapt to more relevant error type (CRL not issued by CRL signer).
-            expected_error="UnknownIssuer",
+            expected_error="CertRevoked",
         )
 
     def _ee_revoked_crl_ku_ee_depth() -> None:
         test_name = "ee_revoked_crl_ku_ee_depth"
         ee_cert = crl_ku_chain[0][0]
-        int_key = crl_ku_chain[1][2]
+        int_a_key = crl_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (with a KU
         # specified that includes cRLSign).
         ee_revoked_crl = _crl(
             serials=[ee_cert.serial_number],
             issuer_name=ee_cert.issuer,
-            issuer_key=int_key,
+            issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_revoked_crl_path, "wb") as f:
@@ -1239,8 +1258,7 @@ def client_auth_revocation() -> None:
             chain=crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
             depth=RevocationCheckDepth.EndEntity,
-            # TODO(@cpu): Adapt to more relevant error type (CRL invalid, issuer not cRLSigner).
-            expected_error="UnknownIssuer",
+            expected_error="CertRevoked",
         )
 
     def _no_crls_test_chain_depth() -> None:
@@ -1255,10 +1273,10 @@ def client_auth_revocation() -> None:
 
     def _no_relevant_crl_chain_depth() -> None:
         test_name = "no_relevant_crl_chain_depth"
-        # Generate a CRL that includes the intermediate cert's serial, but that is issued by an unknown issuer.
-        int_cert = no_ku_chain[1][0]
+        # Generate a CRL that includes the first intermediate cert's serial, but that is issued by an unknown issuer.
+        int_a_cert = no_ku_chain[1][0]
         no_match_crl = _crl(
-            serials=[int_cert.serial_number],
+            serials=[int_a_cert.serial_number],
             issuer_name=subject_name_for_test("whatev", test_name),
             issuer_key=None,
         )
@@ -1277,13 +1295,13 @@ def client_auth_revocation() -> None:
 
     def _int_not_revoked_chain_depth() -> None:
         test_name = "int_not_revoked_chain_depth"
-        int_cert = no_ku_chain[1][0]
-        ca_key = no_ku_chain[2][2]
-        # Generate a CRL that doesn't include the intermediate cert's serial, but that is issued the same issuer.
+        int_a_cert = no_ku_chain[1][0]
+        int_b_key = no_ku_chain[2][2]
+        # Generate a CRL that doesn't include the intermediate A cert's serial, but that is issued the same issuer.
         int_not_revoked_crl = _crl(
-            serials=[12345],  # Some serial that isn't the int_cert.serial.
-            issuer_name=int_cert.issuer,
-            issuer_key=ca_key,
+            serials=[12345],  # Some serial that isn't the int_a_cert.serial.
+            issuer_name=int_a_cert.issuer,
+            issuer_key=int_b_key,
         )
         int_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(int_not_revoked_crl_path, "wb") as f:
@@ -1301,13 +1319,16 @@ def client_auth_revocation() -> None:
 
     def _int_revoked_badsig_chain_depth() -> None:
         test_name = "int_revoked_badsig_chain_depth"
-        int_cert = no_ku_chain[1][0]
+        int_a_cert = no_ku_chain[1][0]
         # Generate a CRL that includes the intermediate cert's serial, and that is issued the same issuer, but that
         # has an invalid signature.
+        rand_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+            ec.SECP256R1(), default_backend()
+        )
         int_revoked_badsig = _crl(
-            serials=[int_cert.serial_number],
-            issuer_name=int_cert.issuer,
-            issuer_key=None,  # NB: Using a random key to sign, not CA cert's key.
+            serials=[int_a_cert.serial_number],
+            issuer_name=int_a_cert.issuer,
+            issuer_key=rand_key,  # NB: Using a random key to sign, not CA cert's key.
         )
         int_revoked_badsig_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(int_revoked_badsig_path, "wb") as f:
@@ -1319,20 +1340,19 @@ def client_auth_revocation() -> None:
             chain=no_ku_chain,
             crl_paths=[int_revoked_badsig_path],
             depth=RevocationCheckDepth.Chain,
-            # TODO(@cpu): Adapt to more relevant error type (CRL signature bad).
-            expected_error="UnknownIssuer",
+            expected_error="InvalidSignatureForPublicKey",
         )
 
     def _int_revoked_wrong_ku_chain_depth() -> None:
         test_name = "int_revoked_wrong_ku_chain_depth"
-        int_cert = no_crl_ku_chain[1][0]
-        ca_key = no_crl_ku_chain[1][2]
-        # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer (with a KU
-        # specified but no cRLSign bit)
+        int_a_cert = no_crl_ku_chain[1][0]
+        int_b_key = no_crl_ku_chain[2][2]
+        # Generate a CRL that includes the intermediate A cert's serial, and that is issued by the same issuer (with a
+        # KU specified but no cRLSign bit)
         int_revoked_crl = _crl(
-            serials=[int_cert.serial_number],
-            issuer_name=int_cert.issuer,
-            issuer_key=ca_key,
+            serials=[int_a_cert.serial_number],
+            issuer_name=int_a_cert.issuer,
+            issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(int_revoked_crl_path, "wb") as f:
@@ -1345,20 +1365,19 @@ def client_auth_revocation() -> None:
             chain=no_crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
             depth=RevocationCheckDepth.Chain,
-            # TODO(@cpu): Adapt to more relevant error type (CRL not issued by CRL signer).
-            expected_error="UnknownIssuer",
+            expected_error="IssuerNotCrlSigner",
         )
 
     def _ee_revoked_chain_depth() -> None:
         test_name = "ee_revoked_chain_depth"
         ee_cert = no_ku_chain[0][0]
-        int_key = no_ku_chain[1][2]
+        int_a_key = no_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (without any KU
         # specified).
         ee_revoked_crl = _crl(
             serials=[ee_cert.serial_number],
             issuer_name=ee_cert.issuer,
-            issuer_key=int_key,
+            issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(ee_revoked_crl_path, "wb") as f:
@@ -1371,19 +1390,19 @@ def client_auth_revocation() -> None:
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
             depth=RevocationCheckDepth.Chain,
-            # TODO(@cpu): Adapt to more relevant error type (cert revoked).
-            expected_error="UnknownIssuer",
+            expected_error="CertRevoked",
         )
 
     def _int_revoked_ee_depth() -> None:
         test_name = "int_revoked_ee_depth"
-        int_cert, _, int_key = no_ku_chain[1]
-        # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer
+        int_a_cert, _, int_key = no_ku_chain[1]
+        int_b_key = no_ku_chain[2][2]
+        # Generate a CRL that includes the intermediate A cert's serial, and that is issued by the same issuer
         # (without any KU specified).
         ee_revoked_crl = _crl(
-            serials=[int_cert.serial_number],
-            issuer_name=int_cert.issuer,
-            issuer_key=int_key,
+            serials=[int_a_cert.serial_number],
+            issuer_name=int_a_cert.issuer,
+            issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(int_revoked_crl_path, "wb") as f:
@@ -1401,17 +1420,18 @@ def client_auth_revocation() -> None:
 
     def _int_revoked_no_ku_chain_depth() -> None:
         test_name = "int_revoked_no_ku_chain_depth"
-        int_cert, _, int_key = no_ku_chain[1]
+        int_a_cert = no_ku_chain[1][0]
+        int_b_key = no_ku_chain[2][2]
         # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer
         # (without any KU specified).
-        ee_revoked_crl = _crl(
-            serials=[int_cert.serial_number],
-            issuer_name=int_cert.issuer,
-            issuer_key=int_key,
+        int_revoked_crl = _crl(
+            serials=[int_a_cert.serial_number],
+            issuer_name=int_a_cert.issuer,
+            issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(int_revoked_crl_path, "wb") as f:
-            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+            f.write(int_revoked_crl.public_bytes(Encoding.DER))
 
         # Providing a relevant CRL that includes the intermediate cert serial and verifies, and using the
         # Chain depth should error since an intermediate cert is revoked.
@@ -1420,20 +1440,19 @@ def client_auth_revocation() -> None:
             chain=no_ku_chain,
             crl_paths=[int_revoked_crl_path],
             depth=RevocationCheckDepth.Chain,
-            # TODO(@cpu): Adapt to more relevant error type (intermediate cert revoked).
-            expected_error="UnknownIssuer",
+            expected_error="CertRevoked",
         )
 
     def _int_revoked_crl_ku_chain_depth() -> None:
         test_name = "int_revoked_crl_ku_chain_depth"
-        int_cert = crl_ku_chain[1][0]
-        ca_key = crl_ku_chain[2][2]
+        int_a_cert = crl_ku_chain[1][0]
+        int_b_key = crl_ku_chain[2][2]
         # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer (with a KU
         # specified that includes cRLSign).
         int_revoked_crl = _crl(
-            serials=[int_cert.serial_number],
-            issuer_name=int_cert.issuer,
-            issuer_key=ca_key,
+            serials=[int_a_cert.serial_number],
+            issuer_name=int_a_cert.issuer,
+            issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         with open(int_revoked_crl_path, "wb") as f:
@@ -1446,8 +1465,7 @@ def client_auth_revocation() -> None:
             chain=crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
             depth=RevocationCheckDepth.Chain,
-            # TODO(@cpu): Adapt to more relevant error type (CRL invalid, issuer not cRLSigner).
-            expected_error="UnknownIssuer",
+            expected_error="CertRevoked",
         )
 
     with trim_top("client_auth_revocation.rs") as output:
