@@ -84,6 +84,18 @@ impl<'a> IntoIterator for &'a CertRevocationList<'a> {
     }
 }
 
+pub struct RevokedCerts<'a> {
+    reader: untrusted::Reader<'a>,
+}
+
+impl<'a> Iterator for RevokedCerts<'a> {
+    type Item = Result<RevokedCert<'a>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (!self.reader.at_end()).then(|| parse_revoked_cert(&mut self.reader))
+    }
+}
+
 impl<'a> TryFrom<&'a [u8]> for CertRevocationList<'a> {
     type Error = Error;
 
@@ -175,18 +187,6 @@ impl TryFrom<u8> for RevocationReason {
             10 => Ok(RevocationReason::AaCompromise),
             _ => Err(Error::UnsupportedRevocationReason),
         }
-    }
-}
-
-pub struct RevokedCerts<'a> {
-    reader: untrusted::Reader<'a>,
-}
-
-impl<'a> Iterator for RevokedCerts<'a> {
-    type Item = Result<RevokedCert<'a>, Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        (!self.reader.at_end()).then(|| parse_revoked_cert(&mut self.reader))
     }
 }
 
