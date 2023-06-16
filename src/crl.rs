@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 
 use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
@@ -345,7 +345,7 @@ impl<'a> RevokedCert<'a> {
             match id {
                 // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
                 21 => set_extension_once(&mut self.reason_code, || {
-                    revocation_reason(extension.value)?.try_into()
+                    RevocationReason::from_der(extension.value)
                 }),
 
                 // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
@@ -391,6 +391,18 @@ pub enum RevocationReason {
     AaCompromise,
 }
 
+impl RevocationReason {
+    // RFC 5280 §5.3.1.
+    fn from_der(value: untrusted::Input<'_>) -> Result<Self, Error> {
+        value.read_all(Error::BadDer, |enumerated_reason| {
+            let value = der::expect_tag(enumerated_reason, Tag::Enum)?;
+            Self::try_from(value.value().read_all(Error::BadDer, |reason| {
+                reason.read_byte().map_err(|_| Error::BadDer)
+            })?)
+        })
+    }
+}
+
 impl TryFrom<u8> for RevocationReason {
     type Error = Error;
 
@@ -428,16 +440,6 @@ fn version2(input: &mut untrusted::Reader) -> Result<(), Error> {
         return Err(Error::UnsupportedCrlVersion);
     }
     Ok(())
-}
-
-// RFC 5280 §5.3.1.
-fn revocation_reason(value: untrusted::Input) -> Result<u8, Error> {
-    value.read_all(Error::BadDer, |enumerated_reason| {
-        let value = der::expect_tag(enumerated_reason, Tag::Enum)?;
-        value.value().read_all(Error::BadDer, |reason| {
-            reason.read_byte().map_err(|_| Error::BadDer)
-        })
-    })
 }
 
 #[cfg(test)]
