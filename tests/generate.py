@@ -1323,13 +1323,13 @@ if __name__ == "__main__":
         help="Generate signature testcases",
     )
     parser.add_argument(
-        "--clientauth",
+        "--client-auth",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Generate client auth testcases",
     )
     parser.add_argument(
-        "--clientauthrevocation",
+        "--client-auth-revocation",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Generate client auth revocation testcases",
@@ -1352,9 +1352,9 @@ if __name__ == "__main__":
         tls_server_certs()
     if args.signatures:
         signatures()
-    if args.clientauth:
+    if args.client_auth:
         client_auth()
-    if args.clientauthrevocation:
+    if args.client_auth_revocation:
         client_auth_revocation()
 
     if args.format:
