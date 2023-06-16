@@ -14,7 +14,6 @@
 
 extern crate webpki;
 
-#[cfg(feature = "alloc")]
 static ALL_SIGALGS: &[&webpki::SignatureAlgorithm] = &[
     &webpki::ECDSA_P256_SHA256,
     &webpki::ECDSA_P256_SHA384,
@@ -62,7 +61,6 @@ impl<'a> webpki::CrlProvider<'a> for TestCrls<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 fn check_cert(
     ee: &[u8],
     intermediates: &[&[u8]],

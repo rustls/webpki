@@ -907,15 +907,14 @@ def client_auth_revocation() -> None:
         ee_subj: x509.Name = subject_name_for_test("test.example.com", chain_name)
         int_subj: x509.Name = issuer_name_for_test(f"int.{chain_name}")
         ca_subj: x509.Name = issuer_name_for_test(f"ca.{chain_name}")
-        ee_key: rsa.RSAPrivateKey = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-            backend=default_backend(),
+        ee_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+            ec.SECP256R1(), default_backend()
         )
-        int_key: rsa.RSAPrivateKey = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-            backend=default_backend(),
+        int_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+            ec.SECP256R1(), default_backend()
+        )
+        root_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
+            ec.SECP256R1(), default_backend()
         )
 
         # EE cert issued by intermediate.
@@ -931,7 +930,7 @@ def client_auth_revocation() -> None:
             subject_name=int_subj,
             subject_key=int_key,
             issuer_name=ca_subj,
-            issuer_key=ROOT_PRIVATE_KEY,
+            issuer_key=root_key,
             key_usage=key_usage,
         )
         int_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.ca.der")
@@ -941,7 +940,7 @@ def client_auth_revocation() -> None:
         # root cert issued by itself.
         root_cert: x509.Certificate = ca_cert(
             subject_name=ca_subj,
-            subject_key=ROOT_PRIVATE_KEY,
+            subject_key=root_key,
             key_usage=key_usage,
         )
         root_cert_path: str = os.path.join(output_dir, f"{chain_name}.root.ca.der")
@@ -951,7 +950,7 @@ def client_auth_revocation() -> None:
         return [
             (ee_cert, ee_cert_path, ee_key),
             (int_cert, int_cert_path, int_key),
-            (root_cert, root_cert_path, ROOT_PRIVATE_KEY),
+            (root_cert, root_cert_path, root_key),
         ]
 
     def _crl(
@@ -1039,7 +1038,6 @@ def client_auth_revocation() -> None:
         print(
             """
         #[test]
-        #[cfg(feature = "alloc")]
         fn %(test_name)s() {
           let ee = include_bytes!("%(ee_cert_path)s");
           let intermediates = %(intermediates_str)s;
