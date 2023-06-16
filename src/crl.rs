@@ -201,7 +201,7 @@ impl<'a> Iterator for RevokedCerts<'a> {
     type Item = Result<RevokedCert<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        (!self.reader.at_end()).then(|| parse_revoked_cert(&mut self.reader))
+        (!self.reader.at_end()).then(|| RevokedCert::from_der(&mut self.reader))
     }
 }
 
@@ -226,6 +226,68 @@ pub struct RevokedCert<'a> {
     /// that the certificate otherwise became invalid. This date may be earlier than the revocation
     /// date which is the date at which the CA processed the revocation.
     pub invalidity_date: Option<Time>,
+}
+
+impl<'a> RevokedCert<'a> {
+    fn from_der(der: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        der::nested(der, Tag::Sequence, Error::BadDer, |der| {
+            // RFC 5280 §4.1.2.2:
+            //    Certificate users MUST be able to handle serialNumber values up to 20 octets.
+            //    Conforming CAs MUST NOT use serialNumber values longer than 20 octets.
+            //
+            //    Note: Non-conforming CAs may issue certificates with serial numbers
+            //    that are negative or zero.  Certificate users SHOULD be prepared to
+            //    gracefully handle such certificates.
+            // Like the handling in cert.rs we choose to be lenient here, not enforcing the length
+            // of a CRL revoked certificate's serial number is less than 20 octets in encoded form.
+            let serial_number = ring::io::der::positive_integer(der)
+                .map_err(|_| Error::InvalidSerialNumber)?
+                .big_endian_without_leading_zero();
+
+            let revocation_date = der::time_choice(der)?;
+
+            let mut revoked_cert = RevokedCert {
+                serial_number,
+                revocation_date,
+                reason_code: None,
+                invalidity_date: None,
+            };
+
+            // RFC 5280 §5.3:
+            //   Support for the CRL entry extensions defined in this specification is
+            //   optional for conforming CRL issuers and applications.  However, CRL
+            //   issuers SHOULD include reason codes (Section 5.3.1) and invalidity
+            //   dates (Section 5.3.2) whenever this information is available.
+            if der.at_end() {
+                return Ok(revoked_cert);
+            }
+
+            // It would be convenient to use der::nested_of_mut here to unpack a SEQUENCE of one or
+            // more SEQUENCEs, however CAs have been mis-encoding the absence of extensions as an
+            // empty SEQUENCE so we must be tolerant of that.
+            let ext_seq = der::expect_tag_and_get_value(der, Tag::Sequence)?;
+            if ext_seq.is_empty() {
+                return Ok(revoked_cert);
+            }
+
+            let mut reader = untrusted::Reader::new(ext_seq);
+            loop {
+                der::nested(&mut reader, Tag::Sequence, Error::BadDer, |ext_der| {
+                    // RFC 5280 §5.3:
+                    //   If a CRL contains a critical CRL entry extension that the application cannot
+                    //   process, then the application MUST NOT use that CRL to determine the
+                    //   status of any certificates.  However, applications may ignore
+                    //   unrecognized non-critical CRL entry extensions.
+                    remember_revoked_cert_extension(&mut revoked_cert, &Extension::parse(ext_der)?)
+                })?;
+                if reader.at_end() {
+                    break;
+                }
+            }
+
+            Ok(revoked_cert)
+        })
+    }
 }
 
 /// Identifies the reason a certificate was revoked.
@@ -338,66 +400,6 @@ fn remember_crl_extension<'a>(
             // Unsupported extension
             _ => extension.unsupported(),
         }
-    })
-}
-
-fn parse_revoked_cert<'a>(der: &mut untrusted::Reader<'a>) -> Result<RevokedCert<'a>, Error> {
-    der::nested(der, Tag::Sequence, Error::BadDer, |der| {
-        // RFC 5280 §4.1.2.2:
-        //    Certificate users MUST be able to handle serialNumber values up to 20 octets.
-        //    Conforming CAs MUST NOT use serialNumber values longer than 20 octets.
-        //
-        //    Note: Non-conforming CAs may issue certificates with serial numbers
-        //    that are negative or zero.  Certificate users SHOULD be prepared to
-        //    gracefully handle such certificates.
-        // Like the handling in cert.rs we choose to be lenient here, not enforcing the length
-        // of a CRL revoked certificate's serial number is less than 20 octets in encoded form.
-        let serial_number = ring::io::der::positive_integer(der)
-            .map_err(|_| Error::InvalidSerialNumber)?
-            .big_endian_without_leading_zero();
-
-        let revocation_date = der::time_choice(der)?;
-
-        let mut revoked_cert = RevokedCert {
-            serial_number,
-            revocation_date,
-            reason_code: None,
-            invalidity_date: None,
-        };
-
-        // RFC 5280 §5.3:
-        //   Support for the CRL entry extensions defined in this specification is
-        //   optional for conforming CRL issuers and applications.  However, CRL
-        //   issuers SHOULD include reason codes (Section 5.3.1) and invalidity
-        //   dates (Section 5.3.2) whenever this information is available.
-        if der.at_end() {
-            return Ok(revoked_cert);
-        }
-
-        // It would be convenient to use der::nested_of_mut here to unpack a SEQUENCE of one or
-        // more SEQUENCEs, however CAs have been mis-encoding the absence of extensions as an
-        // empty SEQUENCE so we must be tolerant of that.
-        let ext_seq = der::expect_tag_and_get_value(der, Tag::Sequence)?;
-        if ext_seq.is_empty() {
-            return Ok(revoked_cert);
-        }
-
-        let mut reader = untrusted::Reader::new(ext_seq);
-        loop {
-            der::nested(&mut reader, Tag::Sequence, Error::BadDer, |ext_der| {
-                // RFC 5280 §5.3:
-                //   If a CRL contains a critical CRL entry extension that the application cannot
-                //   process, then the application MUST NOT use that CRL to determine the
-                //   status of any certificates.  However, applications may ignore
-                //   unrecognized non-critical CRL entry extensions.
-                remember_revoked_cert_extension(&mut revoked_cert, &Extension::parse(ext_der)?)
-            })?;
-            if reader.at_end() {
-                break;
-            }
-        }
-
-        Ok(revoked_cert)
     })
 }
 
