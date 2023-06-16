@@ -1022,7 +1022,7 @@ def client_auth_revocation() -> None:
         intermediates_str: str = f'&[include_bytes!("{int_cert_path}").as_slice()]'
         crl_includes: str = "\n".join(
             [
-                f'webpki::CertRevocationList::try_from(include_bytes!("{path}").as_slice()).unwrap(),'
+                f'webpki::CertRevocationList::from_der(include_bytes!("{path}").as_slice()).unwrap(),'
                 for path in crl_paths
             ]
         )
