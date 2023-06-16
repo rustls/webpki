@@ -156,6 +156,28 @@ pub enum RevocationReason {
     AaCompromise,
 }
 
+impl TryFrom<u8> for RevocationReason {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        // See https://www.rfc-editor.org/rfc/rfc5280#section-5.3.1
+        match value {
+            0 => Ok(RevocationReason::Unspecified),
+            1 => Ok(RevocationReason::KeyCompromise),
+            2 => Ok(RevocationReason::CaCompromise),
+            3 => Ok(RevocationReason::AffiliationChanged),
+            4 => Ok(RevocationReason::Superseded),
+            5 => Ok(RevocationReason::CessationOfOperation),
+            6 => Ok(RevocationReason::CertificateHold),
+            // 7 is not used.
+            8 => Ok(RevocationReason::RemoveFromCrl),
+            9 => Ok(RevocationReason::PrivilegeWithdrawn),
+            10 => Ok(RevocationReason::AaCompromise),
+            _ => Err(Error::UnsupportedRevocationReason),
+        }
+    }
+}
+
 pub struct RevokedCerts<'a> {
     reader: untrusted::Reader<'a>,
 }
@@ -415,28 +437,6 @@ fn remember_revoked_cert_extension<'a>(
             _ => extension.unsupported(),
         }
     })
-}
-
-impl TryFrom<u8> for RevocationReason {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        // See https://www.rfc-editor.org/rfc/rfc5280#section-5.3.1
-        match value {
-            0 => Ok(RevocationReason::Unspecified),
-            1 => Ok(RevocationReason::KeyCompromise),
-            2 => Ok(RevocationReason::CaCompromise),
-            3 => Ok(RevocationReason::AffiliationChanged),
-            4 => Ok(RevocationReason::Superseded),
-            5 => Ok(RevocationReason::CessationOfOperation),
-            6 => Ok(RevocationReason::CertificateHold),
-            // 7 is not used.
-            8 => Ok(RevocationReason::RemoveFromCrl),
-            9 => Ok(RevocationReason::PrivilegeWithdrawn),
-            10 => Ok(RevocationReason::AaCompromise),
-            _ => Err(Error::UnsupportedRevocationReason),
-        }
-    }
 }
 
 // RFC 5280 §5.3.1.
