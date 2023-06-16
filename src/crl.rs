@@ -48,6 +48,115 @@ pub struct CertRevocationList<'a> {
 }
 
 impl<'a> CertRevocationList<'a> {
+    /// Try to parse the given bytes as a RFC 5280[^1] profile Certificate Revocation List (CRL).
+    ///
+    /// Webpki does not support:
+    ///   * CRL versions other than version 2.
+    ///   * CRLs missing the next update field.
+    ///   * CRLs missing certificate revocation list extensions.
+    ///   * Delta CRLs.
+    ///   * CRLs larger than (2^32)-1 bytes in size.
+    ///
+    /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+    pub fn from_der(crl_der: &'a [u8]) -> Result<Self, Error> {
+        // Try to parse the CRL.
+        let reader = untrusted::Input::from(crl_der);
+        let (tbs_cert_list, signed_data) = reader.read_all(Error::BadDer, |crl_der| {
+            der::nested(crl_der, Tag::Sequence, Error::BadDer, |signed_der| {
+                signed_data::parse_signed_data(signed_der, der::MAX_DER_SIZE)
+            })
+        })?;
+
+        let crl = tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
+            version2(tbs_cert_list)?;
+
+            // RFC 5280 §5.1.2.2:
+            //   This field MUST contain the same algorithm identifier as the
+            //   signatureAlgorithm field in the sequence CertificateList
+            let signature = der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?;
+            if signature != signed_data.algorithm {
+                return Err(Error::SignatureAlgorithmMismatch);
+            }
+
+            // RFC 5280 §5.1.2.3:
+            //   The issuer field MUST contain a non-empty X.500 distinguished name (DN).
+            let issuer = der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?;
+
+            // RFC 5280 §5.1.2.4:
+            //    This field indicates the issue date of this CRL.  thisUpdate may be
+            //    encoded as UTCTime or GeneralizedTime.
+            // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
+            // whether the date is post 2050.
+            let this_update = der::time_choice(tbs_cert_list)?;
+
+            // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
+            //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
+            // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
+            // whether the date is post 2050.
+            let next_update = der::time_choice(tbs_cert_list)?;
+
+            // RFC 5280 §5.1.2.6:
+            //   When there are no revoked certificates, the revoked certificates list
+            //   MUST be absent
+            // TODO(@cpu): Do we care to support empty CRLs if we don't support delta CRLs?
+            let revoked_certs = if tbs_cert_list.peek(Tag::Sequence.into()) {
+                der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?
+            } else {
+                untrusted::Input::from(&[])
+            };
+
+            let mut crl = CertRevocationList {
+                signed_data,
+                issuer,
+                this_update,
+                next_update,
+                revoked_certs,
+                authority_key_identifier: None,
+                crl_number: None,
+            };
+
+            // RFC 5280 §5.1.2.7:
+            //   This field may only appear if the version is 2 (Section 5.1.2.1).  If
+            //   present, this field is a sequence of one or more CRL extensions.
+            // RFC 5280 §5.2:
+            //   Conforming CRL issuers are REQUIRED to include the authority key
+            //   identifier (Section 5.2.1) and the CRL number (Section 5.2.3)
+            //   extensions in all CRLs issued.
+            // As a result of the above we parse this as a required section, not OPTIONAL.
+            der::nested(
+                tbs_cert_list,
+                Tag::ContextSpecificConstructed0,
+                Error::MalformedExtensions,
+                |tagged| {
+                    der::nested_of_mut(
+                        tagged,
+                        Tag::Sequence,
+                        Tag::Sequence,
+                        Error::BadDer,
+                        |extension| {
+                            // RFC 5280 §5.2:
+                            //   If a CRL contains a critical extension
+                            //   that the application cannot process, then the application MUST NOT
+                            //   use that CRL to determine the status of certificates.  However,
+                            //   applications may ignore unrecognized non-critical extensions.
+                            remember_crl_extension(&mut crl, &Extension::parse(extension)?)
+                        },
+                    )
+                },
+            )?;
+
+            Ok(crl)
+        })?;
+
+        // Iterate through the revoked certificate entries to ensure they are valid so we can
+        // yield an error up-front instead of on first iteration by the caller.
+        for cert_result in crl.into_iter() {
+            cert_result?;
+        }
+
+        Ok(crl)
+    }
+
     /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
     /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
     /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
@@ -93,33 +202,6 @@ impl<'a> Iterator for RevokedCerts<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         (!self.reader.at_end()).then(|| parse_revoked_cert(&mut self.reader))
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for CertRevocationList<'a> {
-    type Error = Error;
-
-    /// Try to parse the given bytes as a RFC 5280[^1] profile Certificate Revocation List (CRL).
-    ///
-    /// Webpki does not support:
-    ///   * CRL versions other than version 2.
-    ///   * CRLs missing the next update field.
-    ///   * CRLs missing certificate revocation list extensions.
-    ///   * Delta CRLs.
-    ///   * CRLs larger than (2^32)-1 bytes in size.
-    ///
-    /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-    fn try_from(crl_der: &'a [u8]) -> Result<Self, Self::Error> {
-        // Try to parse the CRL.
-        let crl = parse_crl(untrusted::Input::from(crl_der), der::MAX_DER_SIZE)?;
-
-        // Iterate through the revoked certificate entries to ensure they are valid so we can
-        // yield an error up-front instead of on first iteration by the caller.
-        for cert_result in crl.into_iter() {
-            cert_result?;
-        }
-
-        Ok(crl)
     }
 }
 
@@ -188,95 +270,6 @@ impl TryFrom<u8> for RevocationReason {
             _ => Err(Error::UnsupportedRevocationReason),
         }
     }
-}
-
-fn parse_crl(crl_der: untrusted::Input, size_limit: usize) -> Result<CertRevocationList, Error> {
-    let (tbs_cert_list, signed_data) = crl_der.read_all(Error::BadDer, |crl_der| {
-        der::nested(crl_der, Tag::Sequence, Error::BadDer, |signed_der| {
-            signed_data::parse_signed_data(signed_der, size_limit)
-        })
-    })?;
-
-    tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
-        version2(tbs_cert_list)?;
-
-        // RFC 5280 §5.1.2.2:
-        //   This field MUST contain the same algorithm identifier as the
-        //   signatureAlgorithm field in the sequence CertificateList
-        let signature = der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?;
-        if signature != signed_data.algorithm {
-            return Err(Error::SignatureAlgorithmMismatch);
-        }
-
-        // RFC 5280 §5.1.2.3:
-        //   The issuer field MUST contain a non-empty X.500 distinguished name (DN).
-        let issuer = der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?;
-
-        // RFC 5280 §5.1.2.4:
-        //    This field indicates the issue date of this CRL.  thisUpdate may be
-        //    encoded as UTCTime or GeneralizedTime.
-        // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
-        // whether the date is post 2050.
-        let this_update = der::time_choice(tbs_cert_list)?;
-
-        // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
-        //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
-        // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
-        // whether the date is post 2050.
-        let next_update = der::time_choice(tbs_cert_list)?;
-
-        // RFC 5280 §5.1.2.6:
-        //   When there are no revoked certificates, the revoked certificates list
-        //   MUST be absent
-        // TODO(@cpu): Do we care to support empty CRLs if we don't support delta CRLs?
-        let revoked_certs = if tbs_cert_list.peek(Tag::Sequence.into()) {
-            der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?
-        } else {
-            untrusted::Input::from(&[])
-        };
-
-        let mut crl = CertRevocationList {
-            signed_data,
-            issuer,
-            this_update,
-            next_update,
-            revoked_certs,
-            authority_key_identifier: None,
-            crl_number: None,
-        };
-
-        // RFC 5280 §5.1.2.7:
-        //   This field may only appear if the version is 2 (Section 5.1.2.1).  If
-        //   present, this field is a sequence of one or more CRL extensions.
-        // RFC 5280 §5.2:
-        //   Conforming CRL issuers are REQUIRED to include the authority key
-        //   identifier (Section 5.2.1) and the CRL number (Section 5.2.3)
-        //   extensions in all CRLs issued.
-        // As a result of the above we parse this as a required section, not OPTIONAL.
-        der::nested(
-            tbs_cert_list,
-            Tag::ContextSpecificConstructed0,
-            Error::MalformedExtensions,
-            |tagged| {
-                der::nested_of_mut(
-                    tagged,
-                    Tag::Sequence,
-                    Tag::Sequence,
-                    Error::BadDer,
-                    |extension| {
-                        // RFC 5280 §5.2:
-                        //   If a CRL contains a critical extension
-                        //   that the application cannot process, then the application MUST NOT
-                        //   use that CRL to determine the status of certificates.  However,
-                        //   applications may ignore unrecognized non-critical extensions.
-                        remember_crl_extension(&mut crl, &Extension::parse(extension)?)
-                    },
-                )
-            },
-        )?;
-
-        Ok(crl)
-    })
 }
 
 // RFC 5280 §5.1.2.1:
