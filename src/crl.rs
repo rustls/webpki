@@ -48,6 +48,19 @@ pub struct CertRevocationList<'a> {
 }
 
 impl<'a> CertRevocationList<'a> {
+    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
+    /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
+    /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
+    pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert> {
+        // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
+        //            any allocation. It would be nice to offer a speedier alternative for
+        //            when the alloc feature is enabled:
+        //            https://github.com/rustls/webpki/issues/80
+        self.into_iter()
+            .filter_map(|parse_res| parse_res.ok())
+            .find(|revoked_cert| revoked_cert.serial_number.eq(serial))
+    }
+
     /// Raw DER encoding of the issuer of the CRL.
     pub fn issuer(&self) -> &[u8] {
         self.issuer.as_slice_less_safe()
@@ -57,6 +70,44 @@ impl<'a> CertRevocationList<'a> {
     pub fn authority_key_identifier(&self) -> Option<&[u8]> {
         self.authority_key_identifier
             .map(|input| input.as_slice_less_safe())
+    }
+}
+
+impl<'a> IntoIterator for &'a CertRevocationList<'a> {
+    type Item = Result<RevokedCert<'a>, Error>;
+    type IntoIter = RevokedCerts<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RevokedCerts {
+            reader: untrusted::Reader::new(self.revoked_certs),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for CertRevocationList<'a> {
+    type Error = Error;
+
+    /// Try to parse the given bytes as a RFC 5280[^1] profile Certificate Revocation List (CRL).
+    ///
+    /// Webpki does not support:
+    ///   * CRL versions other than version 2.
+    ///   * CRLs missing the next update field.
+    ///   * CRLs missing certificate revocation list extensions.
+    ///   * Delta CRLs.
+    ///   * CRLs larger than (2^32)-1 bytes in size.
+    ///
+    /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+    fn try_from(crl_der: &'a [u8]) -> Result<Self, Self::Error> {
+        // Try to parse the CRL.
+        let crl = parse_crl(untrusted::Input::from(crl_der), der::MAX_DER_SIZE)?;
+
+        // Iterate through the revoked certificate entries to ensure they are valid so we can
+        // yield an error up-front instead of on first iteration by the caller.
+        for cert_result in crl.into_iter() {
+            cert_result?;
+        }
+
+        Ok(crl)
     }
 }
 
@@ -114,59 +165,6 @@ impl<'a> Iterator for RevokedCerts<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         (!self.reader.at_end()).then(|| parse_revoked_cert(&mut self.reader))
-    }
-}
-
-impl<'a> IntoIterator for &'a CertRevocationList<'a> {
-    type Item = Result<RevokedCert<'a>, Error>;
-    type IntoIter = RevokedCerts<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        RevokedCerts {
-            reader: untrusted::Reader::new(self.revoked_certs),
-        }
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for CertRevocationList<'a> {
-    type Error = Error;
-
-    /// Try to parse the given bytes as a RFC 5280[^1] profile Certificate Revocation List (CRL).
-    ///
-    /// Webpki does not support:
-    ///   * CRL versions other than version 2.
-    ///   * CRLs missing the next update field.
-    ///   * CRLs missing certificate revocation list extensions.
-    ///   * Delta CRLs.
-    ///   * CRLs larger than (2^32)-1 bytes in size.
-    ///
-    /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-    fn try_from(crl_der: &'a [u8]) -> Result<Self, Self::Error> {
-        // Try to parse the CRL.
-        let crl = parse_crl(untrusted::Input::from(crl_der), der::MAX_DER_SIZE)?;
-
-        // Iterate through the revoked certificate entries to ensure they are valid so we can
-        // yield an error up-front instead of on first iteration by the caller.
-        for cert_result in crl.into_iter() {
-            cert_result?;
-        }
-
-        Ok(crl)
-    }
-}
-
-impl<'a> CertRevocationList<'a> {
-    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
-    /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
-    /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
-    pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert> {
-        // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
-        //            any allocation. It would be nice to offer a speedier alternative for
-        //            when the alloc feature is enabled:
-        //            https://github.com/rustls/webpki/issues/80
-        self.into_iter()
-            .filter_map(|parse_res| parse_res.ok())
-            .find(|revoked_cert| revoked_cert.serial_number.eq(serial))
     }
 }
 
