@@ -51,7 +51,7 @@ impl<'a> CertRevocationList<'a> {
     /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
     /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
     /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
-    pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert> {
+    pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert<'_>> {
         // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
         //            any allocation. It would be nice to offer a speedier alternative for
         //            when the alloc feature is enabled:
