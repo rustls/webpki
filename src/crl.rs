@@ -68,7 +68,19 @@ impl<'a> CertRevocationList<'a> {
         })?;
 
         let crl = tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
-            version2(tbs_cert_list)?;
+            // RFC 5280 §5.1.2.1:
+            //   This optional field describes the version of the encoded CRL.  When
+            //   extensions are used, as required by this profile, this field MUST be
+            //   present and MUST specify version 2 (the integer value is 1).
+            // RFC 5280 §5.2:
+            //   Conforming CRL issuers are REQUIRED to include the authority key
+            //   identifier (Section 5.2.1) and the CRL number (Section 5.2.3)
+            //   extensions in all CRLs issued.
+            // As a result of the above we parse this as a required section, not OPTIONAL.
+            // NOTE: Encoded value of version 2 is 1.
+            if der::small_nonnegative_integer(tbs_cert_list)? != 1 {
+                return Err(Error::UnsupportedCrlVersion);
+            }
 
             // RFC 5280 §5.1.2.2:
             //   This field MUST contain the same algorithm identifier as the
@@ -423,23 +435,6 @@ impl TryFrom<u8> for RevocationReason {
             _ => Err(Error::UnsupportedRevocationReason),
         }
     }
-}
-
-// RFC 5280 §5.1.2.1:
-//   This optional field describes the version of the encoded CRL.  When
-//   extensions are used, as required by this profile, this field MUST be
-//   present and MUST specify version 2 (the integer value is 1).
-// RFC 5280 §5.2:
-//   Conforming CRL issuers are REQUIRED to include the authority key
-//   identifier (Section 5.2.1) and the CRL number (Section 5.2.3)
-//   extensions in all CRLs issued.
-// As a result of the above we parse this as a required section, not OPTIONAL.
-fn version2(input: &mut untrusted::Reader) -> Result<(), Error> {
-    // NOTE: Encoded value of version 2 is 1.
-    if der::small_nonnegative_integer(input)? != 1 {
-        return Err(Error::UnsupportedCrlVersion);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
