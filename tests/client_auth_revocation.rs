@@ -153,7 +153,7 @@ fn ee_revoked_wrong_ku_ee_depth() {
     let intermediates =
         &[include_bytes!("client_auth_revocation/no_crl_ku_chain.int.ca.der").as_slice()];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
-    let crls = &[webpki::CertRevocationList::try_from(
+    let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_wrong_ku_ee_depth.crl.der").as_slice(),
     )
     .unwrap()];
@@ -170,7 +170,7 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
     let intermediates =
         &[include_bytes!("client_auth_revocation/no_crl_ku_chain.int.ca.der").as_slice()];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
-    let crls = &[webpki::CertRevocationList::try_from(
+    let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_not_revoked_wrong_ku_ee_depth.crl.der")
             .as_slice(),
     )
@@ -204,7 +204,7 @@ fn ee_revoked_crl_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/ku_chain.ee.der");
     let intermediates = &[include_bytes!("client_auth_revocation/ku_chain.int.ca.der").as_slice()];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
-    let crls = &[webpki::CertRevocationList::try_from(
+    let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der").as_slice(),
     )
     .unwrap()];
@@ -286,7 +286,7 @@ fn int_revoked_wrong_ku_chain_depth() {
     let intermediates =
         &[include_bytes!("client_auth_revocation/no_crl_ku_chain.int.ca.der").as_slice()];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
-    let crls = &[webpki::CertRevocationList::try_from(
+    let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_wrong_ku_chain_depth.crl.der")
             .as_slice(),
     )
@@ -354,7 +354,7 @@ fn int_revoked_crl_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/ku_chain.ee.der");
     let intermediates = &[include_bytes!("client_auth_revocation/ku_chain.int.ca.der").as_slice()];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
-    let crls = &[webpki::CertRevocationList::try_from(
+    let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_crl_ku_chain_depth.crl.der").as_slice(),
     )
     .unwrap()];
