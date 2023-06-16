@@ -182,6 +182,8 @@ jobs:
 
       - run: |
           cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
+        env:
+          RUSTFLAGS: "-D warnings"
 
   coverage:
     runs-on: ubuntu-20.04
