@@ -27,7 +27,7 @@ impl Time {
     #[cfg(feature = "std")]
     #[deprecated(note = "Use TryFrom::try_from")]
     pub fn try_from(time: std::time::SystemTime) -> Result<Self, ring::error::Unspecified> {
-        core::convert::TryFrom::try_from(time)
+        TryFrom::try_from(time)
     }
 
     /// Create a `webpki::Time` from a unix timestamp.
@@ -43,7 +43,7 @@ impl Time {
 }
 
 #[cfg(feature = "std")]
-impl core::convert::TryFrom<std::time::SystemTime> for Time {
+impl TryFrom<std::time::SystemTime> for Time {
     // TODO: In the next release, make this `std::time::SystemTimeError`.
     type Error = ring::error::Unspecified;
 

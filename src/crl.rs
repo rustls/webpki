@@ -12,8 +12,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::convert::TryFrom;
-
 use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, signed_data, Error, Time};
@@ -440,7 +438,6 @@ impl TryFrom<u8> for RevocationReason {
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
-    use core::convert::TryInto;
 
     use crate::{Error, RevocationReason};
 
