@@ -139,7 +139,7 @@ impl<'a> CertRevocationList<'a> {
                             //   that the application cannot process, then the application MUST NOT
                             //   use that CRL to determine the status of certificates.  However,
                             //   applications may ignore unrecognized non-critical extensions.
-                            remember_crl_extension(&mut crl, &Extension::parse(extension)?)
+                            crl.remember_extension(&Extension::parse(extension)?)
                         },
                     )
                 },
@@ -155,6 +155,57 @@ impl<'a> CertRevocationList<'a> {
         }
 
         Ok(crl)
+    }
+
+    fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
+        remember_extension(extension, |id| {
+            match id {
+                // id-ce-cRLNumber 2.5.29.20 - RFC 5280 §5.2.3
+                20 => {
+                    // RFC 5280 §5.2.3:
+                    //   CRL verifiers MUST be able to handle CRLNumber values
+                    //   up to 20 octets.  Conforming CRL issuers MUST NOT use CRLNumber
+                    //   values longer than 20 octets.
+                    //
+                    let crl_number = extension.value.read_all(Error::InvalidCrlNumber, |der| {
+                        let crl_number = ring::io::der::positive_integer(der)
+                            .map_err(|_| Error::InvalidCrlNumber)?
+                            .big_endian_without_leading_zero();
+                        if crl_number.len() <= 20 {
+                            Ok(crl_number)
+                        } else {
+                            Err(Error::InvalidCrlNumber)
+                        }
+                    });
+                    set_extension_once(&mut self.crl_number, || crl_number)
+                }
+
+                // id-ce-deltaCRLIndicator 2.5.29.27 - RFC 5280 §5.2.4
+                // We explicitly do not support delta CRLs.
+                27 => Err(Error::UnsupportedDeltaCrl),
+
+                // id-ce-issuingDistributionPoint 2.5.29.28 - RFC 5280 §5.2.4
+                //    Although the extension is critical, conforming implementations are not
+                //    required to support this extension.  However, implementations that do not
+                //    support this extension MUST either treat the status of any certificate not listed
+                //    on this CRL as unknown or locate another CRL that does not contain any
+                //    unrecognized critical extensions.
+                // TODO(@cpu): We may want to parse this enough to be able to error on indirectCRL
+                //  bool == true, or to enforce validation based on onlyContainsUserCerts,
+                //  onlyContainsCACerts, and onlySomeReasons. For now we use the carve-out where
+                //  we'll treat it as understood without parsing and consider certificates not found
+                //  in the list as unknown.
+                28 => Ok(()),
+
+                // id-ce-authorityKeyIdentifier 2.5.29.35 - RFC 5280 §5.2.1, §4.2.1.1
+                35 => {
+                    set_extension_once(&mut self.authority_key_identifier, || Ok(extension.value))
+                }
+
+                // Unsupported extension
+                _ => extension.unsupported(),
+            }
+        })
     }
 
     /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
@@ -349,58 +400,6 @@ fn version2(input: &mut untrusted::Reader) -> Result<(), Error> {
         return Err(Error::UnsupportedCrlVersion);
     }
     Ok(())
-}
-
-fn remember_crl_extension<'a>(
-    crl: &mut CertRevocationList<'a>,
-    extension: &Extension<'a>,
-) -> Result<(), Error> {
-    remember_extension(extension, |id| {
-        match id {
-            // id-ce-cRLNumber 2.5.29.20 - RFC 5280 §5.2.3
-            20 => {
-                // RFC 5280 §5.2.3:
-                //   CRL verifiers MUST be able to handle CRLNumber values
-                //   up to 20 octets.  Conforming CRL issuers MUST NOT use CRLNumber
-                //   values longer than 20 octets.
-                //
-                let crl_number = extension.value.read_all(Error::InvalidCrlNumber, |der| {
-                    let crl_number = ring::io::der::positive_integer(der)
-                        .map_err(|_| Error::InvalidCrlNumber)?
-                        .big_endian_without_leading_zero();
-                    if crl_number.len() <= 20 {
-                        Ok(crl_number)
-                    } else {
-                        Err(Error::InvalidCrlNumber)
-                    }
-                });
-                set_extension_once(&mut crl.crl_number, || crl_number)
-            }
-
-            // id-ce-deltaCRLIndicator 2.5.29.27 - RFC 5280 §5.2.4
-            // We explicitly do not support delta CRLs.
-            27 => Err(Error::UnsupportedDeltaCrl),
-
-            // id-ce-issuingDistributionPoint 2.5.29.28 - RFC 5280 §5.2.4
-            //    Although the extension is critical, conforming implementations are not
-            //    required to support this extension.  However, implementations that do not
-            //    support this extension MUST either treat the status of any certificate not listed
-            //    on this CRL as unknown or locate another CRL that does not contain any
-            //    unrecognized critical extensions.
-            // TODO(@cpu): We may want to parse this enough to be able to error on indirectCRL
-            //  bool == true, or to enforce validation based on onlyContainsUserCerts,
-            //  onlyContainsCACerts, and onlySomeReasons. For now we use the carve-out where
-            //  we'll treat it as understood without parsing and consider certificates not found
-            //  in the list as unknown.
-            28 => Ok(()),
-
-            // id-ce-authorityKeyIdentifier 2.5.29.35 - RFC 5280 §5.2.1, §4.2.1.1
-            35 => set_extension_once(&mut crl.authority_key_identifier, || Ok(extension.value)),
-
-            // Unsupported extension
-            _ => extension.unsupported(),
-        }
-    })
 }
 
 fn remember_revoked_cert_extension<'a>(
