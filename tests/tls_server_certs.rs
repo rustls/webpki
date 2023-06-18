@@ -83,25 +83,23 @@ fn additional_dns_labels() {
     );
 }
 
-#[ignore]
 #[test]
 fn disallow_subject_common_name() {
     let ee = include_bytes!("tls_server_certs/disallow_subject_common_name.ee.der");
     let ca = include_bytes!("tls_server_certs/disallow_subject_common_name.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
-#[ignore]
 #[test]
 fn disallow_dns_san() {
     let ee = include_bytes!("tls_server_certs/disallow_dns_san.ee.der");
     let ca = include_bytes!("tls_server_certs/disallow_dns_san.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
@@ -134,7 +132,6 @@ fn allow_dns_san_and_subject_common_name() {
     );
 }
 
-#[ignore]
 #[test]
 fn allow_dns_san_and_disallow_subject_common_name() {
     let ee =
@@ -143,11 +140,10 @@ fn allow_dns_san_and_disallow_subject_common_name() {
         include_bytes!("tls_server_certs/allow_dns_san_and_disallow_subject_common_name.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
-#[ignore]
 #[test]
 fn disallow_dns_san_and_allow_subject_common_name() {
     let ee =
@@ -156,7 +152,7 @@ fn disallow_dns_san_and_allow_subject_common_name() {
         include_bytes!("tls_server_certs/disallow_dns_san_and_allow_subject_common_name.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
@@ -171,14 +167,13 @@ fn we_incorrectly_ignore_name_constraints_on_name_in_subject() {
     assert_eq!(check_cert(ee, ca, &[], &[]), Ok(()));
 }
 
-#[ignore]
 #[test]
 fn reject_constraints_on_unimplemented_names() {
     let ee = include_bytes!("tls_server_certs/reject_constraints_on_unimplemented_names.ee.der");
     let ca = include_bytes!("tls_server_certs/reject_constraints_on_unimplemented_names.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
@@ -211,18 +206,16 @@ fn wildcard_san_accepted_if_in_subtree() {
     );
 }
 
-#[ignore]
 #[test]
 fn wildcard_san_rejected_if_in_excluded_subtree() {
     let ee = include_bytes!("tls_server_certs/wildcard_san_rejected_if_in_excluded_subtree.ee.der");
     let ca = include_bytes!("tls_server_certs/wildcard_san_rejected_if_in_excluded_subtree.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
-#[ignore]
 #[test]
 fn ip4_address_san_rejected_if_in_excluded_subtree() {
     let ee =
@@ -231,7 +224,7 @@ fn ip4_address_san_rejected_if_in_excluded_subtree() {
         include_bytes!("tls_server_certs/ip4_address_san_rejected_if_in_excluded_subtree.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
@@ -246,7 +239,6 @@ fn ip4_address_san_allowed_if_outside_excluded_subtree() {
     assert_eq!(check_cert(ee, ca, &["12.34.56.78"], &[]), Ok(()));
 }
 
-#[ignore]
 #[test]
 fn ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask() {
     let ee = include_bytes!(
@@ -257,7 +249,7 @@ fn ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask() {
     );
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::InvalidNetworkMaskConstraint)
     );
 }
 
@@ -280,7 +272,6 @@ fn ip4_address_san_allowed() {
     );
 }
 
-#[ignore]
 #[test]
 fn ip6_address_san_rejected_if_in_excluded_subtree() {
     let ee =
@@ -289,7 +280,7 @@ fn ip6_address_san_rejected_if_in_excluded_subtree() {
         include_bytes!("tls_server_certs/ip6_address_san_rejected_if_in_excluded_subtree.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
@@ -341,25 +332,23 @@ fn ip46_mixed_address_san_allowed() {
     );
 }
 
-#[ignore]
 #[test]
 fn permit_directory_name_not_implemented() {
     let ee = include_bytes!("tls_server_certs/permit_directory_name_not_implemented.ee.der");
     let ca = include_bytes!("tls_server_certs/permit_directory_name_not_implemented.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 
-#[ignore]
 #[test]
 fn exclude_directory_name_not_implemented() {
     let ee = include_bytes!("tls_server_certs/exclude_directory_name_not_implemented.ee.der");
     let ca = include_bytes!("tls_server_certs/exclude_directory_name_not_implemented.ca.der");
     assert_eq!(
         check_cert(ee, ca, &[], &[]),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::NameConstraintViolation)
     );
 }
 

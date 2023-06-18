@@ -74,8 +74,10 @@ fn check_cert(
 #[test]
 fn no_crls_test_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[];
     assert_eq!(
@@ -87,8 +89,10 @@ fn no_crls_test_ee_depth() {
 #[test]
 fn no_relevant_crl_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth.crl.der").as_slice(),
@@ -103,8 +107,10 @@ fn no_relevant_crl_ee_depth() {
 #[test]
 fn ee_not_revoked_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_not_revoked_ee_depth.crl.der").as_slice(),
@@ -116,12 +122,13 @@ fn ee_not_revoked_ee_depth() {
     );
 }
 
-#[ignore]
 #[test]
 fn ee_revoked_badsig_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_badsig_ee_depth.crl.der").as_slice(),
@@ -129,16 +136,17 @@ fn ee_revoked_badsig_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::EndEntity, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
-#[ignore]
 #[test]
 fn ee_revoked_wrong_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_crl_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_crl_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_crl_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_crl_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_wrong_ku_ee_depth.crl.der").as_slice(),
@@ -146,16 +154,17 @@ fn ee_revoked_wrong_ku_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::EndEntity, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::IssuerNotCrlSigner)
     );
 }
 
-#[ignore]
 #[test]
 fn ee_not_revoked_wrong_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_crl_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_crl_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_crl_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_crl_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_not_revoked_wrong_ku_ee_depth.crl.der")
@@ -164,16 +173,17 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::EndEntity, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::IssuerNotCrlSigner)
     );
 }
 
-#[ignore]
 #[test]
 fn ee_revoked_no_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_no_ku_ee_depth.crl.der").as_slice(),
@@ -181,15 +191,17 @@ fn ee_revoked_no_ku_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::EndEntity, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::CertRevoked)
     );
 }
 
-#[ignore]
 #[test]
 fn ee_revoked_crl_ku_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/ku_chain.ee.der");
-    let intermediates = &[include_bytes!("client_auth_revocation/ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der").as_slice(),
@@ -197,15 +209,17 @@ fn ee_revoked_crl_ku_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::EndEntity, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::CertRevoked)
     );
 }
 
 #[test]
 fn no_crls_test_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[];
     assert_eq!(
@@ -217,8 +231,10 @@ fn no_crls_test_chain_depth() {
 #[test]
 fn no_relevant_crl_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/no_relevant_crl_chain_depth.crl.der").as_slice(),
@@ -233,8 +249,10 @@ fn no_relevant_crl_chain_depth() {
 #[test]
 fn int_not_revoked_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_not_revoked_chain_depth.crl.der").as_slice(),
@@ -246,12 +264,13 @@ fn int_not_revoked_chain_depth() {
     );
 }
 
-#[ignore]
 #[test]
 fn int_revoked_badsig_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_badsig_chain_depth.crl.der").as_slice(),
@@ -259,16 +278,17 @@ fn int_revoked_badsig_chain_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::Chain, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
-#[ignore]
 #[test]
 fn int_revoked_wrong_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_crl_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_crl_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_crl_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_crl_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_wrong_ku_chain_depth.crl.der")
@@ -277,16 +297,17 @@ fn int_revoked_wrong_ku_chain_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::Chain, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::IssuerNotCrlSigner)
     );
 }
 
-#[ignore]
 #[test]
 fn ee_revoked_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/ee_revoked_chain_depth.crl.der").as_slice(),
@@ -294,15 +315,17 @@ fn ee_revoked_chain_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::Chain, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::CertRevoked)
     );
 }
 
 #[test]
 fn int_revoked_ee_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_ee_depth.crl.der").as_slice(),
@@ -314,12 +337,13 @@ fn int_revoked_ee_depth() {
     );
 }
 
-#[ignore]
 #[test]
 fn int_revoked_no_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
-    let intermediates =
-        &[include_bytes!("client_auth_revocation/no_ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_no_ku_chain_depth.crl.der").as_slice(),
@@ -327,15 +351,17 @@ fn int_revoked_no_ku_chain_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::Chain, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::CertRevoked)
     );
 }
 
-#[ignore]
 #[test]
 fn int_revoked_crl_ku_chain_depth() {
     let ee = include_bytes!("client_auth_revocation/ku_chain.ee.der");
-    let intermediates = &[include_bytes!("client_auth_revocation/ku_chain.int.ca.der").as_slice()];
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/ku_chain.int.b.ca.der").as_slice(),
+    ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
     let crls = &[webpki::CertRevocationList::from_der(
         include_bytes!("client_auth_revocation/int_revoked_crl_ku_chain_depth.crl.der").as_slice(),
@@ -343,6 +369,6 @@ fn int_revoked_crl_ku_chain_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, RevocationCheckDepth::Chain, crls),
-        Err(webpki::Error::UnknownIssuer)
+        Err(webpki::Error::CertRevoked)
     );
 }
