@@ -53,18 +53,6 @@ impl AsRef<str> for DnsName {
     }
 }
 
-/// Requires the `alloc` feature.
-/// Deprecated.
-#[cfg(feature = "alloc")]
-impl From<DnsNameRef<'_>> for DnsName {
-    // TODO(XXX): Remove this trait impl in the next release. We can't mark it as
-    //            hard deprecated as this isn't supported and produces a
-    //            'useless_deprecated' warning.
-    fn from(dns_name: DnsNameRef) -> Self {
-        dns_name.to_owned()
-    }
-}
-
 /// A reference to a DNS Name suitable for use in the TLS Server Name Indication
 /// (SNI) extension and/or for use as the reference hostname for which to verify
 /// a certificate.
