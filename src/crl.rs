@@ -388,17 +388,18 @@ impl<'a> RevokedCert<'a> {
 pub enum RevocationReason {
     /// Unspecified should not be used, and is instead assumed by the absence of a RevocationReason
     /// extension.
-    Unspecified,
-    KeyCompromise,
-    CaCompromise,
-    AffiliationChanged,
-    Superseded,
-    CessationOfOperation,
-    CertificateHold,
+    Unspecified = 0,
+    KeyCompromise = 1,
+    CaCompromise = 2,
+    AffiliationChanged = 3,
+    Superseded = 4,
+    CessationOfOperation = 5,
+    CertificateHold = 6,
+    // 7 is not used.
     /// RemoveFromCrl only appears in delta CRLs that are unsupported.
-    RemoveFromCrl,
-    PrivilegeWithdrawn,
-    AaCompromise,
+    RemoveFromCrl = 8,
+    PrivilegeWithdrawn = 9,
+    AaCompromise = 10,
 }
 
 impl RevocationReason {
