@@ -39,10 +39,7 @@ fn test_dns_name_traits() {
     compile_time_assert_sync::<DnsName>();
 
     let a_ref = DnsNameRef::try_from_ascii(b"example.com").unwrap();
-
-    // `From<DnsNameRef>`
-    // TODO(XXX): Remove when deprecated From<DnsNameRef> for DnsName trait is removed.
-    let a: DnsName = DnsName::from(a_ref);
+    let a = a_ref.to_owned();
 
     // `Clone`, `Debug`, `PartialEq`.
     assert_eq!(&a, &a.clone());
