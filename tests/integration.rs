@@ -203,10 +203,6 @@ fn read_ee_with_large_pos_serial() {
 #[cfg(feature = "std")]
 #[test]
 fn time_constructor() {
-    // TODO(XXX): Remove when deprecated Time::try_from fn is removed.
-    #[allow(deprecated)]
-    let _ = webpki::Time::try_from(std::time::SystemTime::now()).unwrap();
-
     let _ =
         <webpki::Time as TryFrom<std::time::SystemTime>>::try_from(std::time::SystemTime::now())
             .unwrap();
