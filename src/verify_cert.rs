@@ -89,8 +89,6 @@ fn build_chain_inner(
             subject_name::SubjectCommonNameContents::Ignore
         };
 
-    // TODO: revocation.
-
     let result = loop_while_non_fatal_error(
         Error::UnknownIssuer,
         opts.trust_anchors,
