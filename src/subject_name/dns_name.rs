@@ -77,10 +77,12 @@ impl From<DnsNameRef<'_>> for DnsName {
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct DnsNameRef<'a>(pub(crate) &'a [u8]);
 
-impl AsRef<[u8]> for DnsNameRef<'_> {
+impl AsRef<str> for DnsNameRef<'_> {
     #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0
+    fn as_ref(&self) -> &str {
+        // The unwrap won't fail because DnsNameRef are guaranteed to be ASCII
+        // and ASCII is a subset of UTF-8.
+        core::str::from_utf8(self.0).unwrap()
     }
 }
 
