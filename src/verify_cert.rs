@@ -207,7 +207,6 @@ struct CertNotRevoked(());
 
 impl CertNotRevoked {
     // Construct a CertNotRevoked marker.
-    #[allow(unused)] // TODO(@cpu): remove in subsequent commits.
     fn assertion() -> Self {
         Self(())
     }
