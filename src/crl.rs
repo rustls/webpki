@@ -21,7 +21,6 @@ use crate::{der, signed_data, Error, Time};
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 pub struct CertRevocationList<'a> {
     /// A `SignedData` structure that can be passed to `verify_signed_data`.
-    #[allow(unused)] // TODO(@cpu): Remove when support for revocation checking is added.
     pub(crate) signed_data: signed_data::SignedData<'a>,
 
     /// Identifies the entity that has signed and issued this
