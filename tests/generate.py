@@ -11,6 +11,7 @@ import argparse
 import os
 from enum import Enum
 from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
+from pathlib import Path
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
@@ -66,6 +67,16 @@ def key_or_generate(key: Optional[ANY_PRIV_KEY] = None) -> ANY_PRIV_KEY:
             backend=default_backend(),
         )
     )
+
+
+def write_der(path: str, content: bytes, force: bool) -> None:
+    # Avoid churn from regenerating existing on-disk resources unless force is enabled.
+    out_path = Path(path)
+    if out_path.exists() and not force:
+        return None
+
+    with out_path.open("wb") as f:
+        f.write(content)
 
 
 def end_entity_cert(
@@ -176,6 +187,7 @@ def generate_tls_server_cert_test(
     sans: Optional[Iterable[x509.GeneralName]] = None,
     permitted_subtrees: Optional[Iterable[x509.GeneralName]] = None,
     excluded_subtrees: Optional[Iterable[x509.GeneralName]] = None,
+    force: bool = False,
 ) -> None:
     """
     Generate a test case, writing a rust '#[test]' function into
@@ -240,8 +252,7 @@ def generate_tls_server_cert_test(
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
 
-    with open(ee_cert_path, "wb") as f:
-        f.write(ee_certificate.public_bytes(Encoding.DER))
+    write_der(ee_cert_path, ee_certificate.public_bytes(Encoding.DER), force)
 
     # issuer
     ca: x509.Certificate = ca_cert(
@@ -251,8 +262,7 @@ def generate_tls_server_cert_test(
         excluded_subtrees=excluded_subtrees,
     )
 
-    with open(ca_cert_path, "wb") as f:
-        f.write(ca.public_bytes(Encoding.DER))
+    write_der(ca_cert_path, ca.public_bytes(Encoding.DER), force)
 
     expected: str = ""
     if expected_error is None:
@@ -279,7 +289,7 @@ fn %(test_name)s() {
     )
 
 
-def tls_server_certs() -> None:
+def tls_server_certs(force: bool) -> None:
     with trim_top("tls_server_certs.rs") as output:
         generate_tls_server_cert_test(
             output,
@@ -536,7 +546,7 @@ def tls_server_certs() -> None:
         )
 
 
-def signatures() -> None:
+def signatures(force: bool) -> None:
     rsa_pub_exponent: int = 0x10001
     backend: Any = default_backend()
     all_key_types: dict[str, ANY_PRIV_KEY] = {
@@ -623,8 +633,7 @@ def signatures() -> None:
 
     message = b"hello world!"
     message_path: str = os.path.join(output_dir, "message.bin")
-    with open(message_path, "wb") as f:
-        f.write(message)
+    write_der(message_path, message, force)
 
     def _cert_path(cert_type: str) -> str:
         return os.path.join(output_dir, f"{cert_type}.ee.der")
@@ -642,8 +651,7 @@ def signatures() -> None:
             issuer_name=issuer_subject,
         )
 
-        with open(_cert_path(name), "wb") as f:
-            f.write(certificate.public_bytes(Encoding.DER))
+        write_der(_cert_path(name), certificate.public_bytes(Encoding.DER), force)
 
     def _test(
         test_name: str, cert_type: str, algorithm: str, signature: bytes, expected: str
@@ -653,8 +661,7 @@ def signatures() -> None:
         lower_test_name: str = test_name.lower()
 
         sig_path: str = os.path.join(output_dir, f"{lower_test_name}.sig.bin")
-        with open(sig_path, "wb") as f:
-            f.write(signature)
+        write_der(sig_path, signature, force)
 
         print(
             """
@@ -777,6 +784,7 @@ def generate_client_auth_test(
     test_name: str,
     ekus: Optional[Iterable[x509.ObjectIdentifier]],
     expected_error: Optional[str] = None,
+    force: bool = False,
 ) -> None:
     issuer_name: x509.Name = issuer_name_for_test(test_name)
 
@@ -795,8 +803,7 @@ def generate_client_auth_test(
         os.mkdir(output_dir)
 
     ee_cert_path: str = os.path.join(output_dir, f"{test_name}.ee.der")
-    with open(ee_cert_path, "wb") as f:
-        f.write(ee_certificate.public_bytes(Encoding.DER))
+    write_der(ee_cert_path, ee_certificate.public_bytes(Encoding.DER), force)
 
     # issuer
     ca: x509.Certificate = ca_cert(
@@ -804,8 +811,7 @@ def generate_client_auth_test(
     )
 
     ca_cert_path: str = os.path.join(output_dir, f"{test_name}.ca.der")
-    with open(ca_cert_path, "wb") as f:
-        f.write(ca.public_bytes(Encoding.DER))
+    write_der(ca_cert_path, ca.public_bytes(Encoding.DER), force)
 
     expected: str = ""
     if expected_error is None:
@@ -830,7 +836,7 @@ fn %(test_name)s() {
     )
 
 
-def client_auth() -> None:
+def client_auth(force: bool) -> None:
     with trim_top("client_auth.rs") as output:
         generate_client_auth_test(
             output, "cert_with_no_eku_accepted_for_client_auth", ekus=None
@@ -853,7 +859,7 @@ def client_auth() -> None:
         )
 
 
-def client_auth_revocation() -> None:
+def client_auth_revocation(force: bool) -> None:
     output_dir: str = "client_auth_revocation"
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
@@ -926,8 +932,7 @@ def client_auth_revocation() -> None:
             subject_name=ee_subj, issuer_name=int_a_subj, issuer_key=int_a_key
         )
         ee_cert_path: str = os.path.join(output_dir, f"{chain_name}.ee.der")
-        with open(ee_cert_path, "wb") as f:
-            f.write(ee_cert.public_bytes(Encoding.DER))
+        write_der(ee_cert_path, ee_cert.public_bytes(Encoding.DER), force)
 
         # intermediate a cert issued by intermediate b.
         int_a_cert: x509.Certificate = ca_cert(
@@ -938,8 +943,7 @@ def client_auth_revocation() -> None:
             key_usage=key_usage,
         )
         int_a_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.a.ca.der")
-        with open(int_a_cert_path, "wb") as f:
-            f.write(int_a_cert.public_bytes(Encoding.DER))
+        write_der(int_a_cert_path, int_a_cert.public_bytes(Encoding.DER), force)
 
         # intermediate b cert issued by root cert.
         int_b_cert: x509.Certificate = ca_cert(
@@ -950,8 +954,7 @@ def client_auth_revocation() -> None:
             key_usage=key_usage,
         )
         int_b_cert_path: str = os.path.join(output_dir, f"{chain_name}.int.b.ca.der")
-        with open(int_b_cert_path, "wb") as f:
-            f.write(int_b_cert.public_bytes(Encoding.DER))
+        write_der(int_b_cert_path, int_b_cert.public_bytes(Encoding.DER), force)
 
         # root cert issued by itself.
         root_cert: x509.Certificate = ca_cert(
@@ -960,8 +963,7 @@ def client_auth_revocation() -> None:
             key_usage=key_usage,
         )
         root_cert_path: str = os.path.join(output_dir, f"{chain_name}.root.ca.der")
-        with open(root_cert_path, "wb") as f:
-            f.write(root_cert.public_bytes(Encoding.DER))
+        write_der(root_cert_path, root_cert.public_bytes(Encoding.DER), force)
 
         return [
             (ee_cert, ee_cert_path, ee_key),
@@ -1100,8 +1102,7 @@ def client_auth_revocation() -> None:
             issuer_key=None,
         )
         no_match_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(no_match_crl_path, "wb") as f:
-            f.write(no_match_crl.public_bytes(Encoding.DER))
+        write_der(no_match_crl_path, no_match_crl.public_bytes(Encoding.DER), force)
 
         # Providing no relevant CRL means the EE cert should verify without err.
         _revocation_test(
@@ -1123,8 +1124,11 @@ def client_auth_revocation() -> None:
             issuer_key=int_a_key,
         )
         ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_not_revoked_crl_path, "wb") as f:
-            f.write(ee_not_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            ee_not_revoked_crl_path,
+            ee_not_revoked_crl.public_bytes(Encoding.DER),
+            force,
+        )
 
         # Providing a CRL that's relevant and verifies, but that doesn't include the EE cert serial should verify
         # without err.
@@ -1150,8 +1154,9 @@ def client_auth_revocation() -> None:
             issuer_key=rand_key,  # NB: Using a random key to sign, not int_a_key.
         )
         ee_revoked_badsig_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_revoked_badsig_path, "wb") as f:
-            f.write(ee_revoked_badsig.public_bytes(Encoding.DER))
+        write_der(
+            ee_revoked_badsig_path, ee_revoked_badsig.public_bytes(Encoding.DER), force
+        )
 
         # Providing a relevant CRL that includes the EE cert serial but does not verify should error.
         _revocation_test(
@@ -1174,8 +1179,7 @@ def client_auth_revocation() -> None:
             issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_revoked_crl_path, "wb") as f:
-            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+        write_der(ee_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force)
 
         # Providing a relevant CRL that includes the EE cert serial but was issued by a CA that has a KU specified
         # that doesn't include cRLSign should error indicating the CRL issuer can't sign CRLs.
@@ -1198,8 +1202,11 @@ def client_auth_revocation() -> None:
             issuer_key=int_a_key,
         )
         ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_not_revoked_crl_path, "wb") as f:
-            f.write(ee_not_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            ee_not_revoked_crl_path,
+            ee_not_revoked_crl.public_bytes(Encoding.DER),
+            force,
+        )
 
         # Providing a relevant CRL that includes the EE cert serial but was issued by a CA that has a KU specified
         # that doesn't include cRLSign should error indicating the CRL issuer can't sign CRLs.
@@ -1223,8 +1230,7 @@ def client_auth_revocation() -> None:
             issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_revoked_crl_path, "wb") as f:
-            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+        write_der(ee_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force)
 
         # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
         # was revoked.
@@ -1248,8 +1254,7 @@ def client_auth_revocation() -> None:
             issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_revoked_crl_path, "wb") as f:
-            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+        write_der(ee_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force)
 
         # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
         # was revoked.
@@ -1281,8 +1286,7 @@ def client_auth_revocation() -> None:
             issuer_key=None,
         )
         no_match_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(no_match_crl_path, "wb") as f:
-            f.write(no_match_crl.public_bytes(Encoding.DER))
+        write_der(no_match_crl_path, no_match_crl.public_bytes(Encoding.DER), force)
 
         # Providing no relevant CRL means the chain should verify without err.
         _revocation_test(
@@ -1304,8 +1308,11 @@ def client_auth_revocation() -> None:
             issuer_key=int_b_key,
         )
         int_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(int_not_revoked_crl_path, "wb") as f:
-            f.write(int_not_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            int_not_revoked_crl_path,
+            int_not_revoked_crl.public_bytes(Encoding.DER),
+            force,
+        )
 
         # Providing a CRL that's relevant and verifies, but that doesn't include the intermediate cert serial should
         # verify the chain without err.
@@ -1331,8 +1338,11 @@ def client_auth_revocation() -> None:
             issuer_key=rand_key,  # NB: Using a random key to sign, not CA cert's key.
         )
         int_revoked_badsig_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(int_revoked_badsig_path, "wb") as f:
-            f.write(int_revoked_badsig.public_bytes(Encoding.DER))
+        write_der(
+            int_revoked_badsig_path,
+            int_revoked_badsig.public_bytes(Encoding.DER),
+            force,
+        )
 
         # Providing a relevant CRL that includes the EE cert serial but does not verify should error.
         _revocation_test(
@@ -1355,8 +1365,9 @@ def client_auth_revocation() -> None:
             issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(int_revoked_crl_path, "wb") as f:
-            f.write(int_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            int_revoked_crl_path, int_revoked_crl.public_bytes(Encoding.DER), force
+        )
 
         # Providing a relevant CRL that includes the intermediate cert serial but was issued by a CA that has a KU
         # specified that doesn't include cRLSign should error indicating the CRL issuer can't sign CRLs.
@@ -1380,8 +1391,7 @@ def client_auth_revocation() -> None:
             issuer_key=int_a_key,
         )
         ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(ee_revoked_crl_path, "wb") as f:
-            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+        write_der(ee_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force)
 
         # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
         # was revoked when using the Chain revocation check depth (since it implies EndEntity).
@@ -1405,8 +1415,9 @@ def client_auth_revocation() -> None:
             issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(int_revoked_crl_path, "wb") as f:
-            f.write(ee_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            int_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force
+        )
 
         # Providing a relevant CRL that includes the intermediate cert serial and verifies, but only using the
         # EndEntity depth should not error even though the intermediate cert is revoked. We don't check it!
@@ -1430,8 +1441,9 @@ def client_auth_revocation() -> None:
             issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(int_revoked_crl_path, "wb") as f:
-            f.write(int_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            int_revoked_crl_path, int_revoked_crl.public_bytes(Encoding.DER), force
+        )
 
         # Providing a relevant CRL that includes the intermediate cert serial and verifies, and using the
         # Chain depth should error since an intermediate cert is revoked.
@@ -1455,8 +1467,9 @@ def client_auth_revocation() -> None:
             issuer_key=int_b_key,
         )
         int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        with open(int_revoked_crl_path, "wb") as f:
-            f.write(int_revoked_crl.public_bytes(Encoding.DER))
+        write_der(
+            int_revoked_crl_path, int_revoked_crl.public_bytes(Encoding.DER), force
+        )
 
         # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
         # was revoked.
@@ -1529,16 +1542,22 @@ if __name__ == "__main__":
         default=True,
         help="Run cargo test post-generation",
     )
+    parser.add_argument(
+        "--force",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Overwrite existing test keys/certs",
+    )
     args = parser.parse_args()
 
     if args.tls_server_certs:
-        tls_server_certs()
+        tls_server_certs(args.force)
     if args.signatures:
-        signatures()
+        signatures(args.force)
     if args.client_auth:
-        client_auth()
+        client_auth(args.force)
     if args.client_auth_revocation:
-        client_auth_revocation()
+        client_auth_revocation(args.force)
 
     if args.format:
         subprocess.run("cargo fmt", shell=True, check=True)
