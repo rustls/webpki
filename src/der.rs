@@ -77,6 +77,20 @@ pub(crate) fn expect_tag_and_get_value_limited<'a>(
     Ok(inner)
 }
 
+pub(crate) fn nested_limited<'a, F, R, E: Copy>(
+    input: &mut untrusted::Reader<'a>,
+    tag: Tag,
+    error: E,
+    decoder: F,
+    size_limit: usize,
+) -> Result<R, E>
+where
+    F: FnOnce(&mut untrusted::Reader<'a>) -> Result<R, E>,
+{
+    let inner = expect_tag_and_get_value_limited(input, tag, size_limit).map_err(|_| error)?;
+    inner.read_all(error, decoder)
+}
+
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
 pub(crate) fn nested<'a, F, R, E: Copy>(
@@ -88,8 +102,7 @@ pub(crate) fn nested<'a, F, R, E: Copy>(
 where
     F: FnOnce(&mut untrusted::Reader<'a>) -> Result<R, E>,
 {
-    let inner = expect_tag_and_get_value(input, tag).map_err(|_| error)?;
-    inner.read_all(error, decoder)
+    nested_limited(input, tag, error, decoder, TWO_BYTE_DER_SIZE)
 }
 
 pub(crate) struct Value<'a> {

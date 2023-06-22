@@ -60,9 +60,13 @@ impl<'a> CertRevocationList<'a> {
         // Try to parse the CRL.
         let reader = untrusted::Input::from(crl_der);
         let (tbs_cert_list, signed_data) = reader.read_all(Error::BadDer, |crl_der| {
-            der::nested(crl_der, Tag::Sequence, Error::BadDer, |signed_der| {
-                signed_data::parse_signed_data(signed_der, der::MAX_DER_SIZE)
-            })
+            der::nested_limited(
+                crl_der,
+                Tag::Sequence,
+                Error::BadDer,
+                |signed_der| signed_data::parse_signed_data(signed_der, der::MAX_DER_SIZE),
+                der::MAX_DER_SIZE,
+            )
         })?;
 
         let crl = tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
@@ -110,7 +114,11 @@ impl<'a> CertRevocationList<'a> {
             //   MUST be absent
             // TODO(@cpu): Do we care to support empty CRLs if we don't support delta CRLs?
             let revoked_certs = if tbs_cert_list.peek(Tag::Sequence.into()) {
-                der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?
+                der::expect_tag_and_get_value_limited(
+                    tbs_cert_list,
+                    Tag::Sequence,
+                    der::MAX_DER_SIZE,
+                )?
             } else {
                 untrusted::Input::from(&[])
             };
