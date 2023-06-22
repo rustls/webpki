@@ -9,7 +9,6 @@ drops testcase data into subdirectories as required.
 """
 import argparse
 import os
-from enum import Enum
 from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
 from pathlib import Path
 
@@ -864,10 +863,6 @@ def client_auth_revocation(force: bool) -> None:
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
 
-    class RevocationCheckDepth(Enum):
-        EndEntity = "EndEntity"
-        Chain = "Chain"
-
     # KeyUsage for a CA that sets crl_sign.
     crl_sign_ku = x509.KeyUsage(
         digital_signature=True,
@@ -1018,7 +1013,6 @@ def client_auth_revocation(force: bool) -> None:
         test_name: str,
         chain: list[tuple[x509.Certificate, str, ANY_PRIV_KEY]],
         crl_paths: Iterable[str],
-        depth: RevocationCheckDepth,
         expected_error: Optional[str],
     ) -> None:
         """
@@ -1026,8 +1020,7 @@ def client_auth_revocation(force: bool) -> None:
 
         :param test_name: the name of the unit test.
         :param chain: the certificate chain to use for validation.
-        :param crl_paths: paths to zero or more
-        :param depth: whether to validate the revocation status of the chain, or just the end entity.
+        :param crl_paths: paths to zero or more CRLs.
         :param expected_error: an optional error to expect to be returned from validation.
         """
         if len(chain) != 4:
@@ -1043,16 +1036,11 @@ def client_auth_revocation(force: bool) -> None:
         intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
         crl_includes: str = "\n".join(
             [
-                f'webpki::CertRevocationList::from_der(include_bytes!("{path}").as_slice()).unwrap(),'
+                f'&webpki::CertRevocationList::from_der(include_bytes!("{path}").as_slice()).unwrap(),'
                 for path in crl_paths
             ]
         )
         crls: str = f"&[{crl_includes}]"
-        depth_str: str = (
-            "RevocationCheckDepth::Chain"
-            if depth == RevocationCheckDepth.Chain
-            else "RevocationCheckDepth::EndEntity"
-        )
         expected: str = (
             f"Err(webpki::Error::{expected_error})" if expected_error else "Ok(())"
         )
@@ -1065,7 +1053,7 @@ def client_auth_revocation(force: bool) -> None:
           let intermediates = %(intermediates_str)s;
           let ca = include_bytes!("%(root_cert_path)s");
           let crls = %(crls)s;
-          assert_eq!(check_cert(ee, intermediates, ca, %(depth_str)s, crls), %(expected)s);
+          assert_eq!(check_cert(ee, intermediates, ca, crls), %(expected)s);
         }
         """
             % locals(),
@@ -1082,18 +1070,18 @@ def client_auth_revocation(force: bool) -> None:
     # Build a simple certificate chain where the issuers have key usage specified, and include the cRLSign bit.
     crl_ku_chain = _chain(chain_name="ku_chain", key_usage=crl_sign_ku)
 
-    def _no_crls_test_ee_depth() -> None:
-        # Providing no CRLs means the EE cert should verify without err.
+    def _no_crls_test() -> None:
+        test_name = "no_crls_test"
+        # Providing no CRLs means the chain should verify without err.
         _revocation_test(
-            test_name="no_crls_test_ee_depth",
+            test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error=None,
         )
 
-    def _no_relevant_crl_ee_depth() -> None:
-        test_name = "no_relevant_crl_ee_depth"
+    def _no_relevant_crl() -> None:
+        test_name = "no_relevant_crl"
         # Generate a CRL that includes the EE cert's serial, but that is issued by an unknown issuer.
         ee_cert = no_ku_chain[0][0]
         no_match_crl = _crl(
@@ -1109,17 +1097,18 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[no_match_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error=None,
         )
 
-    def _ee_not_revoked_ee_depth() -> None:
-        test_name = "ee_not_revoked_ee_depth"
+    def _no_certs_revoked() -> None:
+        test_name = "no_certs_revoked"
         ee_cert = no_ku_chain[0][0]
         int_a_key = no_ku_chain[1][2]
-        # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include any relevant cert's serial, but that is issued the same issuer.
         ee_not_revoked_crl = _crl(
-            serials=[12345],  # Some serial that isn't the ee_cert.serial.
+            serials=[
+                12345
+            ],  # Some serial that isn't the ee_cert.serial or any of the intermediates.
             issuer_name=ee_cert.issuer,
             issuer_key=int_a_key,
         )
@@ -1130,18 +1119,17 @@ def client_auth_revocation(force: bool) -> None:
             force,
         )
 
-        # Providing a CRL that's relevant and verifies, but that doesn't include the EE cert serial should verify
-        # without err.
+        # Providing a CRL issued by the same issuer as a cert in the chain, that verifies, but that doesn't include any
+        # relevant cert serials should not error.
         _revocation_test(
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error=None,
         )
 
-    def _ee_revoked_badsig_ee_depth() -> None:
-        test_name = "ee_revoked_badsig_ee_depth"
+    def _ee_revoked_badsig() -> None:
+        test_name = "ee_revoked_badsig"
         ee_cert = no_ku_chain[0][0]
         # Generate a CRL that includes the EE cert's serial, and that is issued the same issuer, but that
         # has an invalid signature.
@@ -1163,12 +1151,11 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_badsig_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="InvalidSignatureForPublicKey",
         )
 
-    def _ee_revoked_wrong_ku_ee_depth() -> None:
-        test_name = "ee_revoked_wrong_ku_ee_depth"
+    def _ee_revoked_wrong_ku() -> None:
+        test_name = "ee_revoked_wrong_ku"
         ee_cert = no_crl_ku_chain[0][0]
         int_a_key = no_crl_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (with a KU specified
@@ -1187,17 +1174,19 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="IssuerNotCrlSigner",
         )
 
-    def _ee_not_revoked_wrong_ku_ee_depth() -> None:
-        test_name = "ee_not_revoked_wrong_ku_ee_depth"
+    def _no_certs_revoked_wrong_ku() -> None:
+        test_name = "no_certs_revoked_wrong_ku"
         ee_cert = no_crl_ku_chain[0][0]
         int_a_key = no_crl_ku_chain[1][2]
-        # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include any relevant cert's serial, but that is issued by the same issuer
+        # as the EE cert.
         ee_not_revoked_crl = _crl(
-            serials=[12345],  # Some serial that isn't the ee_cert.serial.
+            serials=[
+                12345
+            ],  # Some serial that isn't the ee_cert.serial or any intermediates.
             issuer_name=ee_cert.issuer,
             issuer_key=int_a_key,
         )
@@ -1208,18 +1197,17 @@ def client_auth_revocation(force: bool) -> None:
             force,
         )
 
-        # Providing a relevant CRL that includes the EE cert serial but was issued by a CA that has a KU specified
-        # that doesn't include cRLSign should error indicating the CRL issuer can't sign CRLs.
+        # Providing a relevant CRL that doesn't include the EE cert serial but was issued by a CA that has a KU
+        # specified that doesn't include cRLSign should error indicating the CRL issuer can't sign CRLs.
         _revocation_test(
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="IssuerNotCrlSigner",
         )
 
-    def _ee_revoked_no_ku_ee_depth() -> None:
-        test_name = "ee_revoked_no_ku_ee_depth"
+    def _ee_revoked_no_ku() -> None:
+        test_name = "ee_revoked_no_ku"
         ee_cert = no_ku_chain[0][0]
         int_a_key = no_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (without any KU
@@ -1238,12 +1226,11 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="CertRevoked",
         )
 
-    def _ee_revoked_crl_ku_ee_depth() -> None:
-        test_name = "ee_revoked_crl_ku_ee_depth"
+    def _ee_revoked_crl_ku() -> None:
+        test_name = "ee_revoked_crl_ku"
         ee_cert = crl_ku_chain[0][0]
         int_a_key = crl_ku_chain[1][2]
         # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (with a KU
@@ -1262,72 +1249,13 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="CertRevoked",
         )
 
-    def _no_crls_test_chain_depth() -> None:
-        # Providing no CRLs means the chain should verify without err.
-        _revocation_test(
-            test_name="no_crls_test_chain_depth",
-            chain=no_ku_chain,
-            crl_paths=[],
-            depth=RevocationCheckDepth.Chain,
-            expected_error=None,
-        )
-
-    def _no_relevant_crl_chain_depth() -> None:
-        test_name = "no_relevant_crl_chain_depth"
-        # Generate a CRL that includes the first intermediate cert's serial, but that is issued by an unknown issuer.
+    def _int_revoked_badsig() -> None:
+        test_name = "int_revoked_badsig"
         int_a_cert = no_ku_chain[1][0]
-        no_match_crl = _crl(
-            serials=[int_a_cert.serial_number],
-            issuer_name=subject_name_for_test("whatev", test_name),
-            issuer_key=None,
-        )
-        no_match_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        write_der(no_match_crl_path, no_match_crl.public_bytes(Encoding.DER), force)
-
-        # Providing no relevant CRL means the chain should verify without err.
-        _revocation_test(
-            test_name=test_name,
-            chain=no_ku_chain,
-            crl_paths=[no_match_crl_path],
-            depth=RevocationCheckDepth.Chain,
-            expected_error=None,
-        )
-
-    def _int_not_revoked_chain_depth() -> None:
-        test_name = "int_not_revoked_chain_depth"
-        int_a_cert = no_ku_chain[1][0]
-        int_b_key = no_ku_chain[2][2]
-        # Generate a CRL that doesn't include the intermediate A cert's serial, but that is issued the same issuer.
-        int_not_revoked_crl = _crl(
-            serials=[12345],  # Some serial that isn't the int_a_cert.serial.
-            issuer_name=int_a_cert.issuer,
-            issuer_key=int_b_key,
-        )
-        int_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        write_der(
-            int_not_revoked_crl_path,
-            int_not_revoked_crl.public_bytes(Encoding.DER),
-            force,
-        )
-
-        # Providing a CRL that's relevant and verifies, but that doesn't include the intermediate cert serial should
-        # verify the chain without err.
-        _revocation_test(
-            test_name=test_name,
-            chain=no_ku_chain,
-            crl_paths=[int_not_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
-            expected_error=None,
-        )
-
-    def _int_revoked_badsig_chain_depth() -> None:
-        test_name = "int_revoked_badsig_chain_depth"
-        int_a_cert = no_ku_chain[1][0]
-        # Generate a CRL that includes the intermediate cert's serial, and that is issued the same issuer, but that
+        # Generate a CRL that includes a intermediate cert's serial, and that is issued the same issuer, but that
         # has an invalid signature.
         rand_key: ec.EllipticCurvePrivateKey = ec.generate_private_key(
             ec.SECP256R1(), default_backend()
@@ -1344,17 +1272,16 @@ def client_auth_revocation(force: bool) -> None:
             force,
         )
 
-        # Providing a relevant CRL that includes the EE cert serial but does not verify should error.
+        # Providing a relevant CRL that includes a intermediate cert's serial but does not verify should error.
         _revocation_test(
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_badsig_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="InvalidSignatureForPublicKey",
         )
 
-    def _int_revoked_wrong_ku_chain_depth() -> None:
-        test_name = "int_revoked_wrong_ku_chain_depth"
+    def _int_revoked_wrong_ku() -> None:
+        test_name = "int_revoked_wrong_ku"
         int_a_cert = no_crl_ku_chain[1][0]
         int_b_key = no_crl_ku_chain[2][2]
         # Generate a CRL that includes the intermediate A cert's serial, and that is issued by the same issuer (with a
@@ -1375,65 +1302,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="IssuerNotCrlSigner",
         )
 
-    def _ee_revoked_chain_depth() -> None:
-        test_name = "ee_revoked_chain_depth"
-        ee_cert = no_ku_chain[0][0]
-        int_a_key = no_ku_chain[1][2]
-        # Generate a CRL that includes the EE cert's serial, and that is issued by the same issuer (without any KU
-        # specified).
-        ee_revoked_crl = _crl(
-            serials=[ee_cert.serial_number],
-            issuer_name=ee_cert.issuer,
-            issuer_key=int_a_key,
-        )
-        ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        write_der(ee_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force)
-
-        # Providing a relevant CRL that includes the EE cert serial and verifies should error indicating the cert
-        # was revoked when using the Chain revocation check depth (since it implies EndEntity).
-        _revocation_test(
-            test_name=test_name,
-            chain=no_ku_chain,
-            crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
-            expected_error="CertRevoked",
-        )
-
-    def _int_revoked_ee_depth() -> None:
-        test_name = "int_revoked_ee_depth"
-        int_a_cert, _, int_key = no_ku_chain[1]
-        int_b_key = no_ku_chain[2][2]
-        # Generate a CRL that includes the intermediate A cert's serial, and that is issued by the same issuer
-        # (without any KU specified).
-        ee_revoked_crl = _crl(
-            serials=[int_a_cert.serial_number],
-            issuer_name=int_a_cert.issuer,
-            issuer_key=int_b_key,
-        )
-        int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        write_der(
-            int_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force
-        )
-
-        # Providing a relevant CRL that includes the intermediate cert serial and verifies, but only using the
-        # EndEntity depth should not error even though the intermediate cert is revoked. We don't check it!
-        _revocation_test(
-            test_name=test_name,
-            chain=no_ku_chain,
-            crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
-            expected_error=None,
-        )
-
-    def _int_revoked_no_ku_chain_depth() -> None:
-        test_name = "int_revoked_no_ku_chain_depth"
+    def _int_revoked_no_ku() -> None:
+        test_name = "int_revoked_no_ku"
         int_a_cert = no_ku_chain[1][0]
         int_b_key = no_ku_chain[2][2]
-        # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer
+        # Generate a CRL that includes a intermediate cert's serial, and that is issued by the same issuer
         # (without any KU specified).
         int_revoked_crl = _crl(
             serials=[int_a_cert.serial_number],
@@ -1445,21 +1321,20 @@ def client_auth_revocation(force: bool) -> None:
             int_revoked_crl_path, int_revoked_crl.public_bytes(Encoding.DER), force
         )
 
-        # Providing a relevant CRL that includes the intermediate cert serial and verifies, and using the
-        # Chain depth should error since an intermediate cert is revoked.
+        # Providing a relevant CRL that includes an intermediate cert serial and verifies should error since an
+        # intermediate cert is revoked.
         _revocation_test(
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="CertRevoked",
         )
 
-    def _int_revoked_crl_ku_chain_depth() -> None:
-        test_name = "int_revoked_crl_ku_chain_depth"
+    def _int_revoked_crl_ku() -> None:
+        test_name = "int_revoked_crl_ku"
         int_a_cert = crl_ku_chain[1][0]
         int_b_key = crl_ku_chain[2][2]
-        # Generate a CRL that includes the intermediate cert's serial, and that is issued by the same issuer (with a KU
+        # Generate a CRL that includes an intermediate cert's serial, and that is issued by the same issuer (with a KU
         # specified that includes cRLSign).
         int_revoked_crl = _crl(
             serials=[int_a_cert.serial_number],
@@ -1477,31 +1352,22 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="CertRevoked",
         )
 
     with trim_top("client_auth_revocation.rs") as output:
-        # Revocation checking at end entity depth test cases.
-        _no_crls_test_ee_depth()
-        _no_relevant_crl_ee_depth()
-        _ee_not_revoked_ee_depth()
-        _ee_revoked_badsig_ee_depth()
-        _ee_revoked_wrong_ku_ee_depth()
-        _ee_not_revoked_wrong_ku_ee_depth()
-        _ee_revoked_no_ku_ee_depth()
-        _ee_revoked_crl_ku_ee_depth()
-
-        # Revocation checking at chain depth test cases.
-        _no_crls_test_chain_depth()
-        _no_relevant_crl_chain_depth()
-        _int_not_revoked_chain_depth()
-        _int_revoked_badsig_chain_depth()
-        _int_revoked_wrong_ku_chain_depth()
-        _ee_revoked_chain_depth()
-        _int_revoked_ee_depth()
-        _int_revoked_no_ku_chain_depth()
-        _int_revoked_crl_ku_chain_depth()
+        _no_crls_test()
+        _no_relevant_crl()
+        _no_certs_revoked()
+        _no_certs_revoked_wrong_ku()
+        _ee_revoked_badsig()
+        _ee_revoked_wrong_ku()
+        _ee_revoked_no_ku()
+        _ee_revoked_crl_ku()
+        _int_revoked_badsig()
+        _int_revoked_wrong_ku()
+        _int_revoked_no_ku()
+        _int_revoked_crl_ku()
 
 
 if __name__ == "__main__":
