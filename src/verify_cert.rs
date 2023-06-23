@@ -239,7 +239,7 @@ fn check_crl(
 
     // Try to find the cert serial in the verified CRL contents.
     let cert_serial = cert.serial.as_slice_less_safe();
-    match crl.find_serial(cert_serial) {
+    match crl.find_serial(cert_serial)? {
         None => Ok(Some(CertNotRevoked::assertion())),
         Some(_) => Err(Error::CertRevoked),
     }

@@ -21,7 +21,7 @@ fn parse_valid_crl() {
     assert_eq!(aki, expected_aki);
 
     // We should find the expected revoked certificate with the expected serial number.
-    assert!(crl.find_serial(REVOKED_SERIAL).is_some())
+    assert!(crl.find_serial(REVOKED_SERIAL).unwrap().is_some())
 }
 
 #[test]
@@ -100,9 +100,11 @@ fn parse_negative_crl_number_crl() {
 
 #[test]
 fn parse_entry_negative_serial_crl() {
-    // Parsing a CRL that includes a revoked entry with a negative serial number should error.
     let crl = include_bytes!("crls/crl.negative.serial.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let crl = CertRevocationList::from_der(&crl[..]).unwrap();
+
+    // Searching a CRL that includes a revoked entry with a negative serial number should error.
+    let res = crl.find_serial(&[0xC0, 0xFF, 0xEE]);
     assert!(matches!(res, Err(Error::InvalidSerialNumber)));
 }
 
@@ -112,7 +114,7 @@ fn parse_entry_without_exts_crl() {
     let crl = include_bytes!("crls/crl.no.entry.exts.der");
     let crl = CertRevocationList::from_der(&crl[..]).expect("unexpected error parsing crl");
     // We should find the expected revoked certificate with the expected serial number.
-    assert!(crl.find_serial(REVOKED_SERIAL).is_some());
+    assert!(crl.find_serial(REVOKED_SERIAL).unwrap().is_some());
 }
 
 #[test]
@@ -125,17 +127,21 @@ fn parse_entry_with_empty_exts_seq() {
 
 #[test]
 fn parse_entry_unknown_crit_ext_crl() {
-    // Parsing a CRL that includes a revoked entry that has an unknown critical extension should error.
     let crl = include_bytes!("crls/crl.entry.unknown.crit.ext.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let crl = CertRevocationList::from_der(&crl[..]).unwrap();
+
+    // Searching a CRL that includes a revoked entry that has an unknown critical extension should error.
+    let res = crl.find_serial(&[]);
     assert!(matches!(res, Err(Error::UnsupportedCriticalExtension)));
 }
 
 #[test]
 fn parse_entry_invalid_reason_crl() {
-    // Parsing a CRL that includes a revoked entry that has an unknown revocation reason should error.
     let crl = include_bytes!("crls/crl.entry.invalid.reason.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let crl = CertRevocationList::from_der(&crl[..]).unwrap();
+
+    // Searching a CRL that includes a revoked entry that has an unknown revocation reason should error.
+    let res = crl.find_serial(&[0x0B, 0xAD]);
     assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
 }
 
@@ -149,15 +155,18 @@ fn parse_entry_invalidity_date_crl() {
     assert!(crl
         .find_serial(REVOKED_SERIAL)
         .unwrap()
+        .unwrap()
         .invalidity_date
         .is_some());
 }
 
 #[test]
 fn parse_entry_indirect_issuer_crl() {
-    // Parsing a CRL that includes a revoked entry that has a issuer certificate extension
-    // should error because this indicates the CRL is an "indirect" CRL that we do not support.
     let crl = include_bytes!("crls/crl.entry.issuer.ext.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let crl = CertRevocationList::from_der(&crl[..]).unwrap();
+
+    // Searching a CRL that includes a revoked entry that has a issuer certificate extension
+    // should error because this indicates the CRL is an "indirect" CRL that we do not support.
+    let res = crl.find_serial(&[0xDE, 0xAD]);
     assert!(matches!(res, Err(Error::UnsupportedIndirectCrl)));
 }

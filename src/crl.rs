@@ -69,7 +69,7 @@ impl<'a> CertRevocationList<'a> {
             )
         })?;
 
-        let crl = tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
+        tbs_cert_list.read_all(Error::BadDer, |tbs_cert_list| {
             // RFC 5280 §5.1.2.1:
             //   This optional field describes the version of the encoded CRL.  When
             //   extensions are used, as required by this profile, this field MUST be
@@ -164,15 +164,7 @@ impl<'a> CertRevocationList<'a> {
             )?;
 
             Ok(crl)
-        })?;
-
-        // Iterate through the revoked certificate entries to ensure they are valid so we can
-        // yield an error up-front instead of on first iteration by the caller.
-        for cert_result in crl.into_iter() {
-            cert_result?;
-        }
-
-        Ok(crl)
+        })
     }
 
     fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
@@ -226,17 +218,17 @@ impl<'a> CertRevocationList<'a> {
         })
     }
 
-    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
-    /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
-    /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
-    pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert<'_>> {
+    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`.
+    pub fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert<'_>>, Error> {
         // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
         //            any allocation. It would be nice to offer a speedier alternative for
         //            when the alloc feature is enabled:
         //            https://github.com/rustls/webpki/issues/80
-        self.into_iter()
-            .filter_map(|parse_res| parse_res.ok())
-            .find(|revoked_cert| revoked_cert.serial_number.eq(serial))
+        Ok(self
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .find(|revoked_cert| revoked_cert.serial_number == serial))
     }
 
     /// Raw DER encoding of the issuer of the CRL.
