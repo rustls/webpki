@@ -19,7 +19,7 @@ use crate::{der, signed_data, Error, Time};
 /// Representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-pub struct CertRevocationList<'a> {
+pub struct BorrowedCertRevocationList<'a> {
     /// A `SignedData` structure that can be passed to `verify_signed_data`.
     pub(crate) signed_data: signed_data::SignedData<'a>,
 
@@ -44,7 +44,7 @@ pub struct CertRevocationList<'a> {
     pub crl_number: Option<&'a [u8]>,
 }
 
-impl<'a> CertRevocationList<'a> {
+impl<'a> BorrowedCertRevocationList<'a> {
     /// Try to parse the given bytes as a RFC 5280[^1] profile Certificate Revocation List (CRL).
     ///
     /// Webpki does not support:
@@ -122,7 +122,7 @@ impl<'a> CertRevocationList<'a> {
                 untrusted::Input::from(&[])
             };
 
-            let mut crl = CertRevocationList {
+            let mut crl = BorrowedCertRevocationList {
                 signed_data,
                 issuer,
                 this_update,
@@ -227,7 +227,7 @@ impl<'a> CertRevocationList<'a> {
 
     /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
     /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
-    /// parse errors use [`CertRevocationList`]'s [`IntoIterator`] trait.
+    /// parse errors use [`BorrowedCertRevocationList`]'s [`IntoIterator`] trait.
     pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert<'_>> {
         // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
         //            any allocation. It would be nice to offer a speedier alternative for
@@ -250,7 +250,7 @@ impl<'a> CertRevocationList<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a CertRevocationList<'a> {
+impl<'a> IntoIterator for &'a BorrowedCertRevocationList<'a> {
     type Item = Result<RevokedCert<'a>, Error>;
     type IntoIter = RevokedCerts<'a>;
 

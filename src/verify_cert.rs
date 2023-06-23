@@ -14,23 +14,23 @@
 
 use crate::{
     cert::{self, Cert, EndEntityOrCa},
-    der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
+    der, signed_data, subject_name, time, BorrowedCertRevocationList, Error, SignatureAlgorithm,
     TrustAnchor,
 };
 
 /// A trait that can provide CRLs to use for revocation checking.
 pub trait CrlProvider<'a> {
-    /// A function that can be invoked with a [`Cert`] to optionally provide a [`CertRevocationList`]
+    /// A function that can be invoked with a [`Cert`] to optionally provide a [`BorrowedCertRevocationList`]
     /// to use to verify the certificate's revocation status.
     ///
     /// An implementation that only wishes to check revocation status for leaf certificates can
     /// choose to return `None` when the [`Cert.ee_or_ca`] field is [`EndEntityOrCa::Ca`].
-    fn crl_for_cert(&self, cert: &Cert) -> Option<&'a CertRevocationList<'a>>;
+    fn crl_for_cert(&self, cert: &Cert) -> Option<&'a BorrowedCertRevocationList<'a>>;
 }
 
 /// Options controlling how revocation is handled when building a chain.
 pub struct RevocationCheckOptions<'a> {
-    /// A function that can be invoked with a [`Cert`] to optionally provide a [`CertRevocationList`]
+    /// A function that can be invoked with a [`Cert`] to optionally provide a [`BorrowedCertRevocationList`]
     /// to use to verify the certificate's revocation status.
     pub crl_provider: &'a dyn CrlProvider<'a>,
 }
