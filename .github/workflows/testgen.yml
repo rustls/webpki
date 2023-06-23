@@ -47,6 +47,8 @@ jobs:
         run: pip install -r requirements.txt
       - name: Generate test files
         working-directory: ./tests
-        # Run generate with `--force` to ensure freshly generated certs/keys
-        # pass `cargo test`.
-        run: python3 generate.py --force
+        # Generate but don't run the test suite - we already do that in the
+        # other CI tasks that run `cargo test`.
+        run: python3 generate.py --no-test
+      - name: Enforce no diff
+        run: git diff --exit-code
