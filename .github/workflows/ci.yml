@@ -101,7 +101,6 @@ jobs:
         rust_channel:
           - stable
           - nightly
-          - 1.57.0
           - beta
 
         exclude:
@@ -113,9 +112,6 @@ jobs:
           - features: --all-features
             mode: # debug
             rust_channel: nightly
-          - features: --all-features
-            mode: # debug
-            rust_channel: 1.57.0
           - features: --all-features
             mode: # debug
             rust_channel: beta
@@ -144,11 +140,6 @@ jobs:
           - features: --all-features
             mode: # debug
             rust_channel: nightly
-            host_os: ubuntu-20.04
-
-          - features: --all-features
-            mode: # debug
-            rust_channel: 1.57.0
             host_os: ubuntu-20.04
 
           - features: --all-features
@@ -182,6 +173,17 @@ jobs:
 
       - run: |
           cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
+
+  msrv:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.57.0
+      - run: cargo check --lib --all-features
 
   coverage:
     runs-on: ubuntu-20.04
