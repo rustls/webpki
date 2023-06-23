@@ -58,7 +58,7 @@ mod x509;
 
 pub use {
     cert::{Cert, EndEntityOrCa},
-    crl::{CertRevocationList, RevocationReason, RevokedCert},
+    crl::{BorrowedCertRevocationList, RevocationReason, RevokedCert},
     end_entity::EndEntityCert,
     error::Error,
     signed_data::{

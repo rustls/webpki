@@ -1,4 +1,4 @@
-use webpki::{CertRevocationList, Error};
+use webpki::{BorrowedCertRevocationList, Error};
 
 const REVOKED_SERIAL: &[u8] = &[0x03, 0xAE, 0x51, 0xDB, 0x51, 0x15, 0x5A, 0x3C];
 
@@ -6,7 +6,7 @@ const REVOKED_SERIAL: &[u8] = &[0x03, 0xAE, 0x51, 0xDB, 0x51, 0x15, 0x5A, 0x3C];
 fn parse_valid_crl() {
     // We should be able to parse a valid CRL without error.
     let crl = include_bytes!("crls/crl.valid.der");
-    let crl = CertRevocationList::from_der(&crl[..]).expect("failed to parse valid crl");
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).expect("failed to parse valid crl");
 
     // The CRL should have the expected number.
     let expected_crl_number: &[u8] = &[0x17, 0x1C, 0xCE, 0x3D, 0xE4, 0x82, 0xBA, 0x61];
@@ -28,7 +28,7 @@ fn parse_valid_crl() {
 fn parse_empty_crl() {
     // We should be able to parse an empty CRL without error.
     let crl = include_bytes!("crls/crl.empty.der");
-    let crl = CertRevocationList::from_der(&crl[..]).expect("failed to parse empty crl");
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).expect("failed to parse empty crl");
 
     // We should find no revoked certificates.
     assert!(crl.into_iter().next().is_none());
@@ -38,7 +38,7 @@ fn parse_empty_crl() {
 fn parse_mismatched_sigalg_crl() {
     // Parsing a CRL with a mismatched outer/inner signature algorithm should fail.
     let crl = include_bytes!("crls/crl.mismatched.sigalg.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::SignatureAlgorithmMismatch)));
 }
 
@@ -46,7 +46,7 @@ fn parse_mismatched_sigalg_crl() {
 fn parse_bad_this_update_crl() {
     // Parsing a CRL with an invalid this update time should error.
     let crl = include_bytes!("crls/crl.invalid.this.update.time.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::BadDerTime)));
 }
 
@@ -54,7 +54,7 @@ fn parse_bad_this_update_crl() {
 fn parse_missing_next_update_crl() {
     // Parsing a CRL with a missing next update time should error.
     let crl = include_bytes!("crls/crl.missing.next.update.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::BadDer)));
 }
 
@@ -62,7 +62,7 @@ fn parse_missing_next_update_crl() {
 fn parse_wrong_version_crl() {
     // Parsing a CRL with an unsupported version should error.
     let crl = include_bytes!("crls/crl.wrong.version.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedCrlVersion)));
 }
 
@@ -70,7 +70,7 @@ fn parse_wrong_version_crl() {
 fn parse_missing_exts_crl() {
     // Parsing a CRL with no list extensions should error.
     let crl = include_bytes!("crls/crl.missing.exts.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::MalformedExtensions)));
 }
 
@@ -78,7 +78,7 @@ fn parse_missing_exts_crl() {
 fn parse_delta_crl() {
     // Parsing a CRL with an extension indicating its a delta CRL should error.
     let crl = include_bytes!("crls/crl.delta.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedDeltaCrl)));
 }
 
@@ -86,7 +86,7 @@ fn parse_delta_crl() {
 fn parse_unknown_crit_ext_crl() {
     // Parsing a CRL with an unknown critical list extension should error.
     let crl = include_bytes!("crls/crl.unknown.crit.ext.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedCriticalExtension)));
 }
 
@@ -94,7 +94,7 @@ fn parse_unknown_crit_ext_crl() {
 fn parse_negative_crl_number_crl() {
     // Parsing a CRL with a negative CRL number should error.
     let crl = include_bytes!("crls/crl.negative.crl.number.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::InvalidCrlNumber)));
 }
 
@@ -102,7 +102,7 @@ fn parse_negative_crl_number_crl() {
 fn parse_entry_negative_serial_crl() {
     // Parsing a CRL that includes a revoked entry with a negative serial number should error.
     let crl = include_bytes!("crls/crl.negative.serial.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::InvalidSerialNumber)));
 }
 
@@ -110,7 +110,7 @@ fn parse_entry_negative_serial_crl() {
 fn parse_entry_without_exts_crl() {
     // Parsing a CRL that includes a revoked entry that has no extensions shouldn't error.
     let crl = include_bytes!("crls/crl.no.entry.exts.der");
-    let crl = CertRevocationList::from_der(&crl[..]).expect("unexpected error parsing crl");
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).expect("unexpected error parsing crl");
     // We should find the expected revoked certificate with the expected serial number.
     assert!(crl.find_serial(REVOKED_SERIAL).is_some());
 }
@@ -118,7 +118,7 @@ fn parse_entry_without_exts_crl() {
 #[test]
 fn parse_entry_with_empty_exts_seq() {
     let crl = include_bytes!("crls/crl.entry.empty.ext.seq.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
 
     assert!(res.is_ok());
 }
@@ -127,7 +127,7 @@ fn parse_entry_with_empty_exts_seq() {
 fn parse_entry_unknown_crit_ext_crl() {
     // Parsing a CRL that includes a revoked entry that has an unknown critical extension should error.
     let crl = include_bytes!("crls/crl.entry.unknown.crit.ext.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedCriticalExtension)));
 }
 
@@ -135,7 +135,7 @@ fn parse_entry_unknown_crit_ext_crl() {
 fn parse_entry_invalid_reason_crl() {
     // Parsing a CRL that includes a revoked entry that has an unknown revocation reason should error.
     let crl = include_bytes!("crls/crl.entry.invalid.reason.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
 }
 
@@ -143,7 +143,7 @@ fn parse_entry_invalid_reason_crl() {
 fn parse_entry_invalidity_date_crl() {
     // Parsing a CRL that includes a revoked entry that has an invalidity date ext shouldn't error.
     let crl = include_bytes!("crls/crl.entry.invalidity.date.der");
-    let crl = CertRevocationList::from_der(&crl[..]).expect("unexpected err parsing CRL");
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).expect("unexpected err parsing CRL");
 
     // We should find the expected revoked cert, and it should have a parsed invalidity date.
     assert!(crl
@@ -158,6 +158,6 @@ fn parse_entry_indirect_issuer_crl() {
     // Parsing a CRL that includes a revoked entry that has a issuer certificate extension
     // should error because this indicates the CRL is an "indirect" CRL that we do not support.
     let crl = include_bytes!("crls/crl.entry.issuer.ext.der");
-    let res = CertRevocationList::from_der(&crl[..]);
+    let res = BorrowedCertRevocationList::from_der(&crl[..]);
     assert!(matches!(res, Err(Error::UnsupportedIndirectCrl)));
 }
