@@ -28,7 +28,7 @@ pub trait CertRevocationList: Sealed {
 
     /// Try to find a revoked certificate in the CRL by DER encoded serial number. This
     /// may yield an error if the CRL has malformed revoked certificates.
-    fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert>, Error>;
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error>;
 
     /// Verify the CRL signature using the issuer's subject public key information (SPKI)
     /// and a list of supported signature algorithms.
@@ -233,7 +233,7 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
         self.issuer.as_slice_less_safe()
     }
 
-    fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert>, Error> {
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
         for revoked_cert_result in self {
             match revoked_cert_result {
                 Err(e) => return Err(e),
@@ -262,7 +262,7 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
 }
 
 impl<'a> IntoIterator for &'a BorrowedCertRevocationList<'a> {
-    type Item = Result<RevokedCert<'a>, Error>;
+    type Item = Result<BorrowedRevokedCert<'a>, Error>;
     type IntoIter = RevokedCerts<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -277,18 +277,18 @@ pub struct RevokedCerts<'a> {
 }
 
 impl<'a> Iterator for RevokedCerts<'a> {
-    type Item = Result<RevokedCert<'a>, Error>;
+    type Item = Result<BorrowedRevokedCert<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        (!self.reader.at_end()).then(|| RevokedCert::from_der(&mut self.reader))
+        (!self.reader.at_end()).then(|| BorrowedRevokedCert::from_der(&mut self.reader))
     }
 }
 
-/// Representation of a RFC 5280[^1] profile Certificate Revocation List (CRL) revoked certificate
+/// Borrowed representation of a RFC 5280[^1] profile Certificate Revocation List (CRL) revoked certificate
 /// entry.
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-pub struct RevokedCert<'a> {
+pub struct BorrowedRevokedCert<'a> {
     /// Serial number of the revoked certificate.
     pub serial_number: &'a [u8],
 
@@ -307,7 +307,7 @@ pub struct RevokedCert<'a> {
     pub invalidity_date: Option<Time>,
 }
 
-impl<'a> RevokedCert<'a> {
+impl<'a> BorrowedRevokedCert<'a> {
     fn from_der(der: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         der::nested(der, Tag::Sequence, Error::BadDer, |der| {
             // RFC 5280 §4.1.2.2:
@@ -325,7 +325,7 @@ impl<'a> RevokedCert<'a> {
 
             let revocation_date = der::time_choice(der)?;
 
-            let mut revoked_cert = RevokedCert {
+            let mut revoked_cert = BorrowedRevokedCert {
                 serial_number,
                 revocation_date,
                 reason_code: None,
