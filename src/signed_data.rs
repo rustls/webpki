@@ -17,24 +17,76 @@ use ring::signature;
 
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
+/// captures this pattern as an owned data type.
+///
+/// This type is only available when the "alloc" feature is enabled.
+#[cfg(feature = "alloc")]
+#[allow(unused)] // TODO(@cpu): Remove in subsequent commit.
+pub(crate) struct OwnedSignedData {
+    /// The signed data. This would be `tbsCertificate` in the case of an X.509
+    /// certificate, `tbsResponseData` in the case of an OCSP response, `tbsCertList`
+    /// in the case of a CRL, and the data nested in the `digitally-signed` construct for
+    /// TLS 1.2 signed data.
+    pub(crate) data: Vec<u8>,
+
+    /// The value of the `AlgorithmIdentifier`. This would be
+    /// `signatureAlgorithm` in the case of an X.509 certificate, OCSP
+    /// response or CRL. This would have to be synthesized in the case of TLS 1.2
+    /// signed data, since TLS does not identify algorithms by ASN.1 OIDs.
+    pub(crate) algorithm: Vec<u8>,
+
+    /// The value of the signature. This would be `signature` in an X.509
+    /// certificate, OCSP response or CRL. This would be the value of
+    /// `DigitallySigned.signature` for TLS 1.2 signed data.
+    pub(crate) signature: Vec<u8>,
+}
+
+#[cfg(feature = "alloc")]
+impl OwnedSignedData {
+    /// Return a borrowed [`SignedData`] from the owned representation.
+    #[allow(unused)] // TODO(@cpu): Remove in subsequent commit.
+    pub(crate) fn borrow(&self) -> SignedData<'_> {
+        SignedData {
+            data: untrusted::Input::from(&self.data),
+            algorithm: untrusted::Input::from(&self.algorithm),
+            signature: untrusted::Input::from(&self.signature),
+        }
+    }
+}
+
+/// X.509 certificates and related items that are signed are almost always
+/// encoded in the format "tbs||signatureAlgorithm||signature". This structure
 /// captures this pattern.
 pub(crate) struct SignedData<'a> {
     /// The signed data. This would be `tbsCertificate` in the case of an X.509
-    /// certificate, `tbsResponseData` in the case of an OCSP response, and the
-    /// data nested in the `digitally-signed` construct for TLS 1.2 signed
-    /// data.
+    /// certificate, `tbsResponseData` in the case of an OCSP response, `tbsCertList`
+    /// in the case of a CRL, and the data nested in the `digitally-signed` construct for
+    /// TLS 1.2 signed data.
     data: untrusted::Input<'a>,
 
     /// The value of the `AlgorithmIdentifier`. This would be
-    /// `signatureAlgorithm` in the case of an X.509 certificate or OCSP
-    /// response. This would have to be synthesized in the case of TLS 1.2
+    /// `signatureAlgorithm` in the case of an X.509 certificate, OCSP
+    /// response or CRL. This would have to be synthesized in the case of TLS 1.2
     /// signed data, since TLS does not identify algorithms by ASN.1 OIDs.
     pub(crate) algorithm: untrusted::Input<'a>,
 
     /// The value of the signature. This would be `signature` in an X.509
-    /// certificate or OCSP response. This would be the value of
+    /// certificate, OCSP response or CRL. This would be the value of
     /// `DigitallySigned.signature` for TLS 1.2 signed data.
     signature: untrusted::Input<'a>,
+}
+
+#[cfg(feature = "alloc")]
+impl<'a> SignedData<'a> {
+    /// Convert the borrowed signed data to an [`OwnedSignedData`].
+    #[allow(unused)] // TODO(@cpu): Remove in subsequent commit.
+    pub(crate) fn to_owned(&self) -> OwnedSignedData {
+        OwnedSignedData {
+            data: self.data.as_slice_less_safe().to_vec(),
+            algorithm: self.algorithm.as_slice_less_safe().to_vec(),
+            signature: self.signature.as_slice_less_safe().to_vec(),
+        }
+    }
 }
 
 /// Parses the concatenation of "tbs||signatureAlgorithm||signature" that
