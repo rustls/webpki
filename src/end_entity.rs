@@ -15,8 +15,8 @@
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
-    cert, signed_data, subject_name, verify_cert, BorrowedCertRevocationList, Error,
-    SignatureAlgorithm, SubjectNameRef, Time, TlsClientTrustAnchors, TlsServerTrustAnchors,
+    cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, SignatureAlgorithm,
+    SubjectNameRef, Time, TlsClientTrustAnchors, TlsServerTrustAnchors,
 };
 
 /// An end-entity certificate.
@@ -121,7 +121,7 @@ impl<'a> EndEntityCert<'a> {
         &TlsClientTrustAnchors(trust_anchors): &TlsClientTrustAnchors,
         intermediate_certs: &[&[u8]],
         time: Time,
-        crls: &[&BorrowedCertRevocationList],
+        crls: &[&dyn CertRevocationList],
     ) -> Result<(), Error> {
         verify_cert::build_chain(
             &verify_cert::ChainOptions {
