@@ -14,7 +14,7 @@
 
 use crate::{
     cert::{self, Cert, EndEntityOrCa},
-    der, signed_data, subject_name, time, BorrowedCertRevocationList, Error, SignatureAlgorithm,
+    der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
     TrustAnchor,
 };
 
@@ -23,7 +23,7 @@ pub(crate) struct ChainOptions<'a> {
     pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
-    pub(crate) crls: &'a [&'a BorrowedCertRevocationList<'a>],
+    pub(crate) crls: &'a [&'a dyn CertRevocationList],
 }
 
 pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) -> Result<(), Error> {
@@ -143,7 +143,7 @@ fn check_signatures(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
-    crls: &[&BorrowedCertRevocationList],
+    crls: &[&dyn CertRevocationList],
 ) -> Result<(), Error> {
     let mut spki_value = untrusted::Input::from(trust_anchor.spki);
     let mut issuer_subject = untrusted::Input::from(trust_anchor.subject);
@@ -196,7 +196,7 @@ fn check_crls(
     issuer_subject: untrusted::Input,
     issuer_spki: untrusted::Input,
     issuer_ku: Option<untrusted::Input>,
-    crls: &[&BorrowedCertRevocationList],
+    crls: &[&dyn CertRevocationList],
 ) -> Result<Option<CertNotRevoked>, Error> {
     assert_eq!(cert.issuer, issuer_subject);
 
@@ -212,7 +212,7 @@ fn check_crls(
     // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
     //            of per-lookup.
     //            https://github.com/rustls/webpki/issues/81
-    signed_data::verify_signed_data(supported_sig_algs, issuer_spki, &crl.signed_data)
+    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe())
         .map_err(crl_signature_err)?;
 
     // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.

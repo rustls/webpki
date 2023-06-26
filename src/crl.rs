@@ -14,14 +14,37 @@
 
 use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
-use crate::{der, signed_data, Error, Time};
+use crate::{der, signed_data, Error, SignatureAlgorithm, Time};
+
+use private::Sealed;
+
+/// Operations over a RFC 5280[^1] profile Certificate Revocation List (CRL) required
+/// for revocation checking.
+///
+/// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+pub trait CertRevocationList: Sealed {
+    /// Return the DER encoded issuer of the CRL.
+    fn issuer(&self) -> &[u8];
+
+    /// Try to find a revoked certificate in the CRL by DER encoded serial number. This
+    /// may yield an error if the CRL has malformed revoked certificates.
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert>, Error>;
+
+    /// Verify the CRL signature using the issuer's subject public key information (SPKI)
+    /// and a list of supported signature algorithms.
+    fn verify_signature(
+        &self,
+        supported_sig_algs: &[&SignatureAlgorithm],
+        issuer_spki: &[u8],
+    ) -> Result<(), Error>;
+}
 
 /// Representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 pub struct BorrowedCertRevocationList<'a> {
     /// A `SignedData` structure that can be passed to `verify_signed_data`.
-    pub(crate) signed_data: signed_data::SignedData<'a>,
+    signed_data: signed_data::SignedData<'a>,
 
     /// Identifies the entity that has signed and issued this
     /// CRL.
@@ -201,26 +224,40 @@ impl<'a> BorrowedCertRevocationList<'a> {
             }
         })
     }
+}
 
-    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`.
-    /// This may yield an error if the CRL has malformed revoked certificates.
-    pub fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert>, Error> {
-        // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
-        //            any allocation. It would be nice to offer a speedier alternative for
-        //            when the alloc feature is enabled:
-        //            https://github.com/rustls/webpki/issues/80
-        self.into_iter()
-            .find_map(|revoked_cert_result| match revoked_cert_result {
-                Err(e) => Some(Err(e)),
-                Ok(revoked_cert) if revoked_cert.serial_number.eq(serial) => Some(Ok(revoked_cert)),
-                _ => None,
-            })
-            .transpose()
+impl Sealed for BorrowedCertRevocationList<'_> {}
+
+impl CertRevocationList for BorrowedCertRevocationList<'_> {
+    fn issuer(&self) -> &[u8] {
+        self.issuer.as_slice_less_safe()
     }
 
-    /// Raw DER encoding of the issuer of the CRL.
-    pub fn issuer(&self) -> &[u8] {
-        self.issuer.as_slice_less_safe()
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert>, Error> {
+        for revoked_cert_result in self {
+            match revoked_cert_result {
+                Err(e) => return Err(e),
+                Ok(revoked_cert) => {
+                    if revoked_cert.serial_number.eq(serial) {
+                        return Ok(Some(revoked_cert));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn verify_signature(
+        &self,
+        supported_sig_algs: &[&SignatureAlgorithm],
+        issuer_spki: &[u8],
+    ) -> Result<(), Error> {
+        signed_data::verify_signed_data(
+            supported_sig_algs,
+            untrusted::Input::from(issuer_spki),
+            &self.signed_data,
+        )
     }
 }
 
@@ -415,6 +452,10 @@ impl TryFrom<u8> for RevocationReason {
             _ => Err(Error::UnsupportedRevocationReason),
         }
     }
+}
+
+mod private {
+    pub trait Sealed {}
 }
 
 #[cfg(test)]
