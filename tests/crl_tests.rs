@@ -8,18 +8,6 @@ fn parse_valid_crl() {
     let crl = include_bytes!("crls/crl.valid.der");
     let crl = BorrowedCertRevocationList::from_der(&crl[..]).expect("failed to parse valid crl");
 
-    // The CRL should have the expected number.
-    let expected_crl_number: &[u8] = &[0x17, 0x1C, 0xCE, 0x3D, 0xE4, 0x82, 0xBA, 0x61];
-    assert_eq!(crl.crl_number, Some(expected_crl_number));
-
-    // The encoded AKI should match expected.
-    let expected_aki: &[u8] = &[
-        0x30, 0x16, 0x80, 0x14, 0x01, 0xDA, 0xBB, 0x7A, 0xCB, 0x25, 0x20, 0x8E, 0x5E, 0x79, 0xD6,
-        0xF9, 0x96, 0x42, 0x2F, 0x02, 0x41, 0x29, 0x07, 0xBE,
-    ];
-    let aki = crl.authority_key_identifier().expect("missing AKI");
-    assert_eq!(aki, expected_aki);
-
     // We should find the expected revoked certificate with the expected serial number.
     assert!(crl.find_serial(REVOKED_SERIAL).unwrap().is_some())
 }

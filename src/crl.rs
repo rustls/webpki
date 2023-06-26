@@ -25,23 +25,10 @@ pub struct BorrowedCertRevocationList<'a> {
 
     /// Identifies the entity that has signed and issued this
     /// CRL.
-    pub(crate) issuer: untrusted::Input<'a>,
-
-    /// Indicates the issue date of this CRL.
-    pub this_update: Time,
-
-    /// Indicates the date by which the next CRL will be issued.
-    pub next_update: Time,
+    issuer: untrusted::Input<'a>,
 
     /// List of certificates revoked by the issuer in this CRL.
-    pub(crate) revoked_certs: untrusted::Input<'a>,
-
-    /// Provides a means of identifying the public key corresponding to the private key used to
-    /// sign this CRL.
-    pub(crate) authority_key_identifier: Option<untrusted::Input<'a>>,
-
-    /// A monotonically increasing sequence number for a given CRL scope and CRL issuer.
-    pub crl_number: Option<&'a [u8]>,
+    revoked_certs: untrusted::Input<'a>,
 }
 
 impl<'a> BorrowedCertRevocationList<'a> {
@@ -100,13 +87,13 @@ impl<'a> BorrowedCertRevocationList<'a> {
             //    encoded as UTCTime or GeneralizedTime.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            let this_update = der::time_choice(tbs_cert_list)?;
+            der::time_choice(tbs_cert_list)?;
 
             // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
             //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            let next_update = der::time_choice(tbs_cert_list)?;
+            der::time_choice(tbs_cert_list)?;
 
             // RFC 5280 §5.1.2.6:
             //   When there are no revoked certificates, the revoked certificates list
@@ -125,11 +112,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
             let mut crl = BorrowedCertRevocationList {
                 signed_data,
                 issuer,
-                this_update,
-                next_update,
                 revoked_certs,
-                authority_key_identifier: None,
-                crl_number: None,
             };
 
             // RFC 5280 §5.1.2.7:
@@ -178,7 +161,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                     //   up to 20 octets.  Conforming CRL issuers MUST NOT use CRLNumber
                     //   values longer than 20 octets.
                     //
-                    let crl_number = extension.value.read_all(Error::InvalidCrlNumber, |der| {
+                    extension.value.read_all(Error::InvalidCrlNumber, |der| {
                         let crl_number = ring::io::der::positive_integer(der)
                             .map_err(|_| Error::InvalidCrlNumber)?
                             .big_endian_without_leading_zero();
@@ -187,8 +170,9 @@ impl<'a> BorrowedCertRevocationList<'a> {
                         } else {
                             Err(Error::InvalidCrlNumber)
                         }
-                    });
-                    set_extension_once(&mut self.crl_number, || crl_number)
+                    })?;
+                    // We enforce the cRLNumber is sensible, but don't retain the value for use.
+                    Ok(())
                 }
 
                 // id-ce-deltaCRLIndicator 2.5.29.27 - RFC 5280 §5.2.4
@@ -209,9 +193,8 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 28 => Ok(()),
 
                 // id-ce-authorityKeyIdentifier 2.5.29.35 - RFC 5280 §5.2.1, §4.2.1.1
-                35 => {
-                    set_extension_once(&mut self.authority_key_identifier, || Ok(extension.value))
-                }
+                // We recognize the extension but don't retain its value for use.
+                35 => Ok(()),
 
                 // Unsupported extension
                 _ => extension.unsupported(),
@@ -238,12 +221,6 @@ impl<'a> BorrowedCertRevocationList<'a> {
     /// Raw DER encoding of the issuer of the CRL.
     pub fn issuer(&self) -> &[u8] {
         self.issuer.as_slice_less_safe()
-    }
-
-    /// DER encoding of the authority key identifier (AKI) of the CRL.
-    pub fn authority_key_identifier(&self) -> Option<&[u8]> {
-        self.authority_key_identifier
-            .map(|input| input.as_slice_less_safe())
     }
 }
 
