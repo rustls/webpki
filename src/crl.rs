@@ -165,12 +165,6 @@ impl<'a> BorrowedCertRevocationList<'a> {
             Ok(crl)
         })?;
 
-        // Iterate through the revoked certificate entries to ensure they are valid so we can
-        // yield an error up-front instead of on first iteration by the caller.
-        for cert_result in crl.into_iter() {
-            cert_result?;
-        }
-
         Ok(crl)
     }
 
@@ -225,17 +219,20 @@ impl<'a> BorrowedCertRevocationList<'a> {
         })
     }
 
-    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`. This
-    /// method will ignore any [`RevokedCert`] entries that do not parse successfully. To handle
-    /// parse errors use [`BorrowedCertRevocationList`]'s [`IntoIterator`] trait.
-    pub fn find_serial(&self, serial: &[u8]) -> Option<RevokedCert<'_>> {
+    /// Try to find a [`RevokedCert`] in the CRL that has a serial number matching `serial`.
+    /// This may yield an error if the CRL has malformed revoked certificates.
+    pub fn find_serial(&self, serial: &[u8]) -> Result<Option<RevokedCert>, Error> {
         // TODO(XXX): This linear scan is sub-optimal from a performance perspective, but avoids
         //            any allocation. It would be nice to offer a speedier alternative for
         //            when the alloc feature is enabled:
         //            https://github.com/rustls/webpki/issues/80
         self.into_iter()
-            .filter_map(|parse_res| parse_res.ok())
-            .find(|revoked_cert| revoked_cert.serial_number.eq(serial))
+            .find_map(|revoked_cert_result| match revoked_cert_result {
+                Err(e) => Some(Err(e)),
+                Ok(revoked_cert) if revoked_cert.serial_number.eq(serial) => Some(Ok(revoked_cert)),
+                _ => None,
+            })
+            .transpose()
     }
 
     /// Raw DER encoding of the issuer of the CRL.

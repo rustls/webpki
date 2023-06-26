@@ -21,7 +21,7 @@ fn parse_valid_crl() {
     assert_eq!(aki, expected_aki);
 
     // We should find the expected revoked certificate with the expected serial number.
-    assert!(crl.find_serial(REVOKED_SERIAL).is_some())
+    assert!(crl.find_serial(REVOKED_SERIAL).unwrap().is_some())
 }
 
 #[test]
@@ -100,9 +100,13 @@ fn parse_negative_crl_number_crl() {
 
 #[test]
 fn parse_entry_negative_serial_crl() {
-    // Parsing a CRL that includes a revoked entry with a negative serial number should error.
+    // Parsing a CRL that includes a revoked entry with a negative serial number shouldn't error
+    // up-front since the error is with a revoked entry.
     let crl = include_bytes!("crls/crl.negative.serial.der");
-    let res = BorrowedCertRevocationList::from_der(&crl[..]);
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+    // but searching for a revoked cert should error due to the entry with the negative serial number.
+    let res = crl.find_serial(REVOKED_SERIAL);
     assert!(matches!(res, Err(Error::InvalidSerialNumber)));
 }
 
@@ -112,7 +116,7 @@ fn parse_entry_without_exts_crl() {
     let crl = include_bytes!("crls/crl.no.entry.exts.der");
     let crl = BorrowedCertRevocationList::from_der(&crl[..]).expect("unexpected error parsing crl");
     // We should find the expected revoked certificate with the expected serial number.
-    assert!(crl.find_serial(REVOKED_SERIAL).is_some());
+    assert!(crl.find_serial(REVOKED_SERIAL).unwrap().is_some());
 }
 
 #[test]
@@ -125,17 +129,26 @@ fn parse_entry_with_empty_exts_seq() {
 
 #[test]
 fn parse_entry_unknown_crit_ext_crl() {
-    // Parsing a CRL that includes a revoked entry that has an unknown critical extension should error.
+    // Parsing a CRL that includes a revoked entry that has an unknown critical extension shouldn't
+    // error up-front because the problem is with a revoked cert entry.
     let crl = include_bytes!("crls/crl.entry.unknown.crit.ext.der");
-    let res = BorrowedCertRevocationList::from_der(&crl[..]);
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+    // but should error when we try to find a revoked serial due to the entry with the unsupported
+    // critical ext.
+    let res = crl.find_serial(REVOKED_SERIAL);
     assert!(matches!(res, Err(Error::UnsupportedCriticalExtension)));
 }
 
 #[test]
 fn parse_entry_invalid_reason_crl() {
-    // Parsing a CRL that includes a revoked entry that has an unknown revocation reason should error.
+    // Parsing a CRL that includes a revoked entry that has an unknown revocation reason shouldn't
+    // error up-front since the problem is with a revoked entry.
     let crl = include_bytes!("crls/crl.entry.invalid.reason.der");
-    let res = BorrowedCertRevocationList::from_der(&crl[..]);
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+    // But searching for a serial should error due to the revoked cert with the unknown reason.
+    let res = crl.find_serial(REVOKED_SERIAL);
     assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
 }
 
@@ -149,6 +162,7 @@ fn parse_entry_invalidity_date_crl() {
     assert!(crl
         .find_serial(REVOKED_SERIAL)
         .unwrap()
+        .unwrap()
         .invalidity_date
         .is_some());
 }
@@ -156,8 +170,13 @@ fn parse_entry_invalidity_date_crl() {
 #[test]
 fn parse_entry_indirect_issuer_crl() {
     // Parsing a CRL that includes a revoked entry that has a issuer certificate extension
-    // should error because this indicates the CRL is an "indirect" CRL that we do not support.
+    // shouldn't error up-front - we expect the error to be surfaced when we iterate the revoked
+    // certs.
     let crl = include_bytes!("crls/crl.entry.issuer.ext.der");
-    let res = BorrowedCertRevocationList::from_der(&crl[..]);
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+    // But searching for a serial should error because the CRL contains a revoked cert with an
+    // issuer certificate extension indicating this is an "indirect" CRL that we do not support.
+    let res = crl.find_serial(REVOKED_SERIAL);
     assert!(matches!(res, Err(Error::UnsupportedIndirectCrl)));
 }
