@@ -16,10 +16,14 @@ use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, signed_data, Error, SignatureAlgorithm, Time};
 
+#[cfg(feature = "alloc")]
+use std::collections::HashMap;
+
 use private::Sealed;
 
 /// Operations over a RFC 5280[^1] profile Certificate Revocation List (CRL) required
-/// for revocation checking.
+/// for revocation checking. Implemented by [`OwnedCertRevocationList`] and
+/// [`BorrowedCertRevocationList`].
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 pub trait CertRevocationList: Sealed {
@@ -39,7 +43,56 @@ pub trait CertRevocationList: Sealed {
     ) -> Result<(), Error>;
 }
 
-/// Representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
+/// Owned representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
+///
+/// This type is only available when using the `alloc` feature.
+///
+/// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+#[cfg(feature = "alloc")]
+#[allow(dead_code)] // we parse some fields we don't expose now, but may choose to expose in the future.
+pub struct OwnedCertRevocationList {
+    /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
+    /// of the revoked cert's serial number.
+    revoked_certs: HashMap<Vec<u8>, OwnedRevokedCert>,
+
+    issuer: Vec<u8>,
+
+    signed_data: signed_data::OwnedSignedData,
+}
+
+#[cfg(feature = "alloc")]
+impl Sealed for OwnedCertRevocationList {}
+
+#[cfg(feature = "alloc")]
+impl CertRevocationList for OwnedCertRevocationList {
+    fn issuer(&self) -> &[u8] {
+        &self.issuer
+    }
+
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
+        // note: this is infallible for the owned representation because we process all
+        // revoked certificates at the time of construction to build the `revoked_certs` map,
+        // returning any encountered errors at that time.
+        Ok(self
+            .revoked_certs
+            .get(serial)
+            .map(|owned_revoked_cert| owned_revoked_cert.borrow()))
+    }
+
+    fn verify_signature(
+        &self,
+        supported_sig_algs: &[&SignatureAlgorithm],
+        issuer_spki: &[u8],
+    ) -> Result<(), Error> {
+        signed_data::verify_signed_data(
+            supported_sig_algs,
+            untrusted::Input::from(issuer_spki),
+            &self.signed_data.borrow(),
+        )
+    }
+}
+
+/// Borrowed representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 pub struct BorrowedCertRevocationList<'a> {
@@ -174,6 +227,28 @@ impl<'a> BorrowedCertRevocationList<'a> {
         Ok(crl)
     }
 
+    /// Convert the CRL to an [`OwnedCertRevocationList`]. This may error if any of the revoked
+    /// certificates in the CRL are malformed or contain unsupported features.
+    ///
+    /// This function is only available when the "alloc" feature is enabled.
+    #[cfg(feature = "alloc")]
+    pub fn to_owned(&self) -> Result<OwnedCertRevocationList, Error> {
+        // Parse and collect the CRL's revoked cert entries, ensuring there are no errors. With
+        // the full set in-hand, create a lookup map by serial number for fast revocation checking.
+        let revoked_certs = self
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?
+            .iter()
+            .map(|revoked_cert| (revoked_cert.serial_number.to_vec(), revoked_cert.to_owned()))
+            .collect::<HashMap<_, _>>();
+
+        Ok(OwnedCertRevocationList {
+            signed_data: self.signed_data.to_owned(),
+            issuer: self.issuer.as_slice_less_safe().to_vec(),
+            revoked_certs,
+        })
+    }
+
     fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
         remember_extension(extension, |id| {
             match id {
@@ -284,8 +359,47 @@ impl<'a> Iterator for RevokedCerts<'a> {
     }
 }
 
-/// Borrowed representation of a RFC 5280[^1] profile Certificate Revocation List (CRL) revoked certificate
-/// entry.
+/// Owned representation of a RFC 5280[^1] profile Certificate Revocation List (CRL) revoked
+/// certificate entry.
+///
+/// Only available when the "alloc" feature is enabled.
+///
+/// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+#[cfg(feature = "alloc")]
+pub struct OwnedRevokedCert {
+    /// Serial number of the revoked certificate.
+    pub serial_number: Vec<u8>,
+
+    /// The date at which the CA processed the revocation.
+    pub revocation_date: Time,
+
+    /// Identifies the reason for the certificate revocation. When absent, the revocation reason
+    /// is assumed to be RevocationReason::Unspecified. For consistency with other extensions
+    /// and to ensure only one revocation reason extension may be present we maintain this field
+    /// as optional instead of defaulting to unspecified.
+    pub reason_code: Option<RevocationReason>,
+
+    /// Provides the date on which it is known or suspected that the private key was compromised or
+    /// that the certificate otherwise became invalid. This date may be earlier than the revocation
+    /// date which is the date at which the CA processed the revocation.
+    pub invalidity_date: Option<Time>,
+}
+
+#[cfg(feature = "alloc")]
+impl OwnedRevokedCert {
+    /// Convert the owned representation of this revoked cert to a borrowed version.
+    pub fn borrow(&self) -> BorrowedRevokedCert {
+        BorrowedRevokedCert {
+            serial_number: &self.serial_number,
+            revocation_date: self.revocation_date,
+            reason_code: self.reason_code,
+            invalidity_date: self.invalidity_date,
+        }
+    }
+}
+
+/// Borrowed representation of a RFC 5280[^1] profile Certificate Revocation List (CRL) revoked
+/// certificate entry.
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 pub struct BorrowedRevokedCert<'a> {
@@ -308,6 +422,19 @@ pub struct BorrowedRevokedCert<'a> {
 }
 
 impl<'a> BorrowedRevokedCert<'a> {
+    /// Construct an owned representation of the revoked certificate.
+    ///
+    /// Only available when the "alloc" feature is enabled.
+    #[cfg(feature = "alloc")]
+    pub fn to_owned(&self) -> OwnedRevokedCert {
+        OwnedRevokedCert {
+            serial_number: self.serial_number.to_vec(),
+            revocation_date: self.revocation_date,
+            reason_code: self.reason_code,
+            invalidity_date: self.invalidity_date,
+        }
+    }
+
     fn from_der(der: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         der::nested(der, Tag::Sequence, Error::BadDer, |der| {
             // RFC 5280 §4.1.2.2:
@@ -401,7 +528,7 @@ impl<'a> BorrowedRevokedCert<'a> {
 /// See RFC 5280 §5.3.1[^1]
 ///
 /// [^1] <https://www.rfc-editor.org/rfc/rfc5280#section-5.3.1>
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[allow(missing_docs)] // Not much to add above the code name.
 pub enum RevocationReason {
     /// Unspecified should not be used, and is instead assumed by the absence of a RevocationReason
