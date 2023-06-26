@@ -21,7 +21,6 @@ use ring::signature;
 ///
 /// This type is only available when the "alloc" feature is enabled.
 #[cfg(feature = "alloc")]
-#[allow(unused)] // TODO(@cpu): Remove in subsequent commit.
 pub(crate) struct OwnedSignedData {
     /// The signed data. This would be `tbsCertificate` in the case of an X.509
     /// certificate, `tbsResponseData` in the case of an OCSP response, `tbsCertList`
@@ -44,7 +43,6 @@ pub(crate) struct OwnedSignedData {
 #[cfg(feature = "alloc")]
 impl OwnedSignedData {
     /// Return a borrowed [`SignedData`] from the owned representation.
-    #[allow(unused)] // TODO(@cpu): Remove in subsequent commit.
     pub(crate) fn borrow(&self) -> SignedData<'_> {
         SignedData {
             data: untrusted::Input::from(&self.data),
@@ -79,7 +77,6 @@ pub(crate) struct SignedData<'a> {
 #[cfg(feature = "alloc")]
 impl<'a> SignedData<'a> {
     /// Convert the borrowed signed data to an [`OwnedSignedData`].
-    #[allow(unused)] // TODO(@cpu): Remove in subsequent commit.
     pub(crate) fn to_owned(&self) -> OwnedSignedData {
         OwnedSignedData {
             data: self.data.as_slice_less_safe().to_vec(),
