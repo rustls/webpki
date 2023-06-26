@@ -15,9 +15,8 @@
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
-    cert, signed_data, subject_name,
-    verify_cert::{self, RevocationCheckOptions},
-    Error, SignatureAlgorithm, SubjectNameRef, Time, TlsClientTrustAnchors, TlsServerTrustAnchors,
+    cert, signed_data, subject_name, verify_cert, BorrowedCertRevocationList, Error,
+    SignatureAlgorithm, SubjectNameRef, Time, TlsClientTrustAnchors, TlsServerTrustAnchors,
 };
 
 /// An end-entity certificate.
@@ -98,7 +97,7 @@ impl<'a> EndEntityCert<'a> {
                 supported_sig_algs,
                 trust_anchors,
                 intermediate_certs,
-                revocation: None,
+                crls: &[],
             },
             &self.inner,
             time,
@@ -118,11 +117,11 @@ impl<'a> EndEntityCert<'a> {
     /// time).
     pub fn verify_is_valid_tls_client_cert(
         &self,
-        supported_sig_algs: &'a [&'a SignatureAlgorithm],
-        &TlsClientTrustAnchors(trust_anchors): &'a TlsClientTrustAnchors,
-        intermediate_certs: &'a [&'a [u8]],
+        supported_sig_algs: &[&SignatureAlgorithm],
+        &TlsClientTrustAnchors(trust_anchors): &TlsClientTrustAnchors,
+        intermediate_certs: &[&[u8]],
         time: Time,
-        revocation: Option<RevocationCheckOptions<'a>>,
+        crls: &[&BorrowedCertRevocationList],
     ) -> Result<(), Error> {
         verify_cert::build_chain(
             &verify_cert::ChainOptions {
@@ -130,7 +129,7 @@ impl<'a> EndEntityCert<'a> {
                 supported_sig_algs,
                 trust_anchors,
                 intermediate_certs,
-                revocation,
+                crls,
             },
             &self.inner,
             time,

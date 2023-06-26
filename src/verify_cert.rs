@@ -18,29 +18,12 @@ use crate::{
     TrustAnchor,
 };
 
-/// A trait that can provide CRLs to use for revocation checking.
-pub trait CrlProvider<'a> {
-    /// A function that can be invoked with a [`Cert`] to optionally provide a [`BorrowedCertRevocationList`]
-    /// to use to verify the certificate's revocation status.
-    ///
-    /// An implementation that only wishes to check revocation status for leaf certificates can
-    /// choose to return `None` when the [`Cert.ee_or_ca`] field is [`EndEntityOrCa::Ca`].
-    fn crl_for_cert(&self, cert: &Cert) -> Option<&'a BorrowedCertRevocationList<'a>>;
-}
-
-/// Options controlling how revocation is handled when building a chain.
-pub struct RevocationCheckOptions<'a> {
-    /// A function that can be invoked with a [`Cert`] to optionally provide a [`BorrowedCertRevocationList`]
-    /// to use to verify the certificate's revocation status.
-    pub crl_provider: &'a dyn CrlProvider<'a>,
-}
-
 pub(crate) struct ChainOptions<'a> {
     pub(crate) required_eku_if_present: KeyPurposeId,
     pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
-    pub(crate) revocation: Option<RevocationCheckOptions<'a>>,
+    pub(crate) crls: &'a [&'a BorrowedCertRevocationList<'a>],
 }
 
 pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) -> Result<(), Error> {
@@ -106,12 +89,7 @@ fn build_chain_inner(
 
             // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-            check_signatures(
-                opts.supported_sig_algs,
-                cert,
-                trust_anchor,
-                &opts.revocation,
-            )?;
+            check_signatures(opts.supported_sig_algs, cert, trust_anchor, opts.crls)?;
 
             Ok(())
         },
@@ -165,7 +143,7 @@ fn check_signatures(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
-    revocation: &Option<RevocationCheckOptions>,
+    crls: &[&BorrowedCertRevocationList],
 ) -> Result<(), Error> {
     let mut spki_value = untrusted::Input::from(trust_anchor.spki);
     let mut issuer_subject = untrusted::Input::from(trust_anchor.subject);
@@ -174,14 +152,14 @@ fn check_signatures(
     loop {
         signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
 
-        if let Some(revocation_opts) = revocation {
-            check_crl(
+        if !crls.is_empty() {
+            check_crls(
                 supported_sig_algs,
                 cert,
                 issuer_subject,
                 spki_value,
                 issuer_key_usage,
-                revocation_opts.crl_provider,
+                crls,
             )?;
         }
 
@@ -212,17 +190,20 @@ impl CertNotRevoked {
     }
 }
 
-fn check_crl(
+fn check_crls(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert: &Cert,
     issuer_subject: untrusted::Input,
     issuer_spki: untrusted::Input,
     issuer_ku: Option<untrusted::Input>,
-    crl_provider: &dyn CrlProvider,
+    crls: &[&BorrowedCertRevocationList],
 ) -> Result<Option<CertNotRevoked>, Error> {
     assert_eq!(cert.issuer, issuer_subject);
 
-    let crl = match crl_provider.crl_for_cert(cert) {
+    let crl = match crls
+        .iter()
+        .find(|candidate_crl| candidate_crl.issuer() == cert.issuer())
+    {
         Some(crl) => crl,
         None => return Ok(None),
     };
