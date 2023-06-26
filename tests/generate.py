@@ -9,7 +9,6 @@ drops testcase data into subdirectories as required.
 """
 import argparse
 import os
-from enum import Enum
 from typing import TextIO, Optional, Union, Any, Callable, Iterable, List
 from pathlib import Path
 
@@ -864,10 +863,6 @@ def client_auth_revocation(force: bool) -> None:
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
 
-    class RevocationCheckDepth(Enum):
-        EndEntity = "EndEntity"
-        Chain = "Chain"
-
     # KeyUsage for a CA that sets crl_sign.
     crl_sign_ku = x509.KeyUsage(
         digital_signature=True,
@@ -1018,7 +1013,6 @@ def client_auth_revocation(force: bool) -> None:
         test_name: str,
         chain: list[tuple[x509.Certificate, str, ANY_PRIV_KEY]],
         crl_paths: Iterable[str],
-        depth: RevocationCheckDepth,
         expected_error: Optional[str],
     ) -> None:
         """
@@ -1026,8 +1020,7 @@ def client_auth_revocation(force: bool) -> None:
 
         :param test_name: the name of the unit test.
         :param chain: the certificate chain to use for validation.
-        :param crl_paths: paths to zero or more
-        :param depth: whether to validate the revocation status of the chain, or just the end entity.
+        :param crl_paths: paths to zero or more CRLs.
         :param expected_error: an optional error to expect to be returned from validation.
         """
         if len(chain) != 4:
@@ -1043,16 +1036,11 @@ def client_auth_revocation(force: bool) -> None:
         intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
         crl_includes: str = "\n".join(
             [
-                f'webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice()).unwrap(),'
+                f'&webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice()).unwrap(),'
                 for path in crl_paths
             ]
         )
         crls: str = f"&[{crl_includes}]"
-        depth_str: str = (
-            "RevocationCheckDepth::Chain"
-            if depth == RevocationCheckDepth.Chain
-            else "RevocationCheckDepth::EndEntity"
-        )
         expected: str = (
             f"Err(webpki::Error::{expected_error})" if expected_error else "Ok(())"
         )
@@ -1065,7 +1053,7 @@ def client_auth_revocation(force: bool) -> None:
           let intermediates = %(intermediates_str)s;
           let ca = include_bytes!("%(root_cert_path)s");
           let crls = %(crls)s;
-          assert_eq!(check_cert(ee, intermediates, ca, %(depth_str)s, crls), %(expected)s);
+          assert_eq!(check_cert(ee, intermediates, ca, crls), %(expected)s);
         }
         """
             % locals(),
@@ -1088,7 +1076,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name="no_crls_test_ee_depth",
             chain=no_ku_chain,
             crl_paths=[],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error=None,
         )
 
@@ -1109,7 +1096,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[no_match_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error=None,
         )
 
@@ -1136,7 +1122,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error=None,
         )
 
@@ -1163,7 +1148,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_badsig_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="InvalidSignatureForPublicKey",
         )
 
@@ -1187,7 +1171,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1214,7 +1197,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1238,7 +1220,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="CertRevoked",
         )
 
@@ -1262,7 +1243,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
             expected_error="CertRevoked",
         )
 
@@ -1272,7 +1252,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name="no_crls_test_chain_depth",
             chain=no_ku_chain,
             crl_paths=[],
-            depth=RevocationCheckDepth.Chain,
             expected_error=None,
         )
 
@@ -1293,7 +1272,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[no_match_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error=None,
         )
 
@@ -1320,7 +1298,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_not_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error=None,
         )
 
@@ -1349,7 +1326,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_badsig_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="InvalidSignatureForPublicKey",
         )
 
@@ -1375,7 +1351,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1399,34 +1374,7 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="CertRevoked",
-        )
-
-    def _int_revoked_ee_depth() -> None:
-        test_name = "int_revoked_ee_depth"
-        int_a_cert, _, int_key = no_ku_chain[1]
-        int_b_key = no_ku_chain[2][2]
-        # Generate a CRL that includes the intermediate A cert's serial, and that is issued by the same issuer
-        # (without any KU specified).
-        ee_revoked_crl = _crl(
-            serials=[int_a_cert.serial_number],
-            issuer_name=int_a_cert.issuer,
-            issuer_key=int_b_key,
-        )
-        int_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
-        write_der(
-            int_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force
-        )
-
-        # Providing a relevant CRL that includes the intermediate cert serial and verifies, but only using the
-        # EndEntity depth should not error even though the intermediate cert is revoked. We don't check it!
-        _revocation_test(
-            test_name=test_name,
-            chain=no_ku_chain,
-            crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.EndEntity,
-            expected_error=None,
         )
 
     def _int_revoked_no_ku_chain_depth() -> None:
@@ -1451,7 +1399,6 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="CertRevoked",
         )
 
@@ -1477,12 +1424,10 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
-            depth=RevocationCheckDepth.Chain,
             expected_error="CertRevoked",
         )
 
     with trim_top("client_auth_revocation.rs") as output:
-        # Revocation checking at end entity depth test cases.
         _no_crls_test_ee_depth()
         _no_relevant_crl_ee_depth()
         _ee_not_revoked_ee_depth()
@@ -1491,15 +1436,12 @@ def client_auth_revocation(force: bool) -> None:
         _ee_not_revoked_wrong_ku_ee_depth()
         _ee_revoked_no_ku_ee_depth()
         _ee_revoked_crl_ku_ee_depth()
-
-        # Revocation checking at chain depth test cases.
         _no_crls_test_chain_depth()
         _no_relevant_crl_chain_depth()
         _int_not_revoked_chain_depth()
         _int_revoked_badsig_chain_depth()
         _int_revoked_wrong_ku_chain_depth()
         _ee_revoked_chain_depth()
-        _int_revoked_ee_depth()
         _int_revoked_no_ku_chain_depth()
         _int_revoked_crl_ku_chain_depth()
 
