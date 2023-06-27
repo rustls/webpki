@@ -39,3 +39,9 @@ wildcards = "deny"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+
+# Dev dependency only.
+# TODO(@cpu): Remove once rcgen cuts a release w/ crl support.
+allow-git = [
+  "https://github.com/est31/rcgen"
+]

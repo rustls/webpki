@@ -7,3 +7,6 @@ target/
 # IntelliJ junk
 *.iml
 .idea
+
+# Benchmark data
+benches/*.der
