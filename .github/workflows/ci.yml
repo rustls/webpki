@@ -4,6 +4,7 @@ permissions:
 on:
   pull_request:
   push:
+  merge_group:
 jobs:
   rustfmt:
     runs-on: ubuntu-20.04
