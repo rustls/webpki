@@ -72,6 +72,9 @@ untrusted = "0.7.1"
 
 [dev-dependencies]
 base64 = "0.13"
+bencher = "0.1.5"
+once_cell = "1.17.2"
+rcgen = { version = "0.11.1", default-features = false }
 
 [profile.bench]
 opt-level = 3
@@ -88,3 +91,12 @@ rpath = false
 lto = true
 debug-assertions = false
 codegen-units = 1
+
+[[bench]]
+name = "benchmarks"
+path = "benches/benchmark.rs"
+harness = false
+
+[patch.crates-io]
+# TODO(XXX): Remove this once rcgen has cut a release w/ CRL support included.
+rcgen = { git = 'https://github.com/est31/rcgen.git' }
