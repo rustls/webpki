@@ -92,7 +92,7 @@ fn ee_revoked_badsig_ee_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, crls),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
+        Err(webpki::Error::InvalidCrlSignatureForPublicKey)
     );
 }
 
@@ -225,7 +225,7 @@ fn int_revoked_badsig_chain_depth() {
     .unwrap()];
     assert_eq!(
         check_cert(ee, intermediates, ca, crls),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
+        Err(webpki::Error::InvalidCrlSignatureForPublicKey)
     );
 }
 

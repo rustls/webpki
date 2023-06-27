@@ -1148,7 +1148,7 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_badsig_path],
-            expected_error="InvalidSignatureForPublicKey",
+            expected_error="InvalidCrlSignatureForPublicKey",
         )
 
     def _ee_revoked_wrong_ku_ee_depth() -> None:
@@ -1326,7 +1326,7 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_badsig_path],
-            expected_error="InvalidSignatureForPublicKey",
+            expected_error="InvalidCrlSignatureForPublicKey",
         )
 
     def _int_revoked_wrong_ku_chain_depth() -> None:
