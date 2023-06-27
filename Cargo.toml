@@ -17,7 +17,7 @@ categories = ["cryptography", "no-std"]
 description = "Web PKI X.509 Certificate Verification."
 edition = "2021"
 rust-version = "1.57"
-license = "ISC AND BSD-3-Clause"
+license = "ISC"
 name = "rustls-webpki"
 readme = "README.md"
 repository = "https://github.com/rustls/webpki"
@@ -26,7 +26,7 @@ version = "0.100.1"
 include = [
     "Cargo.toml",
 
-    "LICENSE",
+    "/LICENSE",
     "README.md",
 
     "src/calendar.rs",
@@ -51,19 +51,7 @@ include = [
 
     "src/data/**/*",
 
-    "tests/dns_name_tests.rs",
-    "tests/integration.rs",
-    "tests/misc/serial_neg.der",
-    "tests/misc/serial_zero.der",
-    "tests/misc/serial_neg_ca.der",
-    "tests/misc/serial_neg_ee.der",
-    "tests/netflix/ca.der",
-    "tests/netflix/ee.der",
-    "tests/netflix/inter.der",
-    "tests/ed25519/ca.der",
-    "tests/ed25519/ee.der",
-
-    "third-party/chromium/**/*",
+    "tests/**",
 ]
 
 [package.metadata.docs.rs]
