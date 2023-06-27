@@ -4,6 +4,7 @@ permissions:
 on:
   pull_request:
   push:
+  merge_group:
 env:
   PYTHON_VERSION: "3.11"
 jobs:
