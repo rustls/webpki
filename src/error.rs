@@ -68,6 +68,9 @@ pub enum Error {
     ///  - it was too long
     InvalidSerialNumber,
 
+    /// The CRL signature is invalid for the issuer's public key.
+    InvalidCrlSignatureForPublicKey,
+
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
 
@@ -133,9 +136,22 @@ pub enum Error {
     /// The revocation reason is not in the set of supported revocation reasons.
     UnsupportedRevocationReason,
 
+    /// The signature algorithm for a signature over a CRL is not in the set of supported
+    /// signature algorithms given.
+    UnsupportedCrlSignatureAlgorithm,
+
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
     UnsupportedSignatureAlgorithm,
+
+    /// The CRL signature's algorithm does not match the algorithm of the issuer
+    /// public key it is being validated for. This may be because the public key
+    /// algorithm's OID isn't recognized (e.g. DSA), or the public key
+    /// algorithm's parameters don't match the supported parameters for that
+    /// algorithm (e.g. ECC keys for unsupported curves), or the public key
+    /// algorithm and the signature algorithm simply don't match (e.g.
+    /// verifying an RSA signature with an ECC public key).
+    UnsupportedCrlSignatureAlgorithmForPublicKey,
 
     /// The signature's algorithm does not match the algorithm of the public
     /// key it is being validated for. This may be because the public key
@@ -169,7 +185,7 @@ impl Error {
             Error::CertNotValidYet | Error::CertExpired => 27,
             Error::CertNotValidForName => 26,
             Error::CertRevoked => 25,
-            Error::InvalidSignatureForPublicKey => 24,
+            Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 24,
             Error::SignatureAlgorithmMismatch => 23,
             Error::RequiredEkuNotFound => 22,
             Error::NameConstraintViolation => 21,
@@ -184,8 +200,9 @@ impl Error {
             Error::InvalidCrlNumber => 14,
 
             // Errors related to unsupported features.
-            Error::UnsupportedSignatureAlgorithmForPublicKey => 13,
-            Error::UnsupportedSignatureAlgorithm => 12,
+            Error::UnsupportedCrlSignatureAlgorithmForPublicKey
+            | Error::UnsupportedSignatureAlgorithmForPublicKey => 13,
+            Error::UnsupportedCrlSignatureAlgorithm | Error::UnsupportedSignatureAlgorithm => 12,
             Error::UnsupportedCriticalExtension => 11,
             Error::UnsupportedCertVersion => 11,
             Error::UnsupportedCrlVersion => 10,

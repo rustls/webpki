@@ -212,7 +212,8 @@ fn check_crls(
     // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
     //            of per-lookup.
     //            https://github.com/rustls/webpki/issues/81
-    signed_data::verify_signed_data(supported_sig_algs, issuer_spki, &crl.signed_data)?;
+    signed_data::verify_signed_data(supported_sig_algs, issuer_spki, &crl.signed_data)
+        .map_err(crl_signature_err)?;
 
     // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
     check_key_usage(issuer_ku, KeyUsageMode::CrlSign)?;
@@ -222,6 +223,20 @@ fn check_crls(
     match crl.find_serial(cert_serial) {
         None => Ok(Some(CertNotRevoked::assertion())),
         Some(_) => Err(Error::CertRevoked),
+    }
+}
+
+// When verifying CRL signed data we want to disambiguate the context of possible errors by mapping
+// them to CRL specific variants that a consumer can use to tell the issue was with the CRL's
+// signature, not a certificate.
+fn crl_signature_err(err: Error) -> Error {
+    match err {
+        Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
+        Error::UnsupportedSignatureAlgorithmForPublicKey => {
+            Error::UnsupportedCrlSignatureAlgorithmForPublicKey
+        }
+        Error::InvalidSignatureForPublicKey => Error::InvalidCrlSignatureForPublicKey,
+        _ => err,
     }
 }
 
