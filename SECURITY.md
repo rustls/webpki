@@ -10,7 +10,7 @@ For example, as of 2023-06-13 the latest release is 0.100.1
 * 0.100.0 was released in March of 2023
 * 0.17.0 was released in August of 2017
 
-Therefore 0.100.x ill be updated, while 0.17.x will not be.
+Therefore 0.100.x will be updated, while 0.17.x will not be.
 
 ## Reporting a Vulnerability
 
