@@ -54,6 +54,22 @@ For these tasks you may prefer using webpki in combination with libraries like
 Changelog
 =========
 
+* 0.101.0 (2023-07-04)
+  - *Breaking change*: added `EndEntity::verify_is_valid_tls_client_cert`
+    argument for certificate revocation lists.
+  - *Breaking change*: removed `Time::try_from`.
+  - *Breaking change*: removed `From<DnsNameRef<'_>` impl for `DnsName`.
+  - *Breaking change*: replaced `AsRef<[u8]>` with `AsRef<str>` for `DnsNameRef`.
+  - Added certificate revocation list (CRL) support.
+  - Improved specificity of errors returned from
+    `EndEntityCert::verify_is_valid_tls_client_cert` and
+    `EndEntityCert::verify_is_valid_tls_server_cert`.
+  - Improved error specificity for malformed subject alternate names.
+  - Added `EndEntityCert::dns_names` method for returning a list of DNS subject
+    alternate names from an end entity cert.
+  - Changed `EndEntityCert::verify_is_valid_for_subject_name` to ignore invalid
+    names when verifying cert is valid for a provided subject.
+  - MSRV increased to Rust 1.57.
 * 0.100.1 (2023-03-28)
   - Relax constraint on serial number length.
 * 0.100.0 (2023-03-13) - first release of `rustls-webpki` crate.
