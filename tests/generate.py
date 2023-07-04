@@ -1013,6 +1013,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name: str,
         chain: list[tuple[x509.Certificate, str, ANY_PRIV_KEY]],
         crl_paths: Iterable[str],
+        owned: bool,
         expected_error: Optional[str],
     ) -> None:
         """
@@ -1021,6 +1022,7 @@ def client_auth_revocation(force: bool) -> None:
         :param test_name: the name of the unit test.
         :param chain: the certificate chain to use for validation.
         :param crl_paths: paths to zero or more CRLs.
+        :param owned: whether to use the owned or borrowed CRL representation.
         :param expected_error: an optional error to expect to be returned from validation.
         """
         if len(chain) != 4:
@@ -1034,11 +1036,13 @@ def client_auth_revocation(force: bool) -> None:
         int_a_str = f'include_bytes!("{int_a_cert_path}").as_slice()'
         int_b_str = f'include_bytes!("{int_b_cert_path}").as_slice()'
         intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
+        owned_convert: str = ".to_owned().unwrap()" if owned else ""
         crl_includes: str = "\n".join(
             [
                 f"""
                 &webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
                 .unwrap()
+                {owned_convert}
                 as &dyn webpki::CertRevocationList,
                 """
                 for path in crl_paths
@@ -1048,9 +1052,11 @@ def client_auth_revocation(force: bool) -> None:
         expected: str = (
             f"Err(webpki::Error::{expected_error})" if expected_error else "Ok(())"
         )
+        feature_gate = '#[cfg(feature = "alloc")]' if owned else ""
 
         print(
             """
+        %(feature_gate)s
         #[test]
         fn %(test_name)s() {
           let ee = include_bytes!("%(ee_cert_path)s");
@@ -1080,6 +1086,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name="no_crls_test_ee_depth",
             chain=no_ku_chain,
             crl_paths=[],
+            owned=False,
+            expected_error=None,
+        )
+        _revocation_test(
+            test_name="no_crls_test_ee_depth_owned",
+            chain=no_ku_chain,
+            crl_paths=[],
+            owned=True,
             expected_error=None,
         )
 
@@ -1100,6 +1114,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[no_match_crl_path],
+            owned=False,
+            expected_error=None,
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[no_match_crl_path],
+            owned=True,
             expected_error=None,
         )
 
@@ -1126,6 +1148,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
+            owned=False,
+            expected_error=None,
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[ee_not_revoked_crl_path],
+            owned=True,
             expected_error=None,
         )
 
@@ -1152,6 +1182,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_badsig_path],
+            owned=False,
+            expected_error="InvalidCrlSignatureForPublicKey",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[ee_revoked_badsig_path],
+            owned=True,
             expected_error="InvalidCrlSignatureForPublicKey",
         )
 
@@ -1175,6 +1213,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
+            owned=False,
+            expected_error="IssuerNotCrlSigner",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_crl_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            owned=True,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1201,6 +1247,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[ee_not_revoked_crl_path],
+            owned=False,
+            expected_error="IssuerNotCrlSigner",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_crl_ku_chain,
+            crl_paths=[ee_not_revoked_crl_path],
+            owned=True,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1224,6 +1278,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
+            owned=False,
+            expected_error="CertRevoked",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            owned=True,
             expected_error="CertRevoked",
         )
 
@@ -1247,6 +1309,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=crl_ku_chain,
             crl_paths=[ee_revoked_crl_path],
+            owned=False,
+            expected_error="CertRevoked",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=crl_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            owned=True,
             expected_error="CertRevoked",
         )
 
@@ -1256,6 +1326,7 @@ def client_auth_revocation(force: bool) -> None:
             test_name="no_crls_test_chain_depth",
             chain=no_ku_chain,
             crl_paths=[],
+            owned=False,
             expected_error=None,
         )
 
@@ -1276,6 +1347,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[no_match_crl_path],
+            owned=False,
+            expected_error=None,
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[no_match_crl_path],
+            owned=True,
             expected_error=None,
         )
 
@@ -1302,6 +1381,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_not_revoked_crl_path],
+            owned=False,
+            expected_error=None,
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[int_not_revoked_crl_path],
+            owned=True,
             expected_error=None,
         )
 
@@ -1330,6 +1417,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_badsig_path],
+            owned=False,
+            expected_error="InvalidCrlSignatureForPublicKey",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[int_revoked_badsig_path],
+            owned=True,
             expected_error="InvalidCrlSignatureForPublicKey",
         )
 
@@ -1355,6 +1450,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
+            owned=False,
+            expected_error="IssuerNotCrlSigner",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_crl_ku_chain,
+            crl_paths=[int_revoked_crl_path],
+            owned=True,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1378,6 +1481,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[ee_revoked_crl_path],
+            owned=False,
+            expected_error="CertRevoked",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            owned=True,
             expected_error="CertRevoked",
         )
 
@@ -1403,6 +1514,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=no_ku_chain,
             crl_paths=[int_revoked_crl_path],
+            owned=False,
+            expected_error="CertRevoked",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=no_ku_chain,
+            crl_paths=[int_revoked_crl_path],
+            owned=True,
             expected_error="CertRevoked",
         )
 
@@ -1428,6 +1547,14 @@ def client_auth_revocation(force: bool) -> None:
             test_name=test_name,
             chain=crl_ku_chain,
             crl_paths=[int_revoked_crl_path],
+            owned=False,
+            expected_error="CertRevoked",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=crl_ku_chain,
+            crl_paths=[int_revoked_crl_path],
+            owned=True,
             expected_error="CertRevoked",
         )
 
