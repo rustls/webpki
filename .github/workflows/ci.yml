@@ -188,6 +188,17 @@ jobs:
           toolchain: 1.57.0
       - run: cargo check --lib --all-features
 
+  cross:
+    name: Check cross compilation targets
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cross
+      - run: cross build --target i686-unknown-linux-gnu
+
   coverage:
     runs-on: ubuntu-20.04
     steps:
