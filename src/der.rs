@@ -225,25 +225,25 @@ const SHORT_FORM_LEN_MAX: u8 = 128;
 const LONG_FORM_LEN_ONE_BYTE: u8 = 0x81;
 
 // Maximum size that can be expressed in a one byte long form len.
-const LONG_FORM_LEN_ONE_BYTE_MAX: usize = (1 << 8) - 1;
+const LONG_FORM_LEN_ONE_BYTE_MAX: usize = 0xff;
 
 // Leading octet for long definite form DER length expressed in subsequent two bytes.
 const LONG_FORM_LEN_TWO_BYTES: u8 = 0x82;
 
 // Maximum size that can be expressed in a two byte long form len.
-const LONG_FORM_LEN_TWO_BYTES_MAX: usize = (1 << (8 * 2)) - 1;
+const LONG_FORM_LEN_TWO_BYTES_MAX: usize = 0xff_ff;
 
 // Leading octet for long definite form DER length expressed in subsequent three bytes.
 const LONG_FORM_LEN_THREE_BYTES: u8 = 0x83;
 
 // Maximum size that can be expressed in a three byte long form len.
-const LONG_FORM_LEN_THREE_BYTES_MAX: usize = (1 << (8 * 3)) - 1;
+const LONG_FORM_LEN_THREE_BYTES_MAX: usize = 0xff_ff_ff;
 
 // Leading octet for long definite form DER length expressed in subsequent four bytes.
 const LONG_FORM_LEN_FOUR_BYTES: u8 = 0x84;
 
 // Maximum size that can be expressed in a four byte long form der len.
-const LONG_FORM_LEN_FOUR_BYTES_MAX: usize = (1 << (8 * 4)) - 1;
+const LONG_FORM_LEN_FOUR_BYTES_MAX: usize = 0xff_ff_ff_ff;
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
