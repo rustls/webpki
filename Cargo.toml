@@ -61,7 +61,6 @@ all-features = true
 name = "webpki"
 
 [features]
-# TODO: In the next release, make this non-default.
 default = ["std"]
 alloc = ["ring/alloc"]
 std = ["alloc"]
