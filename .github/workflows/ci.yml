@@ -84,6 +84,8 @@ jobs:
 
       - name: cargo doc (all features)
         run: cargo doc --all-features
+        env:
+          RUSTDOCFLAGS: -Dwarnings
 
   package:
     name: Cargo Package
