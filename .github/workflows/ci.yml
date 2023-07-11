@@ -12,46 +12,58 @@ on:
 
 jobs:
   rustfmt:
+    name: Format
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
-      - run: cargo fmt --all -- --check
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
   clippy:
+    name: Clippy
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
 
       - run: cargo clippy --all-features --all-targets
 
   deny:
+    name: Cargo Deny
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - uses: taiki-e/install-action@cargo-deny
+      - name: Install cargo deny
+        uses: taiki-e/install-action@cargo-deny
 
       - run: cargo deny check
 
   # Verify that documentation builds.
   rustdoc:
+    name: Check for documentation errors
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -60,29 +72,37 @@ jobs:
           - beta
           - nightly
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@master
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_channel }}
 
-      - run: cargo doc --all-features
+      - name: cargo doc (all features)
+        run: cargo doc --all-features
+
 
   package:
+    name: Cargo Package
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - run: cargo package
 
 
   test:
+    name: Build+test
     runs-on: ${{ matrix.host_os }}
     strategy:
       matrix:
@@ -160,26 +180,32 @@ jobs:
             rust_channel: stable
             host_os: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@master
+      - name: Install rust ${{ matrix.rust_channel }} toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_channel }}
 
-      - run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
+      - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
+        run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
         env:
           RUSTFLAGS: "-D warnings"
 
   msrv:
+    name: MSRV
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@master
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.60"
       - run: cargo check --lib --all-features
@@ -188,32 +214,41 @@ jobs:
     name: Check cross compilation targets
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - uses: taiki-e/install-action@cross
+      - name: Install cross
+        uses: taiki-e/install-action@cross
 
       - run: cross build --target i686-unknown-linux-gnu
 
   coverage:
+    name: Measure coverage
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
 
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: llvm-tools
 
-      - run: cargo llvm-cov --all-features --lcov --output-path ./lcov.info
+      - name: Measure coverage
+        run: cargo llvm-cov --all-features --lcov --output-path ./lcov.info
 
-      - uses: codecov/codecov-action@v3
+      - name: Report to codecov.io
+        uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
           files: ./lcov.info
