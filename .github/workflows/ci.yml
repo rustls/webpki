@@ -85,7 +85,6 @@ jobs:
       - name: cargo doc (all features)
         run: cargo doc --all-features
 
-
   package:
     name: Cargo Package
     runs-on: ubuntu-20.04
@@ -99,7 +98,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - run: cargo package
-
 
   test:
     name: Build+test
