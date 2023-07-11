@@ -14,39 +14,39 @@ jobs:
   rustfmt:
     runs-on: ubuntu-20.04
     steps:
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - run: cargo fmt --all -- --check
 
   clippy:
     runs-on: ubuntu-20.04
     steps:
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - run: cargo clippy --all-features --all-targets
 
   deny:
     runs-on: ubuntu-20.04
     steps:
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: taiki-e/install-action@cargo-deny
-
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@cargo-deny
 
       - run: cargo deny check
 
@@ -60,25 +60,24 @@ jobs:
           - beta
           - nightly
     steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_channel }}
 
-      - uses: actions/checkout@v3
-        with:
-          persist-credentials: false
-
-      - run: |
-          cargo doc --all-features
+      - run: cargo doc --all-features
 
   package:
     runs-on: ubuntu-20.04
     steps:
-      - uses: dtolnay/rust-toolchain@stable
-
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - run: cargo package
 
@@ -169,8 +168,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust_channel }}
 
-      - run: |
-          cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
+      - run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
         env:
           RUSTFLAGS: "-D warnings"
 
