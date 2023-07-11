@@ -1,14 +1,16 @@
 name: ci
+
 permissions:
   contents: read
+
 on:
   pull_request:
   push:
   merge_group:
+
 jobs:
   rustfmt:
     runs-on: ubuntu-20.04
-
     steps:
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -22,7 +24,6 @@ jobs:
 
   clippy:
     runs-on: ubuntu-20.04
-
     steps:
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -36,7 +37,6 @@ jobs:
 
   deny:
     runs-on: ubuntu-20.04
-
     steps:
       - uses: dtolnay/rust-toolchain@stable
 
@@ -51,14 +51,12 @@ jobs:
   # Verify that documentation builds.
   rustdoc:
     runs-on: ubuntu-20.04
-
     strategy:
       matrix:
         rust_channel:
           - stable
           - beta
           - nightly
-
     steps:
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -73,7 +71,6 @@ jobs:
 
   package:
     runs-on: ubuntu-20.04
-
     steps:
       - uses: dtolnay/rust-toolchain@stable
 
@@ -86,7 +83,6 @@ jobs:
 
   test:
     runs-on: ${{ matrix.host_os }}
-
     strategy:
       matrix:
         features:
@@ -162,7 +158,6 @@ jobs:
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
         with:
@@ -183,6 +178,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.60"
