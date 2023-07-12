@@ -54,6 +54,8 @@ For these tasks you may prefer using webpki in combination with libraries like
 Changelog
 =========
 
+* Next release:
+  - MSRV increased to Rust 1.60.
 * 0.101.1 (2023-07-05)
   - Fixed 32-bit architecture compatibility.
 * 0.101.0 (2023-07-04)
