@@ -35,6 +35,8 @@
     clippy::type_complexity,
     clippy::upper_case_acronyms
 )]
+// Enable documentation for all features on docs.rs
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(any(test, feature = "alloc"))]
 #[cfg_attr(test, macro_use)]
