@@ -36,6 +36,7 @@ impl Time {
 }
 
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl TryFrom<std::time::SystemTime> for Time {
     type Error = std::time::SystemTimeError;
 

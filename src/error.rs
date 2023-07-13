@@ -232,8 +232,8 @@ impl fmt::Display for Error {
     }
 }
 
-/// Requires the `std` feature.
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl ::std::error::Error for Error {}
 
 impl From<untrusted::EndOfInput> for Error {

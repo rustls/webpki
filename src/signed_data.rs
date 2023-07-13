@@ -18,8 +18,7 @@ use ring::signature;
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
 /// captures this pattern as an owned data type.
-///
-/// This type is only available when the "alloc" feature is enabled.
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[cfg(feature = "alloc")]
 pub(crate) struct OwnedSignedData {
     /// The signed data. This would be `tbsCertificate` in the case of an X.509
@@ -77,6 +76,7 @@ pub(crate) struct SignedData<'a> {
 #[cfg(feature = "alloc")]
 impl<'a> SignedData<'a> {
     /// Convert the borrowed signed data to an [`OwnedSignedData`].
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub(crate) fn to_owned(&self) -> OwnedSignedData {
         OwnedSignedData {
             data: self.data.as_slice_less_safe().to_vec(),
