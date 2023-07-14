@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use std::collections::HashMap;
 use webpki::TrustAnchor;
@@ -61,7 +62,9 @@ struct BetterTls {
 
 impl BetterTls {
     fn root_der(&self) -> Vec<u8> {
-        base64::decode(&self.root).expect("invalid trust anchor base64")
+        general_purpose::STANDARD
+            .decode(&self.root)
+            .expect("invalid trust anchor base64")
     }
 }
 
@@ -82,7 +85,11 @@ impl BetterTlsTest {
     fn certs_der(&self) -> Vec<Vec<u8>> {
         self.certificates
             .iter()
-            .map(|cert| base64::decode(cert).expect("invalid cert base64"))
+            .map(|cert| {
+                general_purpose::STANDARD
+                    .decode(cert)
+                    .expect("invalid cert base64")
+            })
             .collect()
     }
 }
