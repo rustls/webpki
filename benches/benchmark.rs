@@ -49,7 +49,7 @@ fn load_or_generate(crl_path: impl AsRef<Path> + Copy, revoked_count: usize) -> 
         Ok(mut crl_file) => {
             let mut crl_der = Vec::new();
             crl_file.read_to_end(&mut crl_der).unwrap();
-            return crl_der;
+            crl_der
         }
         Err(e) => match e.kind() {
             ErrorKind::NotFound => match File::create(crl_path) {
@@ -57,7 +57,7 @@ fn load_or_generate(crl_path: impl AsRef<Path> + Copy, revoked_count: usize) -> 
                 Ok(mut crl_file) => {
                     let new_crl = generate_crl(revoked_count);
                     crl_file.write_all(&new_crl).unwrap();
-                    return new_crl;
+                    new_crl
                 }
             },
             e => {
