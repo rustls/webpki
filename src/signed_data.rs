@@ -429,6 +429,8 @@ const ED_25519: AlgorithmIdentifier = AlgorithmIdentifier {
 
 #[cfg(test)]
 mod tests {
+    use base64::{engine::general_purpose, Engine as _};
+
     use crate::{der, signed_data, Error};
     use alloc::{string::String, vec::Vec};
 
@@ -812,7 +814,7 @@ mod tests {
             base64.push_str(line);
         }
 
-        base64::decode(&base64).unwrap()
+        general_purpose::STANDARD.decode(&base64).unwrap()
     }
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&signed_data::SignatureAlgorithm] = &[
