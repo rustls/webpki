@@ -93,7 +93,7 @@ impl<'a> EndEntityCert<'a> {
     ) -> Result<(), Error> {
         verify_cert::build_chain(
             &verify_cert::ChainOptions {
-                required_eku_if_present: verify_cert::EKU_SERVER_AUTH,
+                eku: verify_cert::ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_SERVER_AUTH),
                 supported_sig_algs,
                 trust_anchors,
                 intermediate_certs,
@@ -125,7 +125,7 @@ impl<'a> EndEntityCert<'a> {
     ) -> Result<(), Error> {
         verify_cert::build_chain(
             &verify_cert::ChainOptions {
-                required_eku_if_present: verify_cert::EKU_CLIENT_AUTH,
+                eku: verify_cert::ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_CLIENT_AUTH),
                 supported_sig_algs,
                 trust_anchors,
                 intermediate_certs,

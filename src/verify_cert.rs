@@ -19,7 +19,7 @@ use crate::{
 };
 
 pub(crate) struct ChainOptions<'a> {
-    pub(crate) required_eku_if_present: KeyPurposeId,
+    pub(crate) eku: ExtendedKeyUsage,
     pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
@@ -38,13 +38,7 @@ fn build_chain_inner(
 ) -> Result<(), Error> {
     let used_as_ca = used_as_ca(&cert.ee_or_ca);
 
-    check_issuer_independent_properties(
-        cert,
-        time,
-        used_as_ca,
-        sub_ca_count,
-        opts.required_eku_if_present,
-    )?;
+    check_issuer_independent_properties(cert, time, used_as_ca, sub_ca_count, opts.eku)?;
 
     // TODO: HPKP checks.
 
@@ -65,12 +59,13 @@ fn build_chain_inner(
     // for the purpose of name constraints checking, only end-entity server certificates
     // could plausibly have a DNS name as a subject commonName that could contribute to
     // path validity
-    let subject_common_name_contents =
-        if opts.required_eku_if_present == EKU_SERVER_AUTH && used_as_ca == UsedAsCa::No {
-            subject_name::SubjectCommonNameContents::DnsName
-        } else {
-            subject_name::SubjectCommonNameContents::Ignore
-        };
+    let subject_common_name_contents = if opts.eku.key_purpose_id_equals(EKU_SERVER_AUTH.oid_value)
+        && used_as_ca == UsedAsCa::No
+    {
+        subject_name::SubjectCommonNameContents::DnsName
+    } else {
+        subject_name::SubjectCommonNameContents::Ignore
+    };
 
     let result = loop_while_non_fatal_error(
         Error::UnknownIssuer,
@@ -245,7 +240,7 @@ fn check_issuer_independent_properties(
     time: time::Time,
     used_as_ca: UsedAsCa,
     sub_ca_count: usize,
-    required_eku_if_present: KeyPurposeId,
+    eku: ExtendedKeyUsage,
 ) -> Result<(), Error> {
     // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
     // TODO: Check signature algorithm like mozilla::pkix.
@@ -263,9 +258,7 @@ fn check_issuer_independent_properties(
     untrusted::read_all_optional(cert.basic_constraints, Error::BadDer, |value| {
         check_basic_constraints(value, used_as_ca, sub_ca_count)
     })?;
-    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| {
-        check_eku(value, required_eku_if_present)
-    })?;
+    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| check_eku(value, eku))?;
 
     Ok(())
 }
@@ -341,9 +334,38 @@ fn check_basic_constraints(
     }
 }
 
+/// Extended Key Usage (EKU) of a certificate.
+#[derive(Clone, Copy)]
+pub(crate) enum ExtendedKeyUsage {
+    /// If the certificate has EKUs, then the specified [`KeyPurposeId`] must be included.
+    RequiredIfPresent(KeyPurposeId),
+}
+
+impl ExtendedKeyUsage {
+    fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
+        match self {
+            ExtendedKeyUsage::RequiredIfPresent(eku) => *eku,
+        }
+        .oid_value
+            == value
+    }
+}
+
+/// An OID value indicating an Extended Key Usage (EKU) key purpose.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct KeyPurposeId {
     oid_value: untrusted::Input<'static>,
+}
+
+impl KeyPurposeId {
+    /// Construct a new [`KeyPurposeId`].
+    ///
+    /// `oid` is the OBJECT IDENTIFIER in bytes.
+    const fn new(oid: &'static [u8]) -> Self {
+        Self {
+            oid_value: untrusted::Input::from(oid),
+        }
+    }
 }
 
 // id-pkix            OBJECT IDENTIFIER ::= { 1 3 6 1 5 5 7 }
@@ -351,32 +373,26 @@ pub(crate) struct KeyPurposeId {
 
 // id-kp-serverAuth   OBJECT IDENTIFIER ::= { id-kp 1 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub(crate) static EKU_SERVER_AUTH: KeyPurposeId = KeyPurposeId {
-    oid_value: untrusted::Input::from(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 1]),
-};
+pub(crate) static EKU_SERVER_AUTH: KeyPurposeId =
+    KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 1]);
 
 // id-kp-clientAuth   OBJECT IDENTIFIER ::= { id-kp 2 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub(crate) static EKU_CLIENT_AUTH: KeyPurposeId = KeyPurposeId {
-    oid_value: untrusted::Input::from(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 2]),
-};
+pub(crate) static EKU_CLIENT_AUTH: KeyPurposeId =
+    KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 2]);
 
 // id-kp-OCSPSigning  OBJECT IDENTIFIER ::= { id-kp 9 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub(crate) static EKU_OCSP_SIGNING: KeyPurposeId = KeyPurposeId {
-    oid_value: untrusted::Input::from(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 9]),
-};
+pub(crate) static EKU_OCSP_SIGNING: KeyPurposeId =
+    KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 9]);
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-fn check_eku(
-    input: Option<&mut untrusted::Reader>,
-    required_eku_if_present: KeyPurposeId,
-) -> Result<(), Error> {
+fn check_eku(input: Option<&mut untrusted::Reader>, eku: ExtendedKeyUsage) -> Result<(), Error> {
     match input {
         Some(input) => {
             loop {
                 let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
-                if value == required_eku_if_present.oid_value {
+                if eku.key_purpose_id_equals(value) {
                     input.skip_to_end();
                     break;
                 }
@@ -396,7 +412,7 @@ fn check_eku(
             // important that id-kp-OCSPSigning is explicit so that a normal
             // end-entity certificate isn't able to sign trusted OCSP responses
             // for itself or for other certificates issued by its issuing CA.
-            if required_eku_if_present.oid_value == EKU_OCSP_SIGNING.oid_value {
+            if eku.key_purpose_id_equals(EKU_OCSP_SIGNING.oid_value) {
                 return Err(Error::RequiredEkuNotFound);
             }
 
@@ -456,4 +472,15 @@ where
         }
     }
     Err(error)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::verify_cert::{ExtendedKeyUsage, EKU_SERVER_AUTH};
+
+    #[test]
+    fn eku_key_purpose_id() {
+        assert!(ExtendedKeyUsage::RequiredIfPresent(EKU_SERVER_AUTH)
+            .key_purpose_id_equals(EKU_SERVER_AUTH.oid_value))
+    }
 }
