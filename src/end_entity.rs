@@ -15,8 +15,9 @@
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
-    cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, SignatureAlgorithm,
-    SubjectNameRef, Time, TlsClientTrustAnchors, TlsServerTrustAnchors,
+    cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, ExtendedKeyUsage,
+    NonTlsTrustAnchors, SignatureAlgorithm, SubjectNameRef, Time, TlsClientTrustAnchors,
+    TlsServerTrustAnchors, TrustAnchor,
 };
 
 /// An end-entity certificate.
@@ -74,6 +75,57 @@ impl<'a> EndEntityCert<'a> {
         &self.inner
     }
 
+    fn verify_is_valid_cert(
+        &self,
+        supported_sig_algs: &[&SignatureAlgorithm],
+        trust_anchors: &[TrustAnchor],
+        intermediate_certs: &[&[u8]],
+        time: Time,
+        eku: ExtendedKeyUsage,
+        crls: &[&dyn CertRevocationList],
+    ) -> Result<(), Error> {
+        verify_cert::build_chain(
+            &verify_cert::ChainOptions {
+                eku,
+                supported_sig_algs,
+                trust_anchors,
+                intermediate_certs,
+                crls,
+            },
+            &self.inner,
+            time,
+        )
+    }
+
+    /// Verifies that the end-entity certificate is valid for use against the
+    /// specified Extended Key Usage (EKU).
+    ///
+    /// `supported_sig_algs` is the list of signature algorithms that are
+    /// trusted for use in certificate signatures; the end-entity certificate's
+    /// public key is not validated against this list. `trust_anchors` is the
+    /// list of root CAs to trust. `intermediate_certs` is the sequence of
+    /// intermediate certificates that the server sent in the TLS handshake.
+    /// `time` is the time for which the validation is effective (usually the
+    /// current time).
+    pub fn verify_is_valid_cert_with_eku(
+        &self,
+        supported_sig_algs: &[&SignatureAlgorithm],
+        &NonTlsTrustAnchors(trust_anchors): &NonTlsTrustAnchors,
+        intermediate_certs: &[&[u8]],
+        time: Time,
+        eku: ExtendedKeyUsage,
+        crls: &[&dyn CertRevocationList],
+    ) -> Result<(), Error> {
+        self.verify_is_valid_cert(
+            supported_sig_algs,
+            trust_anchors,
+            intermediate_certs,
+            time,
+            eku,
+            crls,
+        )
+    }
+
     /// Verifies that the end-entity certificate is valid for use by a TLS
     /// server.
     ///
@@ -91,16 +143,13 @@ impl<'a> EndEntityCert<'a> {
         intermediate_certs: &[&[u8]],
         time: Time,
     ) -> Result<(), Error> {
-        verify_cert::build_chain(
-            &verify_cert::ChainOptions {
-                eku: verify_cert::ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_SERVER_AUTH),
-                supported_sig_algs,
-                trust_anchors,
-                intermediate_certs,
-                crls: &[],
-            },
-            &self.inner,
+        self.verify_is_valid_cert(
+            supported_sig_algs,
+            trust_anchors,
+            intermediate_certs,
             time,
+            ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_SERVER_AUTH),
+            &[],
         )
     }
 
@@ -123,16 +172,13 @@ impl<'a> EndEntityCert<'a> {
         time: Time,
         crls: &[&dyn CertRevocationList],
     ) -> Result<(), Error> {
-        verify_cert::build_chain(
-            &verify_cert::ChainOptions {
-                eku: verify_cert::ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_CLIENT_AUTH),
-                supported_sig_algs,
-                trust_anchors,
-                intermediate_certs,
-                crls,
-            },
-            &self.inner,
+        self.verify_is_valid_cert(
+            supported_sig_algs,
+            trust_anchors,
+            intermediate_certs,
             time,
+            ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_CLIENT_AUTH),
+            crls,
         )
     }
 

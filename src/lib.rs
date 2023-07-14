@@ -72,7 +72,8 @@ pub use {
         SubjectNameRef,
     },
     time::Time,
-    trust_anchor::{TlsClientTrustAnchors, TlsServerTrustAnchors, TrustAnchor},
+    trust_anchor::{NonTlsTrustAnchors, TlsClientTrustAnchors, TlsServerTrustAnchors, TrustAnchor},
+    verify_cert::{ExtendedKeyUsage, KeyPurposeId},
 };
 
 #[cfg(feature = "alloc")]

@@ -26,6 +26,10 @@ pub struct TrustAnchor<'a> {
     pub name_constraints: Option<&'a [u8]>,
 }
 
+/// Trust anchors which may be used for authenticating certificates of any kind.
+#[derive(Debug)]
+pub struct NonTlsTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
+
 /// Trust anchors which may be used for authenticating servers.
 #[derive(Debug)]
 pub struct TlsServerTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
