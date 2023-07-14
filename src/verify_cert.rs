@@ -336,7 +336,10 @@ fn check_basic_constraints(
 
 /// Extended Key Usage (EKU) of a certificate.
 #[derive(Clone, Copy)]
-pub(crate) enum ExtendedKeyUsage {
+pub enum ExtendedKeyUsage {
+    /// The certificate must contain the specified [`KeyPurposeId`] as EKU.
+    Required(KeyPurposeId),
+
     /// If the certificate has EKUs, then the specified [`KeyPurposeId`] must be included.
     RequiredIfPresent(KeyPurposeId),
 }
@@ -344,6 +347,7 @@ pub(crate) enum ExtendedKeyUsage {
 impl ExtendedKeyUsage {
     fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
         match self {
+            ExtendedKeyUsage::Required(eku) => *eku,
             ExtendedKeyUsage::RequiredIfPresent(eku) => *eku,
         }
         .oid_value
@@ -353,7 +357,7 @@ impl ExtendedKeyUsage {
 
 /// An OID value indicating an Extended Key Usage (EKU) key purpose.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct KeyPurposeId {
+pub struct KeyPurposeId {
     oid_value: untrusted::Input<'static>,
 }
 
@@ -361,7 +365,7 @@ impl KeyPurposeId {
     /// Construct a new [`KeyPurposeId`].
     ///
     /// `oid` is the OBJECT IDENTIFIER in bytes.
-    const fn new(oid: &'static [u8]) -> Self {
+    pub const fn new(oid: &'static [u8]) -> Self {
         Self {
             oid_value: untrusted::Input::from(oid),
         }
@@ -403,6 +407,9 @@ fn check_eku(input: Option<&mut untrusted::Reader>, eku: ExtendedKeyUsage) -> Re
             Ok(())
         }
         None => {
+            if matches!(eku, ExtendedKeyUsage::Required(_)) {
+                return Err(Error::RequiredEkuNotFound);
+            }
             // http://tools.ietf.org/html/rfc6960#section-4.2.2.2:
             // "OCSP signing delegation SHALL be designated by the inclusion of
             // id-kp-OCSPSigning in an extended key usage certificate extension
@@ -476,7 +483,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::verify_cert::{ExtendedKeyUsage, EKU_SERVER_AUTH};
+    use crate::{verify_cert::EKU_SERVER_AUTH, ExtendedKeyUsage};
 
     #[test]
     fn eku_key_purpose_id() {
