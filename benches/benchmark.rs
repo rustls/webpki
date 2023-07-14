@@ -73,15 +73,15 @@ fn generate_crl(revoked_count: usize) -> Vec<u8> {
     (0..revoked_count).for_each(|i| {
         revoked_certs.push(RevokedCertParams {
             serial_number: SerialNumber::from((i + 1) as u64),
-            revocation_time: date_time_ymd(2024, 06, 17),
+            revocation_time: date_time_ymd(2024, 6, 17),
             reason_code: Some(RevocationReason::KeyCompromise),
             invalidity_date: None,
         });
     });
 
     let crl = CertificateRevocationListParams {
-        this_update: date_time_ymd(2023, 06, 17),
-        next_update: date_time_ymd(2024, 06, 17),
+        this_update: date_time_ymd(2023, 6, 17),
+        next_update: date_time_ymd(2024, 6, 17),
         crl_number: SerialNumber::from(1234),
         alg: &PKCS_ECDSA_P256_SHA256,
         key_identifier_method: KeyIdMethod::Sha256,
