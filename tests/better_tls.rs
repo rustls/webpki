@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde_json;
 use std::collections::HashMap;
 use webpki::TrustAnchor;
 
