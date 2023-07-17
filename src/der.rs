@@ -298,16 +298,14 @@ impl<'a> BitStringFlags<'a> {
 }
 
 // ASN.1 BIT STRING fields for sets of flags are encoded in DER with some peculiar details related
-// to padding. Notably this means we expect a Tag::BitString, a length, an indicator of the number
-// of bits of padding, and then the actual bit values. See this Stack Overflow discussion[0], and
-// ITU X690-0207[1] Section 8.6 and Section 11.2 for more information.
+// to padding. Notably this means we expect an indicator of the number of bits of padding, and then
+// the actual bit values. See this Stack Overflow discussion[0], and ITU X690-0207[1] Section 8.6
+// and Section 11.2 for more information.
 //
 // [0]: https://security.stackexchange.com/a/10396
 // [1]: https://www.itu.int/ITU-T/studygroups/com17/languages/X.690-0207.pdf
-pub(crate) fn bit_string_flags<'a>(
-    input: &mut untrusted::Reader<'a>,
-) -> Result<BitStringFlags<'a>, Error> {
-    expect_tag_and_get_value(input, Tag::BitString)?.read_all(Error::BadDer, |bit_string| {
+pub(crate) fn bit_string_flags(input: untrusted::Input) -> Result<BitStringFlags<'_>, Error> {
+    input.read_all(Error::BadDer, |bit_string| {
         // ITU X690-0207 11.2:
         //   "The initial octet shall encode, as an unsigned binary integer with bit 1 as the least
         //   significant bit, the number of unused bits in the final subsequent octet.
@@ -627,59 +625,38 @@ mod tests {
         }
     }
 
-    #[allow(clippy::as_conversions)] // infallible.
-    const BITSTRING_TAG: u8 = super::Tag::BitString as u8;
-
     #[test]
     fn misencoded_bit_string_flags() {
         use super::{bit_string_flags, Error};
 
-        let mut bad_padding_example = untrusted::Reader::new(untrusted::Input::from(&[
-            BITSTRING_TAG, // BitString
-            0x2,           // 2 bytes of content.
-            0x08,          // 8 bit of padding (illegal!).
-            0x06,          // 1 byte of bit flags asserting bits 5 and 6.
-        ]));
+        let bad_padding_example = untrusted::Input::from(&[
+            0x08, // 8 bit of padding (illegal!).
+            0x06, // 1 byte of bit flags asserting bits 5 and 6.
+        ]);
         assert!(matches!(
-            bit_string_flags(&mut bad_padding_example),
+            bit_string_flags(bad_padding_example),
             Err(Error::BadDer)
         ));
 
-        let mut bad_padding_example = untrusted::Reader::new(untrusted::Input::from(&[
-            BITSTRING_TAG, // BitString
-            0x2,           // 2 bytes of content.
-            0x01,          // 1 bit of padding.
-                           // No flags value (illegal with padding!).
-        ]));
+        let bad_padding_example = untrusted::Input::from(&[
+            0x01, // 1 bit of padding.
+                 // No flags value (illegal with padding!).
+        ]);
         assert!(matches!(
-            bit_string_flags(&mut bad_padding_example),
+            bit_string_flags(bad_padding_example),
             Err(Error::BadDer)
         ));
-
-        let mut trailing_zeroes = untrusted::Reader::new(untrusted::Input::from(&[
-            BITSTRING_TAG, // BitString
-            0x2,           // 2 bytes of content.
-            0x01,          // 1 bit of padding.
-            0xFF,          // Flag data with
-            0x00,          // trailing zeros.
-        ]));
-        assert!(matches!(
-            bit_string_flags(&mut trailing_zeroes),
-            Err(Error::BadDer)
-        ))
     }
 
     #[test]
     fn valid_bit_string_flags() {
         use super::bit_string_flags;
 
-        let mut example_key_usage = untrusted::Reader::new(untrusted::Input::from(&[
-            BITSTRING_TAG, // BitString
-            0x2,           // 2 bytes of content.
-            0x01,          // 1 bit of padding.
-            0x06,          // 1 byte of bit flags asserting bits 5 and 6.
-        ]));
-        let res = bit_string_flags(&mut example_key_usage).unwrap();
+        let example_key_usage = untrusted::Input::from(&[
+            0x01, // 1 bit of padding.
+            0x06, // 1 byte of bit flags asserting bits 5 and 6.
+        ]);
+        let res = bit_string_flags(example_key_usage).unwrap();
 
         assert!(!res.bit_set(0));
         assert!(!res.bit_set(1));
