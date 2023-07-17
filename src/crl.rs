@@ -50,7 +50,6 @@ pub trait CertRevocationList: Sealed {
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 #[cfg(feature = "alloc")]
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
-#[allow(dead_code)] // we parse some fields we don't expose now, but may choose to expose in the future.
 #[derive(Debug, Clone)]
 pub struct OwnedCertRevocationList {
     /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
