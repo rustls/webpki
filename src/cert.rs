@@ -372,6 +372,13 @@ impl<'a> Iterator for GeneralNames<'a> {
 #[cfg(test)]
 mod tests {
     use crate::cert::{Cert, EndEntityOrCa};
+    #[cfg(feature = "alloc")]
+    use crate::{
+        cert::{CrlDistributionPoint, DistributionPointName, GeneralNames},
+        crl,
+        subject_name::GeneralName,
+        Error,
+    };
 
     #[test]
     // Note: cert::parse_cert is crate-local visibility, and EndEntityCert doesn't expose the
@@ -393,5 +400,304 @@ mod tests {
                 68, 209
             ]
         )
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_netflix() {
+        let ee = include_bytes!("../tests/netflix/ee.der");
+        let inter = include_bytes!("../tests/netflix/inter.der");
+        let ee_cert = Cert::from_der(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
+            .expect("failed to parse EE cert");
+        let cert = Cert::from_der(untrusted::Input::from(inter), EndEntityOrCa::Ca(&ee_cert))
+            .expect("failed to parse certificate");
+
+        // The end entity certificate shouldn't have a distribution point.
+        assert!(ee_cert.crl_distribution_points.is_none());
+
+        // We expect to be able to parse the intermediate certificate's CRL distribution points.
+        let crl_distribution_points = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse distribution points");
+
+        // There should be one distribution point present.
+        assert_eq!(crl_distribution_points.len(), 1);
+        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+            .first()
+            .expect("missing distribution point");
+
+        // The distribution point shouldn't have revocation reasons listed.
+        assert!(crl_distribution_point.reasons.is_none());
+
+        // The distribution point shouldn't have a CRL issuer listed.
+        assert!(crl_distribution_point.crl_issuer.is_none());
+
+        // We should be able to parse the distribution point name.
+        let distribution_point_name = crl_distribution_point
+            .names()
+            .expect("failed to parse distribution point names")
+            .expect("missing distribution point name");
+
+        // We expect the distribution point name to be a sequence of GeneralNames, not a name
+        // relative to the CRL issuer.
+        let names = match distribution_point_name {
+            DistributionPointName::NameRelativeToCrlIssuer(_) => {
+                panic!("unexpected name relative to crl issuer")
+            }
+            DistributionPointName::FullName(names) => names,
+        };
+
+        // The general names should parse.
+        let names = names
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse general names");
+
+        // There should be one general name.
+        assert_eq!(names.len(), 1);
+        let name: &GeneralName = names.first().expect("missing general name");
+
+        // The general name should be a URI matching the expected value.
+        match name {
+            GeneralName::UniformResourceIdentifier(uri) => {
+                assert_eq!(
+                    uri.as_slice_less_safe(),
+                    "http://s.symcb.com/pca3-g3.crl".as_bytes()
+                );
+            }
+            _ => panic!("unexpected general name type"),
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_with_reasons() {
+        let der = include_bytes!("../tests/crl_distrib_point/with_reasons.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect to be able to parse the intermediate certificate's CRL distribution points.
+        let crl_distribution_points = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse distribution points");
+
+        // There should be one distribution point present.
+        assert_eq!(crl_distribution_points.len(), 1);
+        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+            .first()
+            .expect("missing distribution point");
+
+        // The distribution point should include the expected revocation reasons, and no others.
+        match &crl_distribution_point.reasons {
+            None => panic!("missing revocation reasons"),
+            Some(reasons) => {
+                let expected = &[
+                    crl::RevocationReason::KeyCompromise,
+                    crl::RevocationReason::AffiliationChanged,
+                ];
+                for reason in 0..=10 {
+                    if reason == 7 {
+                        continue; // revocation code 7 is unused
+                    }
+                    let revocation_reason = crl::RevocationReason::try_from(reason).unwrap();
+                    #[allow(clippy::as_conversions)] // Safe in this range.
+                    match expected.contains(&revocation_reason) {
+                        true => assert!(reasons.bit_set(reason as usize)),
+                        false => assert!(!reasons.bit_set(reason as usize)),
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_with_crl_issuer() {
+        let der = include_bytes!("../tests/crl_distrib_point/with_crl_issuer.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect to be able to parse the intermediate certificate's CRL distribution points.
+        let crl_distribution_points = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse distribution points");
+
+        // There should be one distribution point present.
+        assert_eq!(crl_distribution_points.len(), 1);
+        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+            .first()
+            .expect("missing distribution point");
+
+        // The CRL issuer should be present, but not anything else.
+        assert!(crl_distribution_point.crl_issuer.is_some());
+        assert!(crl_distribution_point.distribution_point.is_none());
+        assert!(crl_distribution_point.reasons.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_bad_der() {
+        // Created w/
+        //   ascii2der -i tests/crl_distrib_point/unknown_tag.der.txt -o tests/crl_distrib_point/unknown_tag.der
+        let der = include_bytes!("../tests/crl_distrib_point/unknown_tag.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect there to be a distribution point extension, but parsing it should fail
+        // due to the unknown tag in the SEQUENCE.
+        let result = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>();
+        assert!(matches!(result, Err(Error::BadDer)));
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_only_reasons() {
+        // Created w/
+        //   ascii2der -i tests/crl_distrib_point/only_reasons.der.txt -o tests/crl_distrib_point/only_reasons.der
+        let der = include_bytes!("../tests/crl_distrib_point/only_reasons.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect there to be a distribution point extension, but parsing it should fail
+        // because no distribution points or cRLIssuer are set in the SEQUENCE, just reason codes.
+        let result = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>();
+        assert!(matches!(result, Err(Error::MalformedExtensions)));
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_name_relative_to_issuer() {
+        let der = include_bytes!("../tests/crl_distrib_point/dp_name_relative_to_issuer.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect to be able to parse the intermediate certificate's CRL distribution points.
+        let crl_distribution_points = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse distribution points");
+
+        // There should be one distribution point present.
+        assert_eq!(crl_distribution_points.len(), 1);
+        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+            .first()
+            .expect("missing distribution point");
+
+        assert!(crl_distribution_point.crl_issuer.is_none());
+        assert!(crl_distribution_point.reasons.is_none());
+
+        // We should be able to parse the distribution point name.
+        let distribution_point_name = crl_distribution_point
+            .names()
+            .expect("failed to parse distribution point names")
+            .expect("missing distribution point name");
+
+        // We expect the distribution point name to be a name relative to the CRL issuer.
+        match distribution_point_name {
+            DistributionPointName::NameRelativeToCrlIssuer(name) => {
+                assert!(!name.is_empty());
+            }
+            DistributionPointName::FullName(_) => panic!("unexpected full name sequence"),
+        };
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_unknown_name_tag() {
+        // Created w/
+        //   ascii2der -i tests/crl_distrib_point/unknown_dp_name_tag.der.txt > tests/crl_distrib_point/unknown_dp_name_tag.der
+        let der = include_bytes!("../tests/crl_distrib_point/unknown_dp_name_tag.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect to be able to parse the intermediate certificate's CRL distribution points.
+        let crl_distribution_points = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse distribution points");
+
+        // There should be one distribution point present.
+        assert_eq!(crl_distribution_points.len(), 1);
+        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+            .first()
+            .expect("missing distribution point");
+
+        // Parsing the distrubition point names should fail due to the unknown name tag.
+        let result = crl_distribution_point.names();
+        assert!(matches!(result, Err(Error::BadDer)))
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_crl_distribution_point_multiple() {
+        let der = include_bytes!("../tests/crl_distrib_point/multiple_distribution_points.der");
+        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
+            .expect("failed to parse certificate");
+
+        // We expect to be able to parse the intermediate certificate's CRL distribution points.
+        let crl_distribution_points = cert
+            .crl_distribution_points()
+            .expect("missing distribution points extension")
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse distribution points");
+
+        // There should be two distribution points present.
+        let (point_a, point_b): (&CrlDistributionPoint, &CrlDistributionPoint) = (
+            crl_distribution_points
+                .get(0)
+                .expect("missing first distribution point"),
+            crl_distribution_points
+                .get(1)
+                .expect("missing second distribution point"),
+        );
+
+        fn get_names<'a>(point: &'a CrlDistributionPoint<'a>) -> GeneralNames<'a> {
+            match point
+                .names()
+                .expect("failed to parse distribution point names")
+                .expect("missing distribution point name")
+            {
+                DistributionPointName::NameRelativeToCrlIssuer(_) => {
+                    panic!("unexpected relative name")
+                }
+                DistributionPointName::FullName(names) => names,
+            }
+        }
+
+        fn uri_bytes<'a>(name: &'a GeneralName) -> &'a [u8] {
+            match name {
+                GeneralName::UniformResourceIdentifier(uri) => uri.as_slice_less_safe(),
+                _ => panic!("unexpected name type"),
+            }
+        }
+
+        // We expect to find three URIs across the two distribution points.
+        let expected_names = [
+            "http://example.com/crl.1.der".as_bytes(),
+            "http://example.com/crl.2.der".as_bytes(),
+            "http://example.com/crl.3.der".as_bytes(),
+        ];
+        let all_names = get_names(point_a)
+            .chain(get_names(point_b))
+            .collect::<Result<Vec<_>, Error>>()
+            .expect("failed to parse names");
+
+        assert_eq!(
+            all_names.iter().map(uri_bytes).collect::<Vec<_>>(),
+            expected_names
+        );
     }
 }
