@@ -13,9 +13,11 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
+use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::signed_data::SignedData;
+use crate::subject_name::GeneralName;
 use crate::x509::{remember_extension, set_extension_once, Extension};
-use crate::{der, Error};
+use crate::Error;
 
 /// An enumeration indicating whether a [`Cert`] is a leaf end-entity cert, or a linked
 /// list node from the CA `Cert` to a child `Cert` it issued.
@@ -47,6 +49,7 @@ pub struct Cert<'a> {
     pub(crate) eku: Option<untrusted::Input<'a>>,
     pub(crate) name_constraints: Option<untrusted::Input<'a>>,
     pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
+    pub(crate) crl_distribution_points: Option<untrusted::Input<'a>>,
 }
 
 impl<'a> Cert<'a> {
@@ -99,6 +102,7 @@ impl<'a> Cert<'a> {
                 eku: None,
                 name_constraints: None,
                 subject_alt_name: None,
+                crl_distribution_points: None,
             };
 
             if !tbs.at_end() {
@@ -143,6 +147,15 @@ impl<'a> Cert<'a> {
     /// or a certificate authority.
     pub fn end_entity_or_ca(&self) -> &EndEntityOrCa {
         &self.ee_or_ca
+    }
+
+    /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
+    #[allow(dead_code)] // TODO(@cpu): remove once used in CRL validation.
+    pub(crate) fn crl_distribution_points(&self) -> Option<CrlDistributionPoints> {
+        self.crl_distribution_points
+            .map(|crl_distribution_points| CrlDistributionPoints {
+                reader: untrusted::Reader::new(crl_distribution_points),
+            })
     }
 }
 
@@ -202,6 +215,9 @@ fn remember_cert_extension<'a>(
             // id-ce-nameConstraints 2.5.29.30
             30 => &mut cert.name_constraints,
 
+            // id-ce-cRLDistributionPoints 2.5.29.31
+            31 => &mut cert.crl_distribution_points,
+
             // id-ce-extKeyUsage 2.5.29.37
             37 => &mut cert.eku,
 
@@ -219,6 +235,138 @@ fn remember_cert_extension<'a>(
             })
         })
     })
+}
+
+/// Iterator over a certificate's certificate revocation list (CRL) distribution
+/// points as described in RFC 5280 section 4.2.3.13[^1].
+///
+/// The CRL distribution point extensions describes how CRL information can be obtained for
+/// a given certificate.
+///
+/// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
+pub(crate) struct CrlDistributionPoints<'a> {
+    reader: untrusted::Reader<'a>,
+}
+
+impl<'a> Iterator for CrlDistributionPoints<'a> {
+    type Item = Result<CrlDistributionPoint<'a>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (!self.reader.at_end()).then(|| CrlDistributionPoint::from_der(&mut self.reader))
+    }
+}
+
+/// A certificate revocation list (CRL) distribution point, describing a source of
+/// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
+///
+/// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
+pub(crate) struct CrlDistributionPoint<'a> {
+    /// distributionPoint describes the location of CRL information.
+    distribution_point: Option<untrusted::Input<'a>>,
+
+    /// reasons holds a bit flag set of certificate revocation reasons associated with the
+    /// CRL distribution point.
+    pub(crate) reasons: Option<der::BitStringFlags<'a>>,
+
+    /// when the CRL issuer is not the certificate issuer, crl_issuer identifies the issuer of the
+    /// CRL.
+    pub(crate) crl_issuer: Option<untrusted::Input<'a>>,
+}
+
+impl<'a> CrlDistributionPoint<'a> {
+    fn from_der(der: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        // RFC 5280 section §4.2.1.13:
+        //   A DistributionPoint consists of three fields, each of which is optional:
+        //   distributionPoint, reasons, and cRLIssuer.
+        let mut result = CrlDistributionPoint {
+            distribution_point: None,
+            reasons: None,
+            crl_issuer: None,
+        };
+
+        der::nested(der, Tag::Sequence, Error::BadDer, |der| {
+            const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
+            const REASONS_TAG: u8 = CONTEXT_SPECIFIC | 1;
+            const CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 2;
+
+            while !der.at_end() {
+                let (tag, value) = der::read_tag_and_get_value(der)?;
+                match tag {
+                    DISTRIBUTION_POINT_TAG => {
+                        set_extension_once(&mut result.distribution_point, || Ok(value))?
+                    }
+                    REASONS_TAG => {
+                        set_extension_once(&mut result.reasons, || der::bit_string_flags(value))?
+                    }
+                    CRL_ISSUER_TAG => set_extension_once(&mut result.crl_issuer, || Ok(value))?,
+                    _ => return Err(Error::BadDer),
+                }
+            }
+
+            // RFC 5280 section §4.2.1.13:
+            //   a DistributionPoint MUST NOT consist of only the reasons field; either distributionPoint or
+            //   cRLIssuer MUST be present.
+            match (result.distribution_point, result.crl_issuer) {
+                (None, None) => return Err(Error::MalformedExtensions),
+                _ => {}
+            }
+
+            Ok(result)
+        })
+    }
+
+    /// Return the distribution point names (if any).
+    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+    pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
+        Ok(match self.distribution_point {
+            None => None,
+            Some(der) => Some(DistributionPointName::from_der(der)?),
+        })
+    }
+}
+
+/// A certificate revocation list (CRL) distribution point name, describing a source of
+/// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
+///
+/// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
+#[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+pub(crate) enum DistributionPointName<'a> {
+    /// The distribution point name is a relative distinguished name, relative to the CRL issuer.
+    NameRelativeToCrlIssuer(untrusted::Input<'a>),
+    /// The distribution point name is a sequence of [GeneralNames].
+    FullName(GeneralNames<'a>),
+}
+
+impl<'a> DistributionPointName<'a> {
+    fn from_der(der: untrusted::Input<'_>) -> Result<DistributionPointName, Error> {
+        const FULL_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
+        const NAME_RELATIVE_TO_CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 1;
+
+        let (tag, value) = der::read_tag_and_get_value(&mut untrusted::Reader::new(der))?;
+        match tag {
+            FULL_NAME_TAG => Ok(DistributionPointName::FullName(GeneralNames {
+                reader: untrusted::Reader::new(value),
+            })),
+            NAME_RELATIVE_TO_CRL_ISSUER_TAG => {
+                Ok(DistributionPointName::NameRelativeToCrlIssuer(value))
+            }
+            _ => Err(Error::BadDer),
+        }
+    }
+}
+
+/// An iterator over a series of X.509 [GeneralName] instances describing locations that can be used
+/// to fetch a certificate revocation list for a certificate.
+pub(crate) struct GeneralNames<'a> {
+    reader: untrusted::Reader<'a>,
+}
+
+impl<'a> Iterator for GeneralNames<'a> {
+    type Item = Result<GeneralName<'a>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (!self.reader.at_end()).then(|| GeneralName::from_der(&mut self.reader))
+    }
 }
 
 #[cfg(test)]
