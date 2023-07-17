@@ -392,7 +392,7 @@ pub(crate) fn list_cert_dns_names<'names>(
 // constraint is different than the meaning of the identically-represented
 // `GeneralName` in other contexts.
 #[derive(Clone, Copy)]
-enum GeneralName<'a> {
+pub(crate) enum GeneralName<'a> {
     DnsName(untrusted::Input<'a>),
     DirectoryName(untrusted::Input<'a>),
     IpAddress(untrusted::Input<'a>),
@@ -404,7 +404,7 @@ enum GeneralName<'a> {
 }
 
 impl<'a> GeneralName<'a> {
-    fn from_der(input: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+    pub(crate) fn from_der(input: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
         #[allow(clippy::identity_op)]
         const OTHER_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 0;
