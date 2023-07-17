@@ -396,6 +396,7 @@ pub(crate) enum GeneralName<'a> {
     DnsName(untrusted::Input<'a>),
     DirectoryName(untrusted::Input<'a>),
     IpAddress(untrusted::Input<'a>),
+    UniformResourceIdentifier(untrusted::Input<'a>),
 
     // The value is the `tag & ~(der::CONTEXT_SPECIFIC | der::CONSTRUCTED)` so
     // that the name constraint checking matches tags regardless of whether
@@ -406,6 +407,8 @@ pub(crate) enum GeneralName<'a> {
 impl<'a> GeneralName<'a> {
     pub(crate) fn from_der(input: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
+        use GeneralName::*;
+
         #[allow(clippy::identity_op)]
         const OTHER_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 0;
         const RFC822_NAME_TAG: u8 = CONTEXT_SPECIFIC | 1;
@@ -419,18 +422,13 @@ impl<'a> GeneralName<'a> {
 
         let (tag, value) = der::read_tag_and_get_value(input)?;
         Ok(match tag {
-            DNS_NAME_TAG => GeneralName::DnsName(value),
-            DIRECTORY_NAME_TAG => GeneralName::DirectoryName(value),
-            IP_ADDRESS_TAG => GeneralName::IpAddress(value),
+            DNS_NAME_TAG => DnsName(value),
+            DIRECTORY_NAME_TAG => DirectoryName(value),
+            IP_ADDRESS_TAG => IpAddress(value),
+            UNIFORM_RESOURCE_IDENTIFIER_TAG => UniformResourceIdentifier(value),
 
-            OTHER_NAME_TAG
-            | RFC822_NAME_TAG
-            | X400_ADDRESS_TAG
-            | EDI_PARTY_NAME_TAG
-            | UNIFORM_RESOURCE_IDENTIFIER_TAG
-            | REGISTERED_ID_TAG => {
-                GeneralName::Unsupported(tag & !(CONTEXT_SPECIFIC | CONSTRUCTED))
-            }
+            OTHER_NAME_TAG | RFC822_NAME_TAG | X400_ADDRESS_TAG | EDI_PARTY_NAME_TAG
+            | REGISTERED_ID_TAG => Unsupported(tag & !(CONTEXT_SPECIFIC | CONSTRUCTED)),
 
             _ => return Err(Error::BadDer),
         })
