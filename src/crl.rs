@@ -13,10 +13,10 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::cert::lenient_certificate_serial_number;
-use crate::der::Tag;
+use crate::der::{self, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::signed_data::{self, SignedData};
-use crate::x509::{remember_extension, set_extension_once, Extension};
-use crate::{der, Error, SignatureAlgorithm, Time};
+use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
+use crate::{Error, SignatureAlgorithm, Time};
 
 #[cfg(feature = "alloc")]
 use std::collections::HashMap;
@@ -31,6 +31,9 @@ use private::Sealed;
 pub trait CertRevocationList: Sealed {
     /// Return the DER encoded issuer of the CRL.
     fn issuer(&self) -> &[u8];
+
+    /// Return the DER encoded issuing distribution point of the CRL, if any.
+    fn issuing_distribution_point(&self) -> Option<&[u8]>;
 
     /// Try to find a revoked certificate in the CRL by DER encoded serial number. This
     /// may yield an error if the CRL has malformed revoked certificates.
@@ -58,6 +61,8 @@ pub struct OwnedCertRevocationList {
 
     issuer: Vec<u8>,
 
+    issuing_distribution_point: Option<Vec<u8>>,
+
     signed_data: signed_data::OwnedSignedData,
 }
 
@@ -68,6 +73,10 @@ impl Sealed for OwnedCertRevocationList {}
 impl CertRevocationList for OwnedCertRevocationList {
     fn issuer(&self) -> &[u8] {
         &self.issuer
+    }
+
+    fn issuing_distribution_point(&self) -> Option<&[u8]> {
+        self.issuing_distribution_point.as_deref()
     }
 
     fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
@@ -104,6 +113,9 @@ pub struct BorrowedCertRevocationList<'a> {
     /// Identifies the entity that has signed and issued this
     /// CRL.
     issuer: untrusted::Input<'a>,
+
+    /// An optional CRL extension that identifies the CRL distribution point and scope for the CRL.
+    issuing_distribution_point: Option<untrusted::Input<'a>>,
 
     /// List of certificates revoked by the issuer in this CRL.
     revoked_certs: untrusted::Input<'a>,
@@ -191,6 +203,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 signed_data,
                 issuer,
                 revoked_certs,
+                issuing_distribution_point: None,
             };
 
             // RFC 5280 §5.1.2.7:
@@ -226,6 +239,12 @@ impl<'a> BorrowedCertRevocationList<'a> {
             Ok(crl)
         })?;
 
+        // If an issuing distribution point extension is present, parse it up-front to validate
+        // that it only uses well-formed and supported features.
+        if let Some(der) = crl.issuing_distribution_point {
+            IssuingDistributionPoint::from_der(der)?;
+        }
+
         Ok(crl)
     }
 
@@ -246,6 +265,9 @@ impl<'a> BorrowedCertRevocationList<'a> {
         Ok(OwnedCertRevocationList {
             signed_data: self.signed_data.to_owned(),
             issuer: self.issuer.as_slice_less_safe().to_vec(),
+            issuing_distribution_point: self
+                .issuing_distribution_point
+                .map(|idp| idp.as_slice_less_safe().to_vec()),
             revoked_certs,
         })
     }
@@ -279,17 +301,10 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 27 => Err(Error::UnsupportedDeltaCrl),
 
                 // id-ce-issuingDistributionPoint 2.5.29.28 - RFC 5280 §5.2.4
-                //    Although the extension is critical, conforming implementations are not
-                //    required to support this extension.  However, implementations that do not
-                //    support this extension MUST either treat the status of any certificate not listed
-                //    on this CRL as unknown or locate another CRL that does not contain any
-                //    unrecognized critical extensions.
-                // TODO(@cpu): We may want to parse this enough to be able to error on indirectCRL
-                //  bool == true, or to enforce validation based on onlyContainsUserCerts,
-                //  onlyContainsCACerts, and onlySomeReasons. For now we use the carve-out where
-                //  we'll treat it as understood without parsing and consider certificates not found
-                //  in the list as unknown.
-                28 => Ok(()),
+                // We recognize the extension and retain its value for use.
+                28 => {
+                    set_extension_once(&mut self.issuing_distribution_point, || Ok(extension.value))
+                }
 
                 // id-ce-authorityKeyIdentifier 2.5.29.35 - RFC 5280 §5.2.1, §4.2.1.1
                 // We recognize the extension but don't retain its value for use.
@@ -307,6 +322,11 @@ impl Sealed for BorrowedCertRevocationList<'_> {}
 impl CertRevocationList for BorrowedCertRevocationList<'_> {
     fn issuer(&self) -> &[u8] {
         self.issuer.as_slice_less_safe()
+    }
+
+    fn issuing_distribution_point(&self) -> Option<&[u8]> {
+        self.issuing_distribution_point
+            .map(|der| der.as_slice_less_safe())
     }
 
     fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
@@ -599,6 +619,122 @@ impl TryFrom<u8> for RevocationReason {
             10 => Ok(RevocationReason::AaCompromise),
             _ => Err(Error::UnsupportedRevocationReason),
         }
+    }
+}
+
+#[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+pub(crate) struct IssuingDistributionPoint<'a> {
+    distribution_point: Option<untrusted::Input<'a>>,
+    pub(crate) only_contains_user_certs: bool,
+    pub(crate) only_contains_ca_certs: bool,
+    pub(crate) only_some_reasons: Option<der::BitStringFlags<'a>>,
+    pub(crate) indirect_crl: bool,
+    pub(crate) only_contains_attribute_certs: bool,
+}
+
+impl<'a> IssuingDistributionPoint<'a> {
+    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+    pub(crate) fn from_der(der: untrusted::Input<'a>) -> Result<IssuingDistributionPoint, Error> {
+        const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
+        const ONLY_CONTAINS_USER_CERTS_TAG: u8 = CONTEXT_SPECIFIC | 1;
+        const ONLY_CONTAINS_CA_CERTS_TAG: u8 = CONTEXT_SPECIFIC | 2;
+        const ONLY_CONTAINS_SOME_REASONS_TAG: u8 = CONTEXT_SPECIFIC | 3;
+        const INDIRECT_CRL_TAG: u8 = CONTEXT_SPECIFIC | 4;
+        const ONLY_CONTAINS_ATTRIBUTE_CERTS_TAG: u8 = CONTEXT_SPECIFIC | 5;
+
+        let mut result = IssuingDistributionPoint {
+            distribution_point: None,
+            only_contains_user_certs: false,
+            only_contains_ca_certs: false,
+            only_some_reasons: None,
+            indirect_crl: false,
+            only_contains_attribute_certs: false,
+        };
+
+        // Note: we can't use der::optional_boolean here because the distribution point
+        //       booleans are context specific primitives and der::optional_boolean expects
+        //       to unwrap a Tag::Boolean constructed value.
+        fn decode_bool(value: untrusted::Input) -> Result<bool, Error> {
+            let mut reader = untrusted::Reader::new(value);
+            let value = reader.read_byte()?;
+            if !reader.at_end() {
+                return Err(Error::BadDer);
+            }
+            match value {
+                0xFF => Ok(true),
+                0x00 => Ok(false), // non-conformant explicit encoding allowed for compat.
+                _ => Err(Error::BadDer),
+            }
+        }
+
+        // RFC 5280 section §4.2.1.13:
+        der::nested(
+            &mut untrusted::Reader::new(der),
+            Tag::Sequence,
+            Error::BadDer,
+            |der| {
+                while !der.at_end() {
+                    let (tag, value) = der::read_tag_and_get_value(der)?;
+                    match tag {
+                        DISTRIBUTION_POINT_TAG => {
+                            set_extension_once(&mut result.distribution_point, || Ok(value))?
+                        }
+                        ONLY_CONTAINS_USER_CERTS_TAG => {
+                            result.only_contains_user_certs = decode_bool(value)?
+                        }
+                        ONLY_CONTAINS_CA_CERTS_TAG => {
+                            result.only_contains_ca_certs = decode_bool(value)?
+                        }
+                        ONLY_CONTAINS_SOME_REASONS_TAG => {
+                            set_extension_once(&mut result.only_some_reasons, || {
+                                der::bit_string_flags(value)
+                            })?
+                        }
+                        INDIRECT_CRL_TAG => result.indirect_crl = decode_bool(value)?,
+                        ONLY_CONTAINS_ATTRIBUTE_CERTS_TAG => {
+                            result.only_contains_attribute_certs = decode_bool(value)?
+                        }
+                        _ => return Err(Error::BadDer),
+                    }
+                }
+
+                Ok(())
+            },
+        )?;
+
+        // RFC 5280 4.2.1.10:
+        //   Conforming CRLs issuers MUST set the onlyContainsAttributeCerts boolean to FALSE.
+        if result.only_contains_attribute_certs {
+            return Err(Error::MalformedExtensions);
+        }
+
+        // We don't support indirect CRLs.
+        if result.indirect_crl {
+            return Err(Error::UnsupportedIndirectCrl);
+        }
+
+        // We don't support CRLs partitioned by revocation reason.
+        if result.only_some_reasons.is_some() {
+            return Err(Error::UnsupportedRevocationReasonsPartitioning);
+        }
+
+        // We require a distribution point, and it must be a full name.
+        use DistributionPointName::*;
+        match result.names() {
+            Ok(Some(FullName(_))) => Ok(result),
+            Ok(Some(NameRelativeToCrlIssuer(_))) | Ok(None) => {
+                Err(Error::UnsupportedCrlIssuingDistributionPoint)
+            }
+            Err(_) => Err(Error::MalformedExtensions),
+        }
+    }
+
+    /// Return the distribution point names (if any).
+    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+    pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
+        self.distribution_point
+            .map(DistributionPointName::from_der)
+            .transpose()
     }
 }
 
