@@ -12,7 +12,9 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::{der, Error};
+use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::subject_name::GeneralName;
+use crate::Error;
 
 pub(crate) struct Extension<'a> {
     pub(crate) critical: bool,
@@ -72,4 +74,51 @@ pub(crate) fn remember_extension(
     // safety: we verify len is non-zero and has the correct prefix above.
     let last_octet = *extension.id.as_slice_less_safe().last().unwrap();
     handler(last_octet)
+}
+
+/// A certificate revocation list (CRL) distribution point name, describing a source of
+/// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
+///
+/// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
+#[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+pub(crate) enum DistributionPointName<'a> {
+    /// The distribution point name is a relative distinguished name, relative to the CRL issuer.
+    NameRelativeToCrlIssuer(untrusted::Input<'a>),
+    /// The distribution point name is a sequence of [GeneralNames].
+    FullName(GeneralNames<'a>),
+}
+
+impl<'a> DistributionPointName<'a> {
+    pub(crate) fn from_der(der: untrusted::Input<'a>) -> Result<DistributionPointName<'a>, Error> {
+        // RFC 5280 section §4.2.1.13:
+        //   When the distributionPoint field is present, it contains either a
+        //   SEQUENCE of general names or a single value, nameRelativeToCRLIssuer
+        const FULL_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
+        const NAME_RELATIVE_TO_CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 1;
+
+        let (tag, value) = der::read_tag_and_get_value(&mut untrusted::Reader::new(der))?;
+        match tag {
+            FULL_NAME_TAG => Ok(DistributionPointName::FullName(GeneralNames {
+                reader: untrusted::Reader::new(value),
+            })),
+            NAME_RELATIVE_TO_CRL_ISSUER_TAG => {
+                Ok(DistributionPointName::NameRelativeToCrlIssuer(value))
+            }
+            _ => Err(Error::BadDer),
+        }
+    }
+}
+
+/// An iterator over a series of X.509 [GeneralName] instances describing locations that can be used
+/// to fetch a certificate revocation list for a certificate.
+pub(crate) struct GeneralNames<'a> {
+    reader: untrusted::Reader<'a>,
+}
+
+impl<'a> Iterator for GeneralNames<'a> {
+    type Item = Result<GeneralName<'a>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (!self.reader.at_end()).then(|| GeneralName::from_der(&mut self.reader))
+    }
 }

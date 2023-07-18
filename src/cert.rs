@@ -15,8 +15,7 @@
 use crate::der::Tag;
 use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::signed_data::SignedData;
-use crate::subject_name::GeneralName;
-use crate::x509::{remember_extension, set_extension_once, Extension};
+use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 use crate::Error;
 
 /// An enumeration indicating whether a [`Cert`] is a leaf end-entity cert, or a linked
@@ -322,57 +321,14 @@ impl<'a> CrlDistributionPoint<'a> {
     }
 }
 
-/// A certificate revocation list (CRL) distribution point name, describing a source of
-/// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
-///
-/// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
-#[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
-pub(crate) enum DistributionPointName<'a> {
-    /// The distribution point name is a relative distinguished name, relative to the CRL issuer.
-    NameRelativeToCrlIssuer(untrusted::Input<'a>),
-    /// The distribution point name is a sequence of [GeneralNames].
-    FullName(GeneralNames<'a>),
-}
-
-impl<'a> DistributionPointName<'a> {
-    fn from_der(der: untrusted::Input<'_>) -> Result<DistributionPointName, Error> {
-        const FULL_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
-        const NAME_RELATIVE_TO_CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 1;
-
-        let (tag, value) = der::read_tag_and_get_value(&mut untrusted::Reader::new(der))?;
-        match tag {
-            FULL_NAME_TAG => Ok(DistributionPointName::FullName(GeneralNames {
-                reader: untrusted::Reader::new(value),
-            })),
-            NAME_RELATIVE_TO_CRL_ISSUER_TAG => {
-                Ok(DistributionPointName::NameRelativeToCrlIssuer(value))
-            }
-            _ => Err(Error::BadDer),
-        }
-    }
-}
-
-/// An iterator over a series of X.509 [GeneralName] instances describing locations that can be used
-/// to fetch a certificate revocation list for a certificate.
-pub(crate) struct GeneralNames<'a> {
-    reader: untrusted::Reader<'a>,
-}
-
-impl<'a> Iterator for GeneralNames<'a> {
-    type Item = Result<GeneralName<'a>, Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        (!self.reader.at_end()).then(|| GeneralName::from_der(&mut self.reader))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::cert::{Cert, EndEntityOrCa};
     #[cfg(feature = "alloc")]
     use crate::{
-        cert::{CrlDistributionPoint, DistributionPointName, GeneralNames},
+        cert::{CrlDistributionPoint, DistributionPointName},
         subject_name::GeneralName,
+        x509::GeneralNames,
         Error, RevocationReason,
     };
 
