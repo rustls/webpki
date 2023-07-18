@@ -746,7 +746,10 @@ mod private {
 mod tests {
     use alloc::vec::Vec;
 
-    use crate::{Error, RevocationReason};
+    use crate::{
+        crl::IssuingDistributionPoint, subject_name::GeneralName, x509::DistributionPointName,
+        BorrowedCertRevocationList, CertRevocationList, Error, RevocationReason,
+    };
 
     #[test]
     fn revocation_reasons() {
@@ -812,5 +815,190 @@ mod tests {
         let owned_revoked_cert = revoked_cert.to_owned();
         println!("{:?}", owned_revoked_cert); // OwnedRevokedCert should be debug.
         let _ = owned_revoked_cert.clone(); // OwnedRevokedCert should be clone.
+    }
+
+    #[test]
+    fn parse_issuing_distribution_point_ext() {
+        let crl = include_bytes!("../tests/crls/crl.idp.valid.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+        // We should be able to parse the issuing distribution point extension.
+        let crl_issuing_dp = crl
+            .issuing_distribution_point()
+            .expect("missing crl distribution point DER");
+
+        #[cfg(feature = "alloc")]
+        {
+            // We should also be able to find the distribution point extensions bytes from
+            // an owned representation of the CRL.
+            let owned_crl = crl.to_owned().unwrap();
+            assert!(owned_crl.issuing_distribution_point().is_some());
+        }
+
+        let crl_issuing_dp =
+            IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp))
+                .expect("failed to parse issuing distribution point DER");
+
+        // We don't expect any of the bool fields to have been set true.
+        assert!(!crl_issuing_dp.only_contains_user_certs);
+        assert!(!crl_issuing_dp.only_contains_ca_certs);
+        assert!(!crl_issuing_dp.indirect_crl);
+
+        // Since the issuing distribution point doesn't specify the optional onlySomeReasons field,
+        // we shouldn't find that it was parsed.
+        assert!(crl_issuing_dp.only_some_reasons.is_none());
+
+        // We should find the expected URI distribution point name.
+        let dp_name = crl_issuing_dp
+            .names()
+            .expect("failed to parse distribution point names")
+            .expect("missing distribution point name");
+        let uri = match dp_name {
+            DistributionPointName::NameRelativeToCrlIssuer(_) => {
+                panic!("unexpected relative dp name")
+            }
+            DistributionPointName::FullName(general_names) => {
+                general_names.map(|general_name| match general_name {
+                    Ok(GeneralName::UniformResourceIdentifier(uri)) => uri.as_slice_less_safe(),
+                    _ => panic!("unexpected general name type"),
+                })
+            }
+        }
+        .collect::<Vec<_>>();
+        let expected = &["http://crl.trustcor.ca/sub/dv-ssl-rsa-s-0.crl".as_bytes()];
+        assert_eq!(uri, expected);
+    }
+
+    #[test]
+    fn test_issuing_distribution_point_only_user_certs() {
+        let crl = include_bytes!("../tests/crls/crl.idp.only_user_certs.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+        // We should be able to parse the issuing distribution point extension.
+        let crl_issuing_dp = crl
+            .issuing_distribution_point()
+            .expect("missing crl distribution point DER");
+        let crl_issuing_dp =
+            IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp))
+                .expect("failed to parse issuing distribution point DER");
+
+        // We should find the expected bool state.
+        assert!(crl_issuing_dp.only_contains_user_certs);
+    }
+
+    #[test]
+    fn test_issuing_distribution_point_only_ca_certs() {
+        let crl = include_bytes!("../tests/crls/crl.idp.only_ca_certs.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+        // We should be able to parse the issuing distribution point extension.
+        let crl_issuing_dp = crl
+            .issuing_distribution_point()
+            .expect("missing crl distribution point DER");
+        let crl_issuing_dp =
+            IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp))
+                .expect("failed to parse issuing distribution point DER");
+
+        // We should find the expected bool state.
+        assert!(crl_issuing_dp.only_contains_ca_certs);
+    }
+
+    #[test]
+    fn test_issuing_distribution_point_indirect() {
+        let crl = include_bytes!("../tests/crls/crl.idp.indirect_crl.der");
+        // We should encounter an error parsing a CRL with an IDP extension that indicates it's an
+        // indirect CRL.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(result, Err(Error::UnsupportedIndirectCrl)));
+    }
+
+    #[test]
+    fn test_issuing_distribution_only_attribute_certs() {
+        let crl = include_bytes!("../tests/crls/crl.idp.only_attribute_certs.der");
+        // We should find an error when we parse a CRL with an IDP extension that indicates it only
+        // contains attribute certs.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(result, Err(Error::MalformedExtensions)));
+    }
+
+    #[test]
+    fn test_issuing_distribution_only_some_reasons() {
+        let crl = include_bytes!("../tests/crls/crl.idp.only_some_reasons.der");
+        // We should encounter an error parsing a CRL with an IDP extension that indicates it's
+        // partitioned by revocation reason.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(
+            result,
+            Err(Error::UnsupportedRevocationReasonsPartitioning)
+        ));
+    }
+
+    #[test]
+    fn test_issuing_distribution_invalid_bool() {
+        // Created w/
+        //   ascii2der -i tests/crls/crl.idp.invalid.bool.der.txt -o tests/crls/crl.idp.invalid.bool.der
+        let crl = include_bytes!("../tests/crls/crl.idp.invalid.bool.der");
+        // We should encounter an error parsing a CRL with an IDP extension with an invalid encoded boolean.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(result, Err(Error::BadDer)))
+    }
+
+    #[test]
+    fn test_issuing_distribution_explicit_false_bool() {
+        // Created w/
+        //   ascii2der -i tests/crls/crl.idp.explicit.false.bool.der.txt -o tests/crls/crl.idp.explicit.false.bool.der
+        let crl = include_bytes!("../tests/crls/crl.idp.explicit.false.bool.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+        // We should be able to parse the issuing distribution point extension.
+        let crl_issuing_dp = crl
+            .issuing_distribution_point()
+            .expect("missing crl distribution point DER");
+        assert!(IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp)).is_ok());
+    }
+
+    #[test]
+    fn test_issuing_distribution_unknown_tag() {
+        // Created w/
+        //   ascii2der -i tests/crls/crl.idp.unknown.tag.der.txt -o tests/crls/crl.idp.unknown.tag.der
+        let crl = include_bytes!("../tests/crls/crl.idp.unknown.tag.der");
+        // We should encounter an error parsing a CRL with an invalid IDP extension.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(result, Err(Error::BadDer)));
+    }
+
+    #[test]
+    fn test_issuing_distribution_invalid_name() {
+        // Created w/
+        //   ascii2der -i tests/crls/crl.idp.invalid.name.der.txt -o tests/crls/crl.idp.invalid.name.der
+        let crl = include_bytes!("../tests/crls/crl.idp.invalid.name.der");
+
+        // We should encounter an error parsing a CRL with an invalid issuing distribution point name.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(result, Err(Error::MalformedExtensions)))
+    }
+
+    #[test]
+    fn test_issuing_distribution_relative_name() {
+        let crl = include_bytes!("../tests/crls/crl.idp.name_relative_to_issuer.der");
+        // We should encounter an error parsing a CRL with an issuing distribution point extension
+        // that has a distribution point name relative to an issuer.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(
+            result,
+            Err(Error::UnsupportedCrlIssuingDistributionPoint)
+        ))
+    }
+
+    #[test]
+    fn test_issuing_distribution_no_name() {
+        let crl = include_bytes!("../tests/crls/crl.idp.no_distribution_point_name.der");
+        // We should encounter an error parsing a CRL with an issuing distribution point extension
+        // that has no distribution point name.
+        let result = BorrowedCertRevocationList::from_der(&crl[..]);
+        assert!(matches!(
+            result,
+            Err(Error::UnsupportedCrlIssuingDistributionPoint)
+        ))
     }
 }
