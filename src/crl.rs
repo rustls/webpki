@@ -560,6 +560,24 @@ impl RevocationReason {
             })?)
         })
     }
+
+    /// Return an iterator over all possible [RevocationReason] variants.
+    pub fn iter() -> impl Iterator<Item = RevocationReason> {
+        use RevocationReason::*;
+        [
+            Unspecified,
+            KeyCompromise,
+            CaCompromise,
+            AffiliationChanged,
+            Superseded,
+            CessationOfOperation,
+            CertificateHold,
+            RemoveFromCrl,
+            PrivilegeWithdrawn,
+            AaCompromise,
+        ]
+        .into_iter()
+    }
 }
 
 impl TryFrom<u8> for RevocationReason {
@@ -626,6 +644,14 @@ mod tests {
         // Unsupported/unknown revocation reason codes should produce an error.
         let res = <u8 as TryInto<RevocationReason>>::try_into(7);
         assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
+
+        // The iterator should produce all possible revocation reason variants.
+        let expected = testcases
+            .iter()
+            .map(|(_, reason)| *reason)
+            .collect::<Vec<_>>();
+        let actual = RevocationReason::iter().collect::<Vec<_>>();
+        assert_eq!(actual, expected);
     }
 
     #[test]

@@ -372,9 +372,8 @@ mod tests {
     #[cfg(feature = "alloc")]
     use crate::{
         cert::{CrlDistributionPoint, DistributionPointName, GeneralNames},
-        crl,
         subject_name::GeneralName,
-        Error,
+        Error, RevocationReason,
     };
 
     #[test]
@@ -488,24 +487,20 @@ mod tests {
             .expect("missing distribution point");
 
         // The distribution point should include the expected revocation reasons, and no others.
-        match &crl_distribution_point.reasons {
-            None => panic!("missing revocation reasons"),
-            Some(reasons) => {
-                let expected = &[
-                    crl::RevocationReason::KeyCompromise,
-                    crl::RevocationReason::AffiliationChanged,
-                ];
-                for reason in 0..=10 {
-                    if reason == 7 {
-                        continue; // revocation code 7 is unused
-                    }
-                    let revocation_reason = crl::RevocationReason::try_from(reason).unwrap();
-                    #[allow(clippy::as_conversions)] // Safe in this range.
-                    match expected.contains(&revocation_reason) {
-                        true => assert!(reasons.bit_set(reason as usize)),
-                        false => assert!(!reasons.bit_set(reason as usize)),
-                    }
-                }
+        let reasons = crl_distribution_point
+            .reasons
+            .as_ref()
+            .expect("missing revocation reasons");
+        let expected = &[
+            RevocationReason::KeyCompromise,
+            RevocationReason::AffiliationChanged,
+        ];
+        for reason in RevocationReason::iter() {
+            #[allow(clippy::as_conversions)]
+            // revocation reason is u8, infallible to convert to usize.
+            match expected.contains(&reason) {
+                true => assert!(reasons.bit_set(reason as usize)),
+                false => assert!(!reasons.bit_set(reason as usize)),
             }
         }
     }
