@@ -119,6 +119,10 @@ pub enum Error {
     /// The certificate contains an unsupported critical extension.
     UnsupportedCriticalExtension,
 
+    /// The CRL contains an issuing distribution point with no distribution point name,
+    /// or a distribution point name relative to an issuer.
+    UnsupportedCrlIssuingDistributionPoint,
+
     /// The CRL is not a v2 X.509 CRL.
     ///
     /// The RFC 5280 web PKI profile mandates only version 2 be used. See section
@@ -135,6 +139,9 @@ pub enum Error {
 
     /// The revocation reason is not in the set of supported revocation reasons.
     UnsupportedRevocationReason,
+
+    /// The CRL is partitioned by revocation reasons.
+    UnsupportedRevocationReasonsPartitioning,
 
     /// The signature algorithm for a signature over a CRL is not in the set of supported
     /// signature algorithms given.
@@ -182,33 +189,35 @@ impl Error {
     pub(crate) fn rank(&self) -> u32 {
         match &self {
             // Errors related to certificate validity
-            Error::CertNotValidYet | Error::CertExpired => 27,
-            Error::CertNotValidForName => 26,
-            Error::CertRevoked => 25,
-            Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 24,
-            Error::SignatureAlgorithmMismatch => 23,
-            Error::RequiredEkuNotFound => 22,
-            Error::NameConstraintViolation => 21,
-            Error::PathLenConstraintViolated => 20,
-            Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 19,
-            Error::IssuerNotCrlSigner => 18,
+            Error::CertNotValidYet | Error::CertExpired => 29,
+            Error::CertNotValidForName => 28,
+            Error::CertRevoked => 27,
+            Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 26,
+            Error::SignatureAlgorithmMismatch => 25,
+            Error::RequiredEkuNotFound => 24,
+            Error::NameConstraintViolation => 23,
+            Error::PathLenConstraintViolated => 22,
+            Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 21,
+            Error::IssuerNotCrlSigner => 20,
 
             // Errors related to supported features used in an invalid way.
-            Error::InvalidCertValidity => 17,
-            Error::InvalidNetworkMaskConstraint => 16,
-            Error::InvalidSerialNumber => 15,
-            Error::InvalidCrlNumber => 14,
+            Error::InvalidCertValidity => 19,
+            Error::InvalidNetworkMaskConstraint => 18,
+            Error::InvalidSerialNumber => 17,
+            Error::InvalidCrlNumber => 16,
 
             // Errors related to unsupported features.
             Error::UnsupportedCrlSignatureAlgorithmForPublicKey
-            | Error::UnsupportedSignatureAlgorithmForPublicKey => 13,
-            Error::UnsupportedCrlSignatureAlgorithm | Error::UnsupportedSignatureAlgorithm => 12,
-            Error::UnsupportedCriticalExtension => 11,
-            Error::UnsupportedCertVersion => 11,
-            Error::UnsupportedCrlVersion => 10,
-            Error::UnsupportedDeltaCrl => 9,
-            Error::UnsupportedIndirectCrl => 8,
-            Error::UnsupportedRevocationReason => 7,
+            | Error::UnsupportedSignatureAlgorithmForPublicKey => 15,
+            Error::UnsupportedCrlSignatureAlgorithm | Error::UnsupportedSignatureAlgorithm => 14,
+            Error::UnsupportedCriticalExtension => 13,
+            Error::UnsupportedCertVersion => 13,
+            Error::UnsupportedCrlVersion => 12,
+            Error::UnsupportedDeltaCrl => 11,
+            Error::UnsupportedIndirectCrl => 10,
+            Error::UnsupportedRevocationReason => 9,
+            Error::UnsupportedRevocationReasonsPartitioning => 8,
+            Error::UnsupportedCrlIssuingDistributionPoint => 7,
 
             // Errors related to malformed data.
             Error::MalformedDnsIdentifier => 6,
