@@ -72,5 +72,9 @@ jobs:
         working-directory: ./tests/crl_distrib_point/
         run: python3 make_testcerts.py
 
+      - name: Generate CRL test files
+        working-directory: ./tests/crls/
+        run: python3 make_testcrls.py
+
       - name: Enforce no diff
         run: git diff --exit-code
