@@ -615,10 +615,39 @@ mod tests {
             let actual = <u8 as TryInto<RevocationReason>>::try_into(*id)
                 .expect("unexpected reason code conversion error");
             assert_eq!(actual, *expected);
+            #[cfg(feature = "alloc")]
+            {
+                // revocation reasons should be Debug.
+                println!("{:?}", actual);
+            }
         }
 
         // Unsupported/unknown revocation reason codes should produce an error.
         let res = <u8 as TryInto<RevocationReason>>::try_into(7);
         assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_derived_traits() {
+        let crl = crate::crl::BorrowedCertRevocationList::from_der(include_bytes!(
+            "../tests/crls/crl.valid.der"
+        ))
+        .unwrap();
+        println!("{:?}", crl); // BorrowedCertRevocationList should be debug.
+
+        let owned_crl = crl.to_owned().unwrap();
+        println!("{:?}", owned_crl); // OwnedCertRevocationList should be debug.
+        let _ = owned_crl.clone(); // OwnedCertRevocationList should be clone.
+
+        let mut revoked_certs = crl.into_iter();
+        println!("{:?}", revoked_certs); // RevokedCert should be debug.
+
+        let revoked_cert = revoked_certs.next().unwrap().unwrap();
+        println!("{:?}", revoked_cert); // BorrowedRevokedCert should be debug.
+
+        let owned_revoked_cert = revoked_cert.to_owned();
+        println!("{:?}", owned_revoked_cert); // OwnedRevokedCert should be debug.
+        let _ = owned_revoked_cert.clone(); // OwnedRevokedCert should be clone.
     }
 }
