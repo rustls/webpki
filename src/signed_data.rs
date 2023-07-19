@@ -20,6 +20,7 @@ use ring::signature;
 /// captures this pattern as an owned data type.
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[cfg(feature = "alloc")]
+#[derive(Clone, Debug)]
 pub(crate) struct OwnedSignedData {
     /// The signed data. This would be `tbsCertificate` in the case of an X.509
     /// certificate, `tbsResponseData` in the case of an OCSP response, `tbsCertList`
@@ -54,6 +55,7 @@ impl OwnedSignedData {
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
 /// captures this pattern.
+#[derive(Debug)]
 pub(crate) struct SignedData<'a> {
     /// The signed data. This would be `tbsCertificate` in the case of an X.509
     /// certificate, `tbsResponseData` in the case of an OCSP response, `tbsCertList`

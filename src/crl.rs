@@ -49,6 +49,7 @@ pub trait CertRevocationList: Sealed {
 #[cfg(feature = "alloc")]
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[allow(dead_code)] // we parse some fields we don't expose now, but may choose to expose in the future.
+#[derive(Debug, Clone)]
 pub struct OwnedCertRevocationList {
     /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
     /// of the revoked cert's serial number.
@@ -94,6 +95,7 @@ impl CertRevocationList for OwnedCertRevocationList {
 /// Borrowed representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+#[derive(Debug)]
 pub struct BorrowedCertRevocationList<'a> {
     /// A `SignedData` structure that can be passed to `verify_signed_data`.
     signed_data: signed_data::SignedData<'a>,
@@ -345,6 +347,7 @@ impl<'a> IntoIterator for &'a BorrowedCertRevocationList<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct RevokedCerts<'a> {
     reader: untrusted::Reader<'a>,
 }
@@ -364,6 +367,7 @@ impl<'a> Iterator for RevokedCerts<'a> {
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 #[cfg(feature = "alloc")]
+#[derive(Clone, Debug)]
 pub struct OwnedRevokedCert {
     /// Serial number of the revoked certificate.
     pub serial_number: Vec<u8>,
@@ -400,6 +404,7 @@ impl OwnedRevokedCert {
 /// certificate entry.
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+#[derive(Debug)]
 pub struct BorrowedRevokedCert<'a> {
     /// Serial number of the revoked certificate.
     pub serial_number: &'a [u8],
