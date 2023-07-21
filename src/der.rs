@@ -15,7 +15,6 @@
 use core::marker::PhantomData;
 
 use crate::{calendar, time, Error};
-pub(crate) use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
 
 #[derive(Debug)]
 pub struct DerIterator<'a, T> {
@@ -68,6 +67,9 @@ pub(crate) enum Tag {
     ContextSpecificConstructed1 = CONTEXT_SPECIFIC | CONSTRUCTED | 1,
     ContextSpecificConstructed3 = CONTEXT_SPECIFIC | CONSTRUCTED | 3,
 }
+
+pub(crate) const CONSTRUCTED: u8 = 0x20;
+pub(crate) const CONTEXT_SPECIFIC: u8 = 0x80;
 
 impl From<Tag> for usize {
     #[allow(clippy::as_conversions)]
@@ -377,8 +379,39 @@ pub(crate) fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Er
     })
 }
 
+pub(crate) fn nonnegative_integer<'a>(
+    input: &mut untrusted::Reader<'a>,
+) -> Result<untrusted::Input<'a>, Error> {
+    let value = expect_tag_and_get_value(input, Tag::Integer)?;
+    match value
+        .as_slice_less_safe()
+        .split_first()
+        .ok_or(Error::BadDer)?
+    {
+        // Zero or leading zero.
+        (0, rest) => {
+            match rest.first() {
+                // Zero
+                None => Ok(value),
+                // Necessary leading zero.
+                Some(&second) if second & 0x80 == 0x80 => Ok(untrusted::Input::from(rest)),
+                // Unnecessary leading zero.
+                _ => Err(Error::BadDer),
+            }
+        }
+        // Positive value with no leading zero.
+        (first, _) if first & 0x80 == 0x00 => Ok(value),
+        // Negative value.
+        (_, _) => Err(Error::BadDer),
+    }
+}
+
+// Parse an integer in the range 0..=255.
 pub(crate) fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {
-    ring::io::der::small_nonnegative_integer(input).map_err(|_| Error::BadDer)
+    match *nonnegative_integer(input)?.as_slice_less_safe() {
+        [b] => Ok(b),
+        _ => Err(Error::BadDer),
+    }
 }
 
 pub(crate) fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
@@ -701,5 +734,94 @@ mod tests {
         assert!(!res.bit_set(8));
         // Bits outside the range of values shouldn't be considered set.
         assert!(!res.bit_set(256));
+    }
+
+    #[test]
+    fn test_small_nonnegative_integer() {
+        use super::{small_nonnegative_integer, Error, Tag};
+
+        for value in 0..=127 {
+            let data = [Tag::Integer.into(), 1, value];
+            let mut rd = untrusted::Reader::new(untrusted::Input::from(&data));
+            assert_eq!(small_nonnegative_integer(&mut rd), Ok(value),);
+        }
+
+        for value in 128..=255 {
+            let data = [Tag::Integer.into(), 2, 0x00, value];
+            let mut rd = untrusted::Reader::new(untrusted::Input::from(&data));
+            assert_eq!(small_nonnegative_integer(&mut rd), Ok(value),);
+        }
+
+        // not an integer
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Sequence.into(),
+                1,
+                1
+            ]))),
+            Err(Error::BadDer)
+        );
+
+        // negative
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Integer.into(),
+                1,
+                0xff
+            ]))),
+            Err(Error::BadDer)
+        );
+
+        // positive but too large
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Integer.into(),
+                2,
+                0x01,
+                0x00
+            ]))),
+            Err(Error::BadDer)
+        );
+
+        // unnecessary leading zero
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Integer.into(),
+                2,
+                0x00,
+                0x05
+            ]))),
+            Err(Error::BadDer)
+        );
+
+        // truncations
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[]))),
+            Err(Error::BadDer)
+        );
+
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Integer.into(),
+            ]))),
+            Err(Error::BadDer)
+        );
+
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Integer.into(),
+                1,
+            ]))),
+            Err(Error::BadDer)
+        );
+
+        assert_eq!(
+            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+                Tag::Integer.into(),
+                2,
+                0
+            ]))),
+            Err(Error::BadDer)
+        );
     }
 }

@@ -172,9 +172,9 @@ impl<'a> BorrowedCertRevocationList<'a> {
                     //   values longer than 20 octets.
                     //
                     extension.value.read_all(Error::InvalidCrlNumber, |der| {
-                        let crl_number = ring::io::der::positive_integer(der)
+                        let crl_number = der::nonnegative_integer(der)
                             .map_err(|_| Error::InvalidCrlNumber)?
-                            .big_endian_without_leading_zero();
+                            .as_slice_less_safe();
                         if crl_number.len() <= 20 {
                             Ok(crl_number)
                         } else {
