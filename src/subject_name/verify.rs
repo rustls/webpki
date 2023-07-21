@@ -403,7 +403,7 @@ pub(crate) enum GeneralName<'a> {
 
 impl<'a> FromDer<'a> for GeneralName<'a> {
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
-        use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
+        use der::{CONSTRUCTED, CONTEXT_SPECIFIC};
         use GeneralName::*;
 
         #[allow(clippy::identity_op)]
