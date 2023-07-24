@@ -62,7 +62,7 @@ impl<'a> TryFrom<&'a [u8]> for EndEntityCert<'a> {
     /// `cert_der`.
     fn try_from(cert_der: &'a [u8]) -> Result<Self, Self::Error> {
         Ok(Self {
-            inner: cert::parse_cert(
+            inner: cert::Cert::from_der(
                 untrusted::Input::from(cert_der),
                 cert::EndEntityOrCa::EndEntity,
             )?,

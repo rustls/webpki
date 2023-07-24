@@ -1,8 +1,5 @@
-use crate::cert::{lenient_certificate_serial_number, Cert};
-use crate::{
-    cert::{parse_cert, EndEntityOrCa},
-    der, Error,
-};
+use crate::cert::{lenient_certificate_serial_number, Cert, EndEntityOrCa};
+use crate::{der, Error};
 
 /// A trust anchor (a.k.a. root CA).
 ///
@@ -55,7 +52,7 @@ impl<'a> TrustAnchor<'a> {
         // certificate using a special parser for v1 certificates. Notably, that
         // parser doesn't allow extensions, so there's no need to worry about
         // embedded name constraints in a v1 certificate.
-        match parse_cert(cert_der, EndEntityOrCa::EndEntity) {
+        match Cert::from_der(cert_der, EndEntityOrCa::EndEntity) {
             Ok(cert) => Ok(Self::from(cert)),
             Err(Error::UnsupportedCertVersion) => parse_cert_v1(cert_der).or(Err(Error::BadDer)),
             Err(err) => Err(err),

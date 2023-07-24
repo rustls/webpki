@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::{
-    cert::{self, Cert, EndEntityOrCa},
+    cert::{Cert, EndEntityOrCa},
     der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
     TrustAnchor,
 };
@@ -97,7 +97,7 @@ fn build_chain_inner(
 
     loop_while_non_fatal_error(err, opts.intermediate_certs, |cert_der| {
         let potential_issuer =
-            cert::parse_cert(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
+            Cert::from_der(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
 
         if potential_issuer.subject != cert.issuer {
             return Err(Error::UnknownIssuer);
