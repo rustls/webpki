@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use std::collections::HashMap;
-use webpki::TrustAnchor;
+use webpki::{KeyUsage, TrustAnchor};
 
 #[test]
 pub fn path_building() {
@@ -11,7 +11,6 @@ pub fn path_building() {
 
     let root_der = &better_tls.root_der();
     let roots = &[TrustAnchor::try_from_cert_der(root_der).expect("invalid trust anchor")];
-    let trust_anchors = &webpki::TlsServerTrustAnchors(roots);
 
     let path_building_suite = better_tls
         .suites
@@ -35,11 +34,13 @@ pub fn path_building() {
         // certificates won't expire.
         let now = webpki::Time::from_seconds_since_unix_epoch(1_688_651_734);
 
-        let result = ee_cert.verify_is_valid_tls_server_cert(
+        let result = ee_cert.verify_for_usage(
             &[&webpki::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
-            trust_anchors,
+            roots,
             intermediates,
             now,
+            KeyUsage::server_auth(),
+            &[],
         );
 
         match testcase.expected {

@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #![cfg(feature = "alloc")]
 
-extern crate webpki;
+use webpki::KeyUsage;
 
 static ALL_SIGALGS: &[&webpki::SignatureAlgorithm] = &[
     &webpki::ECDSA_P256_SHA256,
@@ -33,12 +33,18 @@ fn check_cert(
     valid_names: &[&str],
     invalid_names: &[&str],
 ) -> Result<(), webpki::Error> {
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
-    cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)?;
+    cert.verify_for_usage(
+        ALL_SIGALGS,
+        &anchors,
+        &[],
+        time,
+        KeyUsage::server_auth(),
+        &[],
+    )?;
 
     for valid in valid_names {
         let name = webpki::SubjectNameRef::try_from_ascii_str(valid).unwrap();

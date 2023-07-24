@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-extern crate webpki;
+use webpki::KeyUsage;
 
 static ALL_SIGALGS: &[&webpki::SignatureAlgorithm] = &[
     &webpki::ECDSA_P256_SHA256,
@@ -39,15 +39,21 @@ pub fn netflix() {
     let inter = include_bytes!("netflix/inter.der");
     let ca = include_bytes!("netflix/ca.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_492_441_716); // 2017-04-17T15:08:36Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
         Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[inter], time)
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[inter],
+            time,
+            KeyUsage::server_auth(),
+            &[]
+        )
     );
 }
 
@@ -59,15 +65,21 @@ pub fn cloudflare_dns() {
     let inter = include_bytes!("cloudflare_dns/inter.der");
     let ca = include_bytes!("cloudflare_dns/ca.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_663_495_771);
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
         Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[inter], time)
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[inter],
+            time,
+            KeyUsage::server_auth(),
+            &[]
+        )
     );
 
     let check_name = |name: &str| {
@@ -107,15 +119,21 @@ pub fn wpt() {
     let ee: &[u8] = include_bytes!("wpt/ee.der");
     let ca = include_bytes!("wpt/ca.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_619_256_684); // 2021-04-24T09:31:24Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
         Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[],
+            time,
+            KeyUsage::server_auth(),
+            &[]
+        )
     );
 }
 
@@ -124,15 +142,21 @@ pub fn ed25519() {
     let ee: &[u8] = include_bytes!("ed25519/ee.der");
     let ca = include_bytes!("ed25519/ca.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_547_363_522); // 2019-01-13T07:12:02Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
         Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[],
+            time,
+            KeyUsage::server_auth(),
+            &[]
+        )
     );
 }
 
@@ -144,16 +168,31 @@ fn critical_extensions() {
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_670_779_098);
     let anchors = [webpki::TrustAnchor::try_from_cert_der(root).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
 
     let ee = include_bytes!("critical_extensions/ee-cert-noncrit-unknown-ext.der");
-    let res = webpki::EndEntityCert::try_from(&ee[..])
-        .and_then(|cert| cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[ca], time));
+    let res = webpki::EndEntityCert::try_from(&ee[..]).and_then(|cert| {
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[ca],
+            time,
+            KeyUsage::server_auth(),
+            &[],
+        )
+    });
     assert_eq!(res, Ok(()), "accept non-critical unknown extension");
 
     let ee = include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der");
-    let res = webpki::EndEntityCert::try_from(&ee[..])
-        .and_then(|cert| cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[ca], time));
+    let res = webpki::EndEntityCert::try_from(&ee[..]).and_then(|cert| {
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[ca],
+            time,
+            KeyUsage::server_auth(),
+            &[],
+        )
+    });
     assert_eq!(
         res,
         Err(webpki::Error::UnsupportedCriticalExtension),
@@ -180,15 +219,21 @@ fn read_ee_with_neg_serial() {
     let ca: &[u8] = include_bytes!("misc/serial_neg_ca.der");
     let ee: &[u8] = include_bytes!("misc/serial_neg_ee.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_667_401_500); // 2022-11-02T15:05:00Z
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     assert_eq!(
         Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)
+        cert.verify_for_usage(
+            ALL_SIGALGS,
+            &anchors,
+            &[],
+            time,
+            KeyUsage::server_auth(),
+            &[]
+        )
     );
 }
 

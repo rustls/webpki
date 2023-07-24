@@ -16,9 +16,10 @@
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
     cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, KeyUsage,
-    NonTlsTrustAnchors, SignatureAlgorithm, SubjectNameRef, Time, TlsClientTrustAnchors,
-    TlsServerTrustAnchors, TrustAnchor,
+    SignatureAlgorithm, SubjectNameRef, Time, TrustAnchor,
 };
+#[allow(deprecated)]
+use crate::{TlsClientTrustAnchors, TlsServerTrustAnchors};
 
 /// An end-entity certificate.
 ///
@@ -100,20 +101,25 @@ impl<'a> EndEntityCert<'a> {
     /// Verifies that the end-entity certificate is valid for use against the
     /// specified Extended Key Usage (EKU).
     ///
-    /// `supported_sig_algs` is the list of signature algorithms that are
-    /// trusted for use in certificate signatures; the end-entity certificate's
-    /// public key is not validated against this list. `trust_anchors` is the
-    /// list of root CAs to trust. `intermediate_certs` is the sequence of
-    /// intermediate certificates that the server sent in the TLS handshake.
-    /// `time` is the time for which the validation is effective (usually the
-    /// current time).
-    pub fn verify_is_valid_cert_with_eku(
+    /// * `supported_sig_algs` is the list of signature algorithms that are
+    ///   trusted for use in certificate signatures; the end-entity certificate's
+    ///   public key is not validated against this list.
+    /// * `trust_anchors` is the list of root CAs to trust
+    /// * `intermediate_certs` is the sequence of intermediate certificates that
+    ///   the server sent in the TLS handshake.
+    /// * `time` is the time for which the validation is effective (usually the
+    ///   current time).
+    /// * `usage` is the intended usage of the certificate, indicating what kind
+    ///   of usage we're verifying the certificate for.
+    /// * `crls` is the list of certificate revocation lists to check
+    ///   the certificate against.
+    pub fn verify_for_usage(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
-        &NonTlsTrustAnchors(trust_anchors): &NonTlsTrustAnchors,
+        trust_anchors: &[TrustAnchor],
         intermediate_certs: &[&[u8]],
         time: Time,
-        eku: KeyUsage,
+        usage: KeyUsage,
         crls: &[&dyn CertRevocationList],
     ) -> Result<(), Error> {
         self.verify_is_valid_cert(
@@ -121,7 +127,7 @@ impl<'a> EndEntityCert<'a> {
             trust_anchors,
             intermediate_certs,
             time,
-            eku,
+            usage,
             crls,
         )
     }
@@ -136,6 +142,8 @@ impl<'a> EndEntityCert<'a> {
     /// intermediate certificates that the server sent in the TLS handshake.
     /// `time` is the time for which the validation is effective (usually the
     /// current time).
+    #[allow(deprecated)]
+    #[deprecated(since = "0.101.2", note = "Use `verify_for_usage` instead")]
     pub fn verify_is_valid_tls_server_cert(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
@@ -164,6 +172,8 @@ impl<'a> EndEntityCert<'a> {
     /// `cert` is the purported end-entity certificate of the client. `time` is
     /// the time for which the validation is effective (usually the current
     /// time).
+    #[allow(deprecated)]
+    #[deprecated(since = "0.101.2", note = "Use `verify_for_usage` instead")]
     pub fn verify_is_valid_tls_client_cert(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
