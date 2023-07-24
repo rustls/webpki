@@ -75,9 +75,60 @@ pub(crate) struct SignedData<'a> {
     signature: untrusted::Input<'a>,
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> SignedData<'a> {
+    /// Parses the concatenation of "tbs||signatureAlgorithm||signature" that
+    /// is common in the X.509 certificate and OCSP response syntaxes.
+    ///
+    /// X.509 Certificates (RFC 5280) look like this:
+    ///
+    /// ```ASN.1
+    /// Certificate (SEQUENCE) {
+    ///     tbsCertificate TBSCertificate,
+    ///     signatureAlgorithm AlgorithmIdentifier,
+    ///     signatureValue BIT STRING
+    /// }
+    ///
+    /// OCSP responses (RFC 6960) look like this:
+    /// ```ASN.1
+    /// BasicOCSPResponse {
+    ///     tbsResponseData ResponseData,
+    ///     signatureAlgorithm AlgorithmIdentifier,
+    ///     signature BIT STRING,
+    ///     certs [0] EXPLICIT SEQUENCE OF Certificate OPTIONAL
+    /// }
+    /// ```
+    ///
+    /// Note that this function does NOT parse the outermost `SEQUENCE` or the
+    /// `certs` value.
+    ///
+    /// The return value's first component is the contents of
+    /// `tbsCertificate`/`tbsResponseData`; the second component is a `SignedData`
+    /// structure that can be passed to `verify_signed_data`.
+    ///
+    /// The provided size_limit will enforce the largest possible outermost `SEQUENCE` this
+    /// function will read.
+    pub(crate) fn from_der(
+        der: &mut untrusted::Reader<'a>,
+        size_limit: usize,
+    ) -> Result<(untrusted::Input<'a>, Self), Error> {
+        let (data, tbs) = der.read_partial(|input| {
+            der::expect_tag_and_get_value_limited(input, der::Tag::Sequence, size_limit)
+        })?;
+        let algorithm = der::expect_tag_and_get_value(der, der::Tag::Sequence)?;
+        let signature = der::bit_string_with_no_unused_bits(der)?;
+
+        Ok((
+            tbs,
+            SignedData {
+                data,
+                algorithm,
+                signature,
+            },
+        ))
+    }
+
     /// Convert the borrowed signed data to an [`OwnedSignedData`].
+    #[cfg(feature = "alloc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub(crate) fn to_owned(&self) -> OwnedSignedData {
         OwnedSignedData {
@@ -86,57 +137,6 @@ impl<'a> SignedData<'a> {
             signature: self.signature.as_slice_less_safe().to_vec(),
         }
     }
-}
-
-/// Parses the concatenation of "tbs||signatureAlgorithm||signature" that
-/// is common in the X.509 certificate and OCSP response syntaxes.
-///
-/// X.509 Certificates (RFC 5280) look like this:
-///
-/// ```ASN.1
-/// Certificate (SEQUENCE) {
-///     tbsCertificate TBSCertificate,
-///     signatureAlgorithm AlgorithmIdentifier,
-///     signatureValue BIT STRING
-/// }
-///
-/// OCSP responses (RFC 6960) look like this:
-/// ```ASN.1
-/// BasicOCSPResponse {
-///     tbsResponseData ResponseData,
-///     signatureAlgorithm AlgorithmIdentifier,
-///     signature BIT STRING,
-///     certs [0] EXPLICIT SEQUENCE OF Certificate OPTIONAL
-/// }
-/// ```
-///
-/// Note that this function does NOT parse the outermost `SEQUENCE` or the
-/// `certs` value.
-///
-/// The return value's first component is the contents of
-/// `tbsCertificate`/`tbsResponseData`; the second component is a `SignedData`
-/// structure that can be passed to `verify_signed_data`.
-///
-/// The provided size_limit will enforce the largest possible outermost `SEQUENCE` this
-/// function will read.
-pub(crate) fn parse_signed_data<'a>(
-    der: &mut untrusted::Reader<'a>,
-    size_limit: usize,
-) -> Result<(untrusted::Input<'a>, SignedData<'a>), Error> {
-    let (data, tbs) = der.read_partial(|input| {
-        der::expect_tag_and_get_value_limited(input, der::Tag::Sequence, size_limit)
-    })?;
-    let algorithm = der::expect_tag_and_get_value(der, der::Tag::Sequence)?;
-    let signature = der::bit_string_with_no_unused_bits(der)?;
-
-    Ok((
-        tbs,
-        SignedData {
-            data,
-            algorithm,
-            signature,
-        },
-    ))
 }
 
 /// Verify `signed_data` using the public key in the DER-encoded

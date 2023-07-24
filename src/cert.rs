@@ -13,8 +13,9 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
+use crate::signed_data::SignedData;
 use crate::x509::{remember_extension, set_extension_once, Extension};
-use crate::{der, signed_data, Error};
+use crate::{der, Error};
 
 /// An enumeration indicating whether a [`Cert`] is a leaf end-entity cert, or a linked
 /// list node from the CA `Cert` to a child `Cert` it issued.
@@ -31,7 +32,7 @@ pub struct Cert<'a> {
     pub(crate) ee_or_ca: EndEntityOrCa<'a>,
 
     pub(crate) serial: untrusted::Input<'a>,
-    pub(crate) signed_data: signed_data::SignedData<'a>,
+    pub(crate) signed_data: SignedData<'a>,
     pub(crate) issuer: untrusted::Input<'a>,
     pub(crate) validity: untrusted::Input<'a>,
     pub(crate) subject: untrusted::Input<'a>,
@@ -56,7 +57,7 @@ impl<'a> Cert<'a> {
         let (tbs, signed_data) = cert_der.read_all(Error::BadDer, |cert_der| {
             der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |der| {
                 // limited to SEQUENCEs of size 2^16 or less.
-                signed_data::parse_signed_data(der, der::TWO_BYTE_DER_SIZE)
+                SignedData::from_der(der, der::TWO_BYTE_DER_SIZE)
             })
         })?;
 
