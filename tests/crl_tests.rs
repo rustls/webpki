@@ -2,6 +2,13 @@ use webpki::{BorrowedCertRevocationList, CertRevocationList, Error};
 
 const REVOKED_SERIAL: &[u8] = &[0x03, 0xAE, 0x51, 0xDB, 0x51, 0x15, 0x5A, 0x3C];
 
+const REVOKED_SERIAL_NEGATIVE: &[u8] = &[0xfd, 0x78, 0xa8, 0x4e];
+
+// because cert::Cert::serial is the raw DER integer encoding, this includes a leading
+// zero if one is required to make the twos complement representation positive.  in this case
+// one is required.
+const REVOKED_SERIAL_WITH_TOP_BIT_SET: &[u8] = &[0x00, 0x80, 0xfe, 0xed, 0xf0, 0x0d];
+
 #[test]
 fn parse_valid_crl() {
     // We should be able to parse a valid CRL without error, and find the revoked serial.
@@ -105,20 +112,49 @@ fn parse_too_long_crl_number_crl() {
 
 #[test]
 fn parse_entry_negative_serial_crl() {
-    // Parsing a CRL that includes a revoked entry with a negative serial number shouldn't error
-    // up-front since the error is with a revoked entry.
     let crl = include_bytes!("crls/crl.negative.serial.der");
     let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
-    // but searching for a revoked cert should error due to the entry with the negative serial number.
-    let res = crl.find_serial(REVOKED_SERIAL);
-    assert!(matches!(res, Err(Error::InvalidSerialNumber)));
+    assert!(crl
+        .find_serial(REVOKED_SERIAL)
+        .expect("looking for REVOKED_SERIAL failed")
+        .is_none());
+    assert!(crl
+        .find_serial(REVOKED_SERIAL_NEGATIVE)
+        .expect("looking for REVOKED_SERIAL_NEGATIVE failed")
+        .is_some());
 
     #[cfg(feature = "alloc")]
     {
-        // Constructing an owned CRL should error up-front since it will process the revoked certs.
-        let res = crl.to_owned();
-        assert!(matches!(res, Err(Error::InvalidSerialNumber)));
+        let crl = crl.to_owned().unwrap();
+        assert!(crl
+            .find_serial(REVOKED_SERIAL)
+            .expect("looking for REVOKED_SERIAL failed")
+            .is_none());
+        assert!(crl
+            .find_serial(REVOKED_SERIAL_NEGATIVE)
+            .expect("looking for REVOKED_SERIAL_NEGATIVE failed")
+            .is_some());
+    }
+}
+
+#[test]
+fn parse_entry_topbit_serial_crl() {
+    let crl = include_bytes!("crls/crl.topbit.serial.der");
+    let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+    assert!(crl
+        .find_serial(REVOKED_SERIAL_WITH_TOP_BIT_SET)
+        .expect("failed to look for REVOKED_SERIAL_WITH_TOP_BIT_SET")
+        .is_some());
+
+    #[cfg(feature = "alloc")]
+    {
+        let crl = crl.to_owned().unwrap();
+        assert!(crl
+            .find_serial(REVOKED_SERIAL_WITH_TOP_BIT_SET)
+            .expect("failed to look for REVOKED_SERIAL_WITH_TOP_BIT_SET")
+            .is_some());
     }
 }
 
