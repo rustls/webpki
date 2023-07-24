@@ -13,8 +13,9 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
+use crate::signed_data::{self, SignedData};
 use crate::x509::{remember_extension, set_extension_once, Extension};
-use crate::{der, signed_data, Error, SignatureAlgorithm, Time};
+use crate::{der, Error, SignatureAlgorithm, Time};
 
 #[cfg(feature = "alloc")]
 use std::collections::HashMap;
@@ -98,7 +99,7 @@ impl CertRevocationList for OwnedCertRevocationList {
 #[derive(Debug)]
 pub struct BorrowedCertRevocationList<'a> {
     /// A `SignedData` structure that can be passed to `verify_signed_data`.
-    signed_data: signed_data::SignedData<'a>,
+    signed_data: SignedData<'a>,
 
     /// Identifies the entity that has signed and issued this
     /// CRL.
@@ -127,7 +128,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 crl_der,
                 Tag::Sequence,
                 Error::BadDer,
-                |signed_der| signed_data::parse_signed_data(signed_der, der::MAX_DER_SIZE),
+                |signed_der| SignedData::from_der(signed_der, der::MAX_DER_SIZE),
                 der::MAX_DER_SIZE,
             )
         })?;
