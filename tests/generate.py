@@ -86,6 +86,7 @@ def end_entity_cert(
     subject_key: Optional[ANY_PRIV_KEY] = None,
     sans: Optional[Iterable[x509.GeneralName]] = None,
     ekus: Optional[Iterable[x509.ObjectIdentifier]] = None,
+    serial: Optional[int] = None,
 ) -> x509.Certificate:
     subject_priv_key = key_or_generate(subject_key)
     subject_key_pub: ANY_PUB_KEY = subject_priv_key.public_key()
@@ -95,7 +96,9 @@ def end_entity_cert(
     ee_builder = ee_builder.issuer_name(issuer_name)
     ee_builder = ee_builder.not_valid_before(NOT_BEFORE)
     ee_builder = ee_builder.not_valid_after(NOT_AFTER)
-    ee_builder = ee_builder.serial_number(x509.random_serial_number())
+    ee_builder = ee_builder.serial_number(
+        x509.random_serial_number() if serial is None else serial
+    )
     ee_builder = ee_builder.public_key(subject_key_pub)
     if sans:
         ee_builder = ee_builder.add_extension(
@@ -929,6 +932,18 @@ def client_auth_revocation(force: bool) -> None:
         ee_cert_path: str = os.path.join(output_dir, f"{chain_name}.ee.der")
         write_der(ee_cert_path, ee_cert.public_bytes(Encoding.DER), force)
 
+        # Second EE cert issued by intermediate, with top-bit set in serial.
+        ee_cert_topbit: x509.Certificate = end_entity_cert(
+            subject_name=ee_subj,
+            issuer_name=int_a_subj,
+            issuer_key=int_a_key,
+            serial=0x80DEADBEEFF00D,
+        )
+        ee_cert_topbit_path: str = os.path.join(
+            output_dir, f"{chain_name}.topbit.ee.der"
+        )
+        write_der(ee_cert_topbit_path, ee_cert_topbit.public_bytes(Encoding.DER), force)
+
         # intermediate a cert issued by intermediate b.
         int_a_cert: x509.Certificate = ca_cert(
             subject_name=int_a_subj,
@@ -965,6 +980,7 @@ def client_auth_revocation(force: bool) -> None:
             (int_a_cert, int_a_cert_path, int_a_key),
             (int_b_cert, int_b_cert_path, int_b_key),
             (root_cert, root_cert_path, root_key),
+            (ee_cert_topbit, ee_cert_topbit_path, ee_key),
         ]
 
     def _crl(
@@ -1015,6 +1031,7 @@ def client_auth_revocation(force: bool) -> None:
         crl_paths: Iterable[str],
         owned: bool,
         expected_error: Optional[str],
+        ee_topbit_serial: bool = False,
     ) -> None:
         """
         Generate a Rust unit test for a revocation checking scenario and write it to the output file.
@@ -1025,10 +1042,10 @@ def client_auth_revocation(force: bool) -> None:
         :param owned: whether to use the owned or borrowed CRL representation.
         :param expected_error: an optional error to expect to be returned from validation.
         """
-        if len(chain) != 4:
+        if len(chain) != 5:
             raise RuntimeError("invalid chain length")
 
-        ee_cert, ee_cert_path, _ = chain[0]
+        ee_cert, ee_cert_path, _ = chain[4] if ee_topbit_serial else chain[0]
         int_a_cert, int_a_cert_path, _ = chain[1]
         int_b_cert, int_b_cert_path, _ = chain[2]
         root_cert, root_cert_path, _ = chain[3]
@@ -1558,6 +1575,37 @@ def client_auth_revocation(force: bool) -> None:
             expected_error="CertRevoked",
         )
 
+    def _ee_with_top_bit_set_serial_revoked() -> None:
+        test_name = "ee_with_top_bit_set_serial_revoked"
+        ee_cert_topbit = crl_ku_chain[4][0]
+        int_a_key = crl_ku_chain[1][2]
+
+        ee_revoked_crl = _crl(
+            serials=[ee_cert_topbit.serial_number],
+            issuer_name=ee_cert_topbit.issuer,
+            issuer_key=int_a_key,
+        )
+
+        ee_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        write_der(ee_revoked_crl_path, ee_revoked_crl.public_bytes(Encoding.DER), force)
+
+        _revocation_test(
+            test_name=test_name,
+            chain=crl_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            owned=False,
+            ee_topbit_serial=True,
+            expected_error="CertRevoked",
+        )
+        _revocation_test(
+            test_name=test_name + "_owned",
+            chain=crl_ku_chain,
+            crl_paths=[ee_revoked_crl_path],
+            owned=True,
+            ee_topbit_serial=True,
+            expected_error="CertRevoked",
+        )
+
     with trim_top("client_auth_revocation.rs") as output:
         _no_crls_test_ee_depth()
         _no_relevant_crl_ee_depth()
@@ -1575,6 +1623,7 @@ def client_auth_revocation(force: bool) -> None:
         _ee_revoked_chain_depth()
         _int_revoked_no_ku_chain_depth()
         _int_revoked_crl_ku_chain_depth()
+        _ee_with_top_bit_set_serial_revoked()
 
 
 if __name__ == "__main__":
