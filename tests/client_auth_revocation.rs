@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-extern crate webpki;
+use webpki::KeyUsage;
 
 fn check_cert(
     ee: &[u8],
@@ -21,15 +21,15 @@ fn check_cert(
     crls: &[&dyn webpki::CertRevocationList],
 ) -> Result<(), webpki::Error> {
     let anchors = &[webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsClientTrustAnchors(anchors.as_slice());
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
 
-    cert.verify_is_valid_tls_client_cert(
+    cert.verify_for_usage(
         &[&webpki::ECDSA_P256_SHA256],
-        &anchors,
+        anchors,
         intermediates,
         time,
+        KeyUsage::client_auth(),
         crls,
     )
 }
