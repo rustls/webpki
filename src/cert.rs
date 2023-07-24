@@ -49,6 +49,80 @@ pub struct Cert<'a> {
 }
 
 impl<'a> Cert<'a> {
+    pub(crate) fn from_der(
+        cert_der: untrusted::Input<'a>,
+        ee_or_ca: EndEntityOrCa<'a>,
+    ) -> Result<Self, Error> {
+        let (tbs, signed_data) = cert_der.read_all(Error::BadDer, |cert_der| {
+            der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |der| {
+                // limited to SEQUENCEs of size 2^16 or less.
+                signed_data::parse_signed_data(der, der::TWO_BYTE_DER_SIZE)
+            })
+        })?;
+
+        tbs.read_all(Error::BadDer, |tbs| {
+            version3(tbs)?;
+
+            let serial = lenient_certificate_serial_number(tbs)?;
+
+            let signature = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+            // TODO: In mozilla::pkix, the comparison is done based on the
+            // normalized value (ignoring whether or not there is an optional NULL
+            // parameter for RSA-based algorithms), so this may be too strict.
+            if signature != signed_data.algorithm {
+                return Err(Error::SignatureAlgorithmMismatch);
+            }
+
+            let issuer = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+            let validity = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+            let subject = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+            let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
+
+            // In theory there could be fields [1] issuerUniqueID and [2]
+            // subjectUniqueID, but in practice there never are, and to keep the
+            // code small and simple we don't accept any certificates that do
+            // contain them.
+
+            let mut cert = Cert {
+                ee_or_ca,
+
+                signed_data,
+                serial,
+                issuer,
+                validity,
+                subject,
+                spki,
+
+                basic_constraints: None,
+                key_usage: None,
+                eku: None,
+                name_constraints: None,
+                subject_alt_name: None,
+            };
+
+            if !tbs.at_end() {
+                der::nested(
+                    tbs,
+                    der::Tag::ContextSpecificConstructed3,
+                    Error::MalformedExtensions,
+                    |tagged| {
+                        der::nested_of_mut(
+                            tagged,
+                            der::Tag::Sequence,
+                            der::Tag::Sequence,
+                            Error::BadDer,
+                            |extension| {
+                                remember_cert_extension(&mut cert, &Extension::parse(extension)?)
+                            },
+                        )
+                    },
+                )?;
+            }
+
+            Ok(cert)
+        })
+    }
+
     /// Raw DER encoded certificate serial number.
     pub fn serial(&self) -> &[u8] {
         self.serial.as_slice_less_safe()
@@ -69,80 +143,6 @@ impl<'a> Cert<'a> {
     pub fn end_entity_or_ca(&self) -> &EndEntityOrCa {
         &self.ee_or_ca
     }
-}
-
-pub(crate) fn parse_cert<'a>(
-    cert_der: untrusted::Input<'a>,
-    ee_or_ca: EndEntityOrCa<'a>,
-) -> Result<Cert<'a>, Error> {
-    let (tbs, signed_data) = cert_der.read_all(Error::BadDer, |cert_der| {
-        der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |der| {
-            // limited to SEQUENCEs of size 2^16 or less.
-            signed_data::parse_signed_data(der, der::TWO_BYTE_DER_SIZE)
-        })
-    })?;
-
-    tbs.read_all(Error::BadDer, |tbs| {
-        version3(tbs)?;
-
-        let serial = lenient_certificate_serial_number(tbs)?;
-
-        let signature = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-        // TODO: In mozilla::pkix, the comparison is done based on the
-        // normalized value (ignoring whether or not there is an optional NULL
-        // parameter for RSA-based algorithms), so this may be too strict.
-        if signature != signed_data.algorithm {
-            return Err(Error::SignatureAlgorithmMismatch);
-        }
-
-        let issuer = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-        let validity = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-        let subject = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-        let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
-
-        // In theory there could be fields [1] issuerUniqueID and [2]
-        // subjectUniqueID, but in practice there never are, and to keep the
-        // code small and simple we don't accept any certificates that do
-        // contain them.
-
-        let mut cert = Cert {
-            ee_or_ca,
-
-            signed_data,
-            serial,
-            issuer,
-            validity,
-            subject,
-            spki,
-
-            basic_constraints: None,
-            key_usage: None,
-            eku: None,
-            name_constraints: None,
-            subject_alt_name: None,
-        };
-
-        if !tbs.at_end() {
-            der::nested(
-                tbs,
-                der::Tag::ContextSpecificConstructed3,
-                Error::MalformedExtensions,
-                |tagged| {
-                    der::nested_of_mut(
-                        tagged,
-                        der::Tag::Sequence,
-                        der::Tag::Sequence,
-                        Error::BadDer,
-                        |extension| {
-                            remember_cert_extension(&mut cert, &Extension::parse(extension)?)
-                        },
-                    )
-                },
-            )?;
-        }
-
-        Ok(cert)
-    })
 }
 
 // mozilla::pkix supports v1, v2, v3, and v4, including both the implicit
@@ -222,7 +222,7 @@ fn remember_cert_extension<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::cert::{self, EndEntityOrCa};
+    use crate::cert::{Cert, EndEntityOrCa};
 
     #[test]
     // Note: cert::parse_cert is crate-local visibility, and EndEntityCert doesn't expose the
@@ -230,12 +230,12 @@ mod tests {
     //       is read correctly here instead of in tests/integration.rs.
     fn test_serial_read() {
         let ee = include_bytes!("../tests/misc/serial_neg_ee.der");
-        let cert = cert::parse_cert(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
+        let cert = Cert::from_der(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
             .expect("failed to parse certificate");
         assert_eq!(cert.serial.as_slice_less_safe(), &[255, 33, 82, 65, 17]);
 
         let ee = include_bytes!("../tests/misc/serial_large_positive.der");
-        let cert = cert::parse_cert(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
+        let cert = Cert::from_der(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
             .expect("failed to parse certificate");
         assert_eq!(
             cert.serial.as_slice_less_safe(),
