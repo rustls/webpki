@@ -54,9 +54,42 @@ impl<'a> TrustAnchor<'a> {
         // embedded name constraints in a v1 certificate.
         match Cert::from_der(cert_der, EndEntityOrCa::EndEntity) {
             Ok(cert) => Ok(Self::from(cert)),
-            Err(Error::UnsupportedCertVersion) => parse_cert_v1(cert_der).or(Err(Error::BadDer)),
+            Err(Error::UnsupportedCertVersion) => {
+                Self::from_v1_der(cert_der).or(Err(Error::BadDer))
+            }
             Err(err) => Err(err),
         }
+    }
+
+    /// Parses a v1 certificate directly into a TrustAnchor.
+    fn from_v1_der(cert_der: untrusted::Input<'a>) -> Result<Self, Error> {
+        // X.509 Certificate: https://tools.ietf.org/html/rfc5280#section-4.1.
+        cert_der.read_all(Error::BadDer, |cert_der| {
+            der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |cert_der| {
+                let anchor = der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |tbs| {
+                    // The version number field does not appear in v1 certificates.
+                    lenient_certificate_serial_number(tbs)?;
+
+                    skip(tbs, der::Tag::Sequence)?; // signature.
+                    skip(tbs, der::Tag::Sequence)?; // issuer.
+                    skip(tbs, der::Tag::Sequence)?; // validity.
+                    let subject = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+                    let spki = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+
+                    Ok(TrustAnchor {
+                        subject: subject.as_slice_less_safe(),
+                        spki: spki.as_slice_less_safe(),
+                        name_constraints: None,
+                    })
+                });
+
+                // read and discard signatureAlgorithm + signature
+                skip(cert_der, der::Tag::Sequence)?;
+                skip(cert_der, der::Tag::BitString)?;
+
+                anchor
+            })
+        })
     }
 }
 
@@ -68,37 +101,6 @@ impl<'a> From<Cert<'a>> for TrustAnchor<'a> {
             name_constraints: cert.name_constraints.map(|nc| nc.as_slice_less_safe()),
         }
     }
-}
-
-/// Parses a v1 certificate directly into a TrustAnchor.
-fn parse_cert_v1(cert_der: untrusted::Input) -> Result<TrustAnchor, Error> {
-    // X.509 Certificate: https://tools.ietf.org/html/rfc5280#section-4.1.
-    cert_der.read_all(Error::BadDer, |cert_der| {
-        der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |cert_der| {
-            let anchor = der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |tbs| {
-                // The version number field does not appear in v1 certificates.
-                lenient_certificate_serial_number(tbs)?;
-
-                skip(tbs, der::Tag::Sequence)?; // signature.
-                skip(tbs, der::Tag::Sequence)?; // issuer.
-                skip(tbs, der::Tag::Sequence)?; // validity.
-                let subject = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-                let spki = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-
-                Ok(TrustAnchor {
-                    subject: subject.as_slice_less_safe(),
-                    spki: spki.as_slice_less_safe(),
-                    name_constraints: None,
-                })
-            });
-
-            // read and discard signatureAlgorithm + signature
-            skip(cert_der, der::Tag::Sequence)?;
-            skip(cert_der, der::Tag::BitString)?;
-
-            anchor
-        })
-    })
 }
 
 fn skip(input: &mut untrusted::Reader, tag: der::Tag) -> Result<(), Error> {
