@@ -258,7 +258,7 @@ fn check_issuer_independent_properties(
     untrusted::read_all_optional(cert.basic_constraints, Error::BadDer, |value| {
         check_basic_constraints(value, used_as_ca, sub_ca_count)
     })?;
-    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| check_eku(value, eku))?;
+    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| eku.check(value))?;
 
     Ok(())
 }
@@ -345,6 +345,44 @@ pub enum ExtendedKeyUsage {
 }
 
 impl ExtendedKeyUsage {
+    // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+    fn check(&self, input: Option<&mut untrusted::Reader>) -> Result<(), Error> {
+        match input {
+            Some(input) => {
+                loop {
+                    let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
+                    if self.key_purpose_id_equals(value) {
+                        input.skip_to_end();
+                        break;
+                    }
+                    if input.at_end() {
+                        return Err(Error::RequiredEkuNotFound);
+                    }
+                }
+                Ok(())
+            }
+            None => {
+                if matches!(self, Self::Required(_)) {
+                    return Err(Error::RequiredEkuNotFound);
+                }
+                // http://tools.ietf.org/html/rfc6960#section-4.2.2.2:
+                // "OCSP signing delegation SHALL be designated by the inclusion of
+                // id-kp-OCSPSigning in an extended key usage certificate extension
+                // included in the OCSP response signer's certificate."
+                //
+                // A missing EKU extension generally means "any EKU", but it is
+                // important that id-kp-OCSPSigning is explicit so that a normal
+                // end-entity certificate isn't able to sign trusted OCSP responses
+                // for itself or for other certificates issued by its issuing CA.
+                if self.key_purpose_id_equals(EKU_OCSP_SIGNING.oid_value) {
+                    return Err(Error::RequiredEkuNotFound);
+                }
+
+                Ok(())
+            }
+        }
+    }
+
     fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
         match self {
             ExtendedKeyUsage::Required(eku) => *eku,
@@ -389,44 +427,6 @@ pub(crate) static EKU_CLIENT_AUTH: KeyPurposeId =
 #[allow(clippy::identity_op)] // TODO: Make this clearer
 pub(crate) static EKU_OCSP_SIGNING: KeyPurposeId =
     KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 9]);
-
-// https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-fn check_eku(input: Option<&mut untrusted::Reader>, eku: ExtendedKeyUsage) -> Result<(), Error> {
-    match input {
-        Some(input) => {
-            loop {
-                let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
-                if eku.key_purpose_id_equals(value) {
-                    input.skip_to_end();
-                    break;
-                }
-                if input.at_end() {
-                    return Err(Error::RequiredEkuNotFound);
-                }
-            }
-            Ok(())
-        }
-        None => {
-            if matches!(eku, ExtendedKeyUsage::Required(_)) {
-                return Err(Error::RequiredEkuNotFound);
-            }
-            // http://tools.ietf.org/html/rfc6960#section-4.2.2.2:
-            // "OCSP signing delegation SHALL be designated by the inclusion of
-            // id-kp-OCSPSigning in an extended key usage certificate extension
-            // included in the OCSP response signer's certificate."
-            //
-            // A missing EKU extension generally means "any EKU", but it is
-            // important that id-kp-OCSPSigning is explicit so that a normal
-            // end-entity certificate isn't able to sign trusted OCSP responses
-            // for itself or for other certificates issued by its issuing CA.
-            if eku.key_purpose_id_equals(EKU_OCSP_SIGNING.oid_value) {
-                return Err(Error::RequiredEkuNotFound);
-            }
-
-            Ok(())
-        }
-    }
-}
 
 // https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
 #[repr(u8)]
