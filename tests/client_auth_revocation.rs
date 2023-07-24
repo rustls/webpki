@@ -598,3 +598,44 @@ fn int_revoked_crl_ku_chain_depth_owned() {
         Err(webpki::Error::CertRevoked)
     );
 }
+
+#[test]
+fn ee_with_top_bit_set_serial_revoked() {
+    let ee = include_bytes!("client_auth_revocation/ku_chain.topbit.ee.der");
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/ku_chain.int.b.ca.der").as_slice(),
+    ];
+    let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
+    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
+        include_bytes!("client_auth_revocation/ee_with_top_bit_set_serial_revoked.crl.der")
+            .as_slice(),
+    )
+    .unwrap() as &dyn webpki::CertRevocationList];
+    assert_eq!(
+        check_cert(ee, intermediates, ca, crls),
+        Err(webpki::Error::CertRevoked)
+    );
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn ee_with_top_bit_set_serial_revoked_owned() {
+    let ee = include_bytes!("client_auth_revocation/ku_chain.topbit.ee.der");
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/ku_chain.int.b.ca.der").as_slice(),
+    ];
+    let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
+    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
+        include_bytes!("client_auth_revocation/ee_with_top_bit_set_serial_revoked.crl.der")
+            .as_slice(),
+    )
+    .unwrap()
+    .to_owned()
+    .unwrap() as &dyn webpki::CertRevocationList];
+    assert_eq!(
+        check_cert(ee, intermediates, ca, crls),
+        Err(webpki::Error::CertRevoked)
+    );
+}
