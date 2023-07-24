@@ -193,7 +193,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
             input: &mut untrusted::Reader<'b>,
         ) -> Result<GeneralName<'b>, Error> {
             let general_subtree = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
-            general_subtree.read_all(Error::BadDer, general_name)
+            general_subtree.read_all(Error::BadDer, GeneralName::from_der)
         }
 
         let base = match general_subtree(&mut constraints) {
@@ -320,7 +320,7 @@ fn iterate_names<'names>(
         // attempting to parse the first entry allows us to return a better
         // error code.
         while !subject_alt_name.at_end() {
-            let name = general_name(&mut subject_alt_name)?;
+            let name = GeneralName::from_der(&mut subject_alt_name)?;
             match f(name) {
                 NameIteration::Stop(result) => {
                     return result;
@@ -403,35 +403,38 @@ enum GeneralName<'a> {
     Unsupported(u8),
 }
 
-fn general_name<'a>(input: &mut untrusted::Reader<'a>) -> Result<GeneralName<'a>, Error> {
-    use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
-    #[allow(clippy::identity_op)]
-    const OTHER_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 0;
-    const RFC822_NAME_TAG: u8 = CONTEXT_SPECIFIC | 1;
-    const DNS_NAME_TAG: u8 = CONTEXT_SPECIFIC | 2;
-    const X400_ADDRESS_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 3;
-    const DIRECTORY_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 4;
-    const EDI_PARTY_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 5;
-    const UNIFORM_RESOURCE_IDENTIFIER_TAG: u8 = CONTEXT_SPECIFIC | 6;
-    const IP_ADDRESS_TAG: u8 = CONTEXT_SPECIFIC | 7;
-    const REGISTERED_ID_TAG: u8 = CONTEXT_SPECIFIC | 8;
+impl<'a> GeneralName<'a> {
+    fn from_der(input: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
+        #[allow(clippy::identity_op)]
+        const OTHER_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 0;
+        const RFC822_NAME_TAG: u8 = CONTEXT_SPECIFIC | 1;
+        const DNS_NAME_TAG: u8 = CONTEXT_SPECIFIC | 2;
+        const X400_ADDRESS_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 3;
+        const DIRECTORY_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 4;
+        const EDI_PARTY_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 5;
+        const UNIFORM_RESOURCE_IDENTIFIER_TAG: u8 = CONTEXT_SPECIFIC | 6;
+        const IP_ADDRESS_TAG: u8 = CONTEXT_SPECIFIC | 7;
+        const REGISTERED_ID_TAG: u8 = CONTEXT_SPECIFIC | 8;
 
-    let (tag, value) = der::read_tag_and_get_value(input)?;
-    let name = match tag {
-        DNS_NAME_TAG => GeneralName::DnsName(value),
-        DIRECTORY_NAME_TAG => GeneralName::DirectoryName(value),
-        IP_ADDRESS_TAG => GeneralName::IpAddress(value),
+        let (tag, value) = der::read_tag_and_get_value(input)?;
+        Ok(match tag {
+            DNS_NAME_TAG => GeneralName::DnsName(value),
+            DIRECTORY_NAME_TAG => GeneralName::DirectoryName(value),
+            IP_ADDRESS_TAG => GeneralName::IpAddress(value),
 
-        OTHER_NAME_TAG
-        | RFC822_NAME_TAG
-        | X400_ADDRESS_TAG
-        | EDI_PARTY_NAME_TAG
-        | UNIFORM_RESOURCE_IDENTIFIER_TAG
-        | REGISTERED_ID_TAG => GeneralName::Unsupported(tag & !(CONTEXT_SPECIFIC | CONSTRUCTED)),
+            OTHER_NAME_TAG
+            | RFC822_NAME_TAG
+            | X400_ADDRESS_TAG
+            | EDI_PARTY_NAME_TAG
+            | UNIFORM_RESOURCE_IDENTIFIER_TAG
+            | REGISTERED_ID_TAG => {
+                GeneralName::Unsupported(tag & !(CONTEXT_SPECIFIC | CONSTRUCTED))
+            }
 
-        _ => return Err(Error::BadDer),
-    };
-    Ok(name)
+            _ => return Err(Error::BadDer),
+        })
+    }
 }
 
 static COMMON_NAME: untrusted::Input = untrusted::Input::from(&[85, 4, 3]);
