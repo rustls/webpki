@@ -12,6 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use crate::cert::lenient_certificate_serial_number;
 use crate::der::Tag;
 use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, signed_data, Error, SignatureAlgorithm, Time};
@@ -448,9 +449,9 @@ impl<'a> BorrowedRevokedCert<'a> {
             //    gracefully handle such certificates.
             // Like the handling in cert.rs we choose to be lenient here, not enforcing the length
             // of a CRL revoked certificate's serial number is less than 20 octets in encoded form.
-            let serial_number = ring::io::der::positive_integer(der)
+            let serial_number = lenient_certificate_serial_number(der)
                 .map_err(|_| Error::InvalidSerialNumber)?
-                .big_endian_without_leading_zero();
+                .as_slice_less_safe();
 
             let revocation_date = der::time_choice(der)?;
 
