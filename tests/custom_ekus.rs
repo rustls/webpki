@@ -1,4 +1,4 @@
-#![cfg(feature = "alloc")]
+#![cfg(all(feature = "alloc", feature = "ring"))]
 
 use webpki::KeyUsage;
 

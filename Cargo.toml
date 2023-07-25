@@ -43,6 +43,7 @@ include = [
     "src/name/verify.rs",
     "src/name/name.rs",
     "src/signed_data.rs",
+    "src/ring_algs.rs",
     "src/time.rs",
     "src/trust_anchor.rs",
     "src/x509.rs",
@@ -62,12 +63,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 name = "webpki"
 
 [features]
-default = ["std"]
+default = ["std", "ring"]
+ring = ["dep:ring"]
 alloc = ["ring/alloc"]
 std = ["alloc"]
 
 [dependencies]
-ring = { version = "0.16.19", default-features = false }
+ring = { version = "0.16.19", default-features = false, optional = true }
 untrusted = "0.7.1"
 
 [dev-dependencies]
