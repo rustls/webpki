@@ -1,7 +1,7 @@
-#[cfg(feature = "alloc")]
+#![cfg(feature = "alloc")]
+
 use webpki::ExtendedKeyUsage::{Required, RequiredIfPresent};
 
-#[cfg(feature = "alloc")]
 fn check_cert(
     ee: &[u8],
     ca: &[u8],
@@ -24,22 +24,18 @@ fn check_cert(
     );
 }
 
-#[cfg(feature = "alloc")]
 #[allow(clippy::identity_op)]
 static EKU_CLIENT_AUTH: webpki::KeyPurposeId =
     webpki::KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 2]);
 
-#[cfg(feature = "alloc")]
 #[allow(clippy::identity_op)]
 static EKU_SERVER_AUTH: webpki::KeyPurposeId =
     webpki::KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 1]);
 
-#[cfg(feature = "alloc")]
 #[allow(clippy::identity_op)]
 static EKU_MDOC_ISSUER_AUTH: webpki::KeyPurposeId =
     webpki::KeyPurposeId::new(&[(40 * 1) + 0, 129, 140, 93, 5, 1, 2]);
 
-#[cfg(feature = "alloc")]
 #[test]
 pub fn verify_custom_eku_mdoc() {
     let err = Err(webpki::Error::RequiredEkuNotFound);
@@ -59,7 +55,6 @@ pub fn verify_custom_eku_mdoc() {
     check_cert(ee, ca, RequiredIfPresent(EKU_SERVER_AUTH), time, err);
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 pub fn verify_custom_eku_client() {
     let err = Err(webpki::Error::RequiredEkuNotFound);
