@@ -100,8 +100,9 @@ fn days_in_feb(year: u64) -> u64 {
     }
 }
 
-#[allow(clippy::unreadable_literal)] // TODO: Make this clear.
-const DAYS_BEFORE_UNIX_EPOCH_AD: u64 = 719162;
+/// All the days up to and including 1969, plus the 477 leap days since AD began
+/// (calculated in Gregorian rules).
+const DAYS_BEFORE_UNIX_EPOCH_AD: u64 = 1969 * 365 + 477;
 
 #[cfg(test)]
 mod tests {
@@ -151,7 +152,6 @@ mod tests {
         assert_eq!(days_in_month(2100, 2), 28);
     }
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     #[test]
     fn test_time_from_ymdhms_utc() {
         use super::{time_from_ymdhms_utc, Error, Time, UNIX_EPOCH_YEAR};
@@ -188,23 +188,23 @@ mod tests {
 
         // year boundary
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1483228799),
+            Time::from_seconds_since_unix_epoch(1_483_228_799),
             time_from_ymdhms_utc(2016, 12, 31, 23, 59, 59).unwrap()
         );
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1483228800),
+            Time::from_seconds_since_unix_epoch(1_483_228_800),
             time_from_ymdhms_utc(2017, 1, 1, 0, 0, 0).unwrap()
         );
 
         // not a leap year
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1492449162),
+            Time::from_seconds_since_unix_epoch(1_492_449_162),
             time_from_ymdhms_utc(2017, 4, 17, 17, 12, 42).unwrap()
         );
 
         // leap year, post-feb
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1460913162),
+            Time::from_seconds_since_unix_epoch(1_460_913_162),
             time_from_ymdhms_utc(2016, 4, 17, 17, 12, 42).unwrap()
         );
     }
