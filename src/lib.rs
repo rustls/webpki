@@ -73,7 +73,7 @@ pub use {
     },
     time::Time,
     trust_anchor::{NonTlsTrustAnchors, TlsClientTrustAnchors, TlsServerTrustAnchors, TrustAnchor},
-    verify_cert::{ExtendedKeyUsage, KeyPurposeId},
+    verify_cert::KeyUsage,
 };
 
 #[cfg(feature = "alloc")]

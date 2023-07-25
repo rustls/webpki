@@ -15,7 +15,7 @@
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
-    cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, ExtendedKeyUsage,
+    cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, KeyUsage,
     NonTlsTrustAnchors, SignatureAlgorithm, SubjectNameRef, Time, TlsClientTrustAnchors,
     TlsServerTrustAnchors, TrustAnchor,
 };
@@ -81,7 +81,7 @@ impl<'a> EndEntityCert<'a> {
         trust_anchors: &[TrustAnchor],
         intermediate_certs: &[&[u8]],
         time: Time,
-        eku: ExtendedKeyUsage,
+        eku: KeyUsage,
         crls: &[&dyn CertRevocationList],
     ) -> Result<(), Error> {
         verify_cert::build_chain(
@@ -113,7 +113,7 @@ impl<'a> EndEntityCert<'a> {
         &NonTlsTrustAnchors(trust_anchors): &NonTlsTrustAnchors,
         intermediate_certs: &[&[u8]],
         time: Time,
-        eku: ExtendedKeyUsage,
+        eku: KeyUsage,
         crls: &[&dyn CertRevocationList],
     ) -> Result<(), Error> {
         self.verify_is_valid_cert(
@@ -148,7 +148,7 @@ impl<'a> EndEntityCert<'a> {
             trust_anchors,
             intermediate_certs,
             time,
-            ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_SERVER_AUTH),
+            KeyUsage::server_auth(),
             &[],
         )
     }
@@ -177,7 +177,7 @@ impl<'a> EndEntityCert<'a> {
             trust_anchors,
             intermediate_certs,
             time,
-            ExtendedKeyUsage::RequiredIfPresent(verify_cert::EKU_CLIENT_AUTH),
+            KeyUsage::client_auth(),
             crls,
         )
     }
