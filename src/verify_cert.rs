@@ -19,7 +19,7 @@ use crate::{
 };
 
 pub(crate) struct ChainOptions<'a> {
-    pub(crate) eku: ExtendedKeyUsage,
+    pub(crate) eku: KeyUsage,
     pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
@@ -38,7 +38,7 @@ fn build_chain_inner(
 ) -> Result<(), Error> {
     let used_as_ca = used_as_ca(&cert.ee_or_ca);
 
-    check_issuer_independent_properties(cert, time, used_as_ca, sub_ca_count, opts.eku)?;
+    check_issuer_independent_properties(cert, time, used_as_ca, sub_ca_count, opts.eku.inner)?;
 
     // TODO: HPKP checks.
 
@@ -59,7 +59,10 @@ fn build_chain_inner(
     // for the purpose of name constraints checking, only end-entity server certificates
     // could plausibly have a DNS name as a subject commonName that could contribute to
     // path validity
-    let subject_common_name_contents = if opts.eku.key_purpose_id_equals(EKU_SERVER_AUTH.oid_value)
+    let subject_common_name_contents = if opts
+        .eku
+        .inner
+        .key_purpose_id_equals(EKU_SERVER_AUTH.oid_value)
         && used_as_ca == UsedAsCa::No
     {
         subject_name::SubjectCommonNameContents::DnsName
@@ -334,9 +337,49 @@ fn check_basic_constraints(
     }
 }
 
+/// The expected key usage of a certificate.
+///
+/// This type represents the expected key usage of an end entity certificate. Although for most
+/// kinds of certificates the extended key usage extension is optional (and so certificates
+/// not carrying a particular value in the EKU extension are acceptable). If the extension
+/// is present, the certificate MUST only be used for one of the purposes indicated.
+///
+/// <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>
+#[derive(Clone, Copy)]
+pub struct KeyUsage {
+    inner: ExtendedKeyUsage,
+}
+
+impl KeyUsage {
+    /// Construct a new [`KeyUsage`] as appropriate for server certificate authentication.
+    ///
+    /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not require the certificate to specify the eKU extension.
+    pub const fn server_auth() -> Self {
+        Self {
+            inner: ExtendedKeyUsage::RequiredIfPresent(EKU_SERVER_AUTH),
+        }
+    }
+
+    /// Construct a new [`KeyUsage`] as appropriate for client certificate authentication.
+    ///
+    /// As specified in <>, this does not require the certificate to specify the eKU extension.
+    pub const fn client_auth() -> Self {
+        Self {
+            inner: ExtendedKeyUsage::RequiredIfPresent(EKU_CLIENT_AUTH),
+        }
+    }
+
+    /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID.
+    pub const fn required(oid: &'static [u8]) -> Self {
+        Self {
+            inner: ExtendedKeyUsage::Required(KeyPurposeId::new(oid)),
+        }
+    }
+}
+
 /// Extended Key Usage (EKU) of a certificate.
 #[derive(Clone, Copy)]
-pub enum ExtendedKeyUsage {
+enum ExtendedKeyUsage {
     /// The certificate must contain the specified [`KeyPurposeId`] as EKU.
     Required(KeyPurposeId),
 
@@ -347,40 +390,25 @@ pub enum ExtendedKeyUsage {
 impl ExtendedKeyUsage {
     // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
     fn check(&self, input: Option<&mut untrusted::Reader>) -> Result<(), Error> {
-        match input {
-            Some(input) => {
-                loop {
-                    let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
-                    if self.key_purpose_id_equals(value) {
-                        input.skip_to_end();
-                        break;
-                    }
-                    if input.at_end() {
-                        return Err(Error::RequiredEkuNotFound);
-                    }
-                }
-                Ok(())
-            }
-            None => {
-                if matches!(self, Self::Required(_)) {
-                    return Err(Error::RequiredEkuNotFound);
-                }
-                // http://tools.ietf.org/html/rfc6960#section-4.2.2.2:
-                // "OCSP signing delegation SHALL be designated by the inclusion of
-                // id-kp-OCSPSigning in an extended key usage certificate extension
-                // included in the OCSP response signer's certificate."
-                //
-                // A missing EKU extension generally means "any EKU", but it is
-                // important that id-kp-OCSPSigning is explicit so that a normal
-                // end-entity certificate isn't able to sign trusted OCSP responses
-                // for itself or for other certificates issued by its issuing CA.
-                if self.key_purpose_id_equals(EKU_OCSP_SIGNING.oid_value) {
-                    return Err(Error::RequiredEkuNotFound);
-                }
+        let input = match (input, self) {
+            (Some(input), _) => input,
+            (None, Self::RequiredIfPresent(_)) => return Ok(()),
+            (None, Self::Required(_)) => return Err(Error::RequiredEkuNotFound),
+        };
 
-                Ok(())
+        loop {
+            let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
+            if self.key_purpose_id_equals(value) {
+                input.skip_to_end();
+                break;
+            }
+
+            if input.at_end() {
+                return Err(Error::RequiredEkuNotFound);
             }
         }
+
+        Ok(())
     }
 
     fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
@@ -395,7 +423,7 @@ impl ExtendedKeyUsage {
 
 /// An OID value indicating an Extended Key Usage (EKU) key purpose.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct KeyPurposeId {
+struct KeyPurposeId {
     oid_value: untrusted::Input<'static>,
 }
 
@@ -403,7 +431,7 @@ impl KeyPurposeId {
     /// Construct a new [`KeyPurposeId`].
     ///
     /// `oid` is the OBJECT IDENTIFIER in bytes.
-    pub const fn new(oid: &'static [u8]) -> Self {
+    const fn new(oid: &'static [u8]) -> Self {
         Self {
             oid_value: untrusted::Input::from(oid),
         }
@@ -415,18 +443,11 @@ impl KeyPurposeId {
 
 // id-kp-serverAuth   OBJECT IDENTIFIER ::= { id-kp 1 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub(crate) static EKU_SERVER_AUTH: KeyPurposeId =
-    KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 1]);
+const EKU_SERVER_AUTH: KeyPurposeId = KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 1]);
 
 // id-kp-clientAuth   OBJECT IDENTIFIER ::= { id-kp 2 }
 #[allow(clippy::identity_op)] // TODO: Make this clearer
-pub(crate) static EKU_CLIENT_AUTH: KeyPurposeId =
-    KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 2]);
-
-// id-kp-OCSPSigning  OBJECT IDENTIFIER ::= { id-kp 9 }
-#[allow(clippy::identity_op)] // TODO: Make this clearer
-pub(crate) static EKU_OCSP_SIGNING: KeyPurposeId =
-    KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 9]);
+const EKU_CLIENT_AUTH: KeyPurposeId = KeyPurposeId::new(&[(40 * 1) + 3, 6, 1, 5, 5, 7, 3, 2]);
 
 // https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
 #[repr(u8)]
@@ -483,7 +504,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{verify_cert::EKU_SERVER_AUTH, ExtendedKeyUsage};
+    use super::*;
 
     #[test]
     fn eku_key_purpose_id() {
