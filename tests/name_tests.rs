@@ -1,5 +1,7 @@
-use ring::test::{compile_time_assert_send, compile_time_assert_sync};
 use webpki::DnsNameRef;
+
+fn compile_time_assert_send<T: Send>() {}
+fn compile_time_assert_sync<T: Sync>() {}
 
 #[test]
 fn test_dns_name_ref_traits() {

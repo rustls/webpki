@@ -1,3 +1,5 @@
+#![cfg(feature = "ring")]
+
 use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use std::collections::HashMap;
