@@ -12,8 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use crate::cert::{Cert, EndEntityOrCa};
 use crate::{
-    cert::{Cert, EndEntityOrCa},
     der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
     TrustAnchor,
 };
