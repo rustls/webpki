@@ -160,7 +160,6 @@ impl<'a> Cert<'a> {
     }
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
-    #[allow(dead_code)] // TODO(@cpu): remove once used in CRL validation.
     pub(crate) fn crl_distribution_points(
         &self,
     ) -> Option<impl Iterator<Item = Result<CrlDistributionPoint<'a>, Error>>> {
@@ -265,7 +264,6 @@ pub(crate) struct CrlDistributionPoint<'a> {
 
 impl<'a> CrlDistributionPoint<'a> {
     /// Return the distribution point names (if any).
-    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
     pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
         self.distribution_point
             .map(|input| DistributionPointName::from_der(&mut untrusted::Reader::new(input)))

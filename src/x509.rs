@@ -84,7 +84,6 @@ pub(crate) fn remember_extension(
 /// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
 ///
 /// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
-#[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
 pub(crate) enum DistributionPointName<'a> {
     /// The distribution point name is a relative distinguished name, relative to the CRL issuer.
     NameRelativeToCrlIssuer(untrusted::Input<'a>),
