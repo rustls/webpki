@@ -307,21 +307,18 @@ impl<'a> CrlDistributionPoint<'a> {
             //   a DistributionPoint MUST NOT consist of only the reasons field; either distributionPoint or
             //   cRLIssuer MUST be present.
             match (result.distribution_point, result.crl_issuer) {
-                (None, None) => return Err(Error::MalformedExtensions),
-                _ => {}
+                (None, None) => Err(Error::MalformedExtensions),
+                _ => Ok(result),
             }
-
-            Ok(result)
         })
     }
 
     /// Return the distribution point names (if any).
     #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
     pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
-        Ok(match self.distribution_point {
-            None => None,
-            Some(der) => Some(DistributionPointName::from_der(der)?),
-        })
+        self.distribution_point
+            .map(DistributionPointName::from_der)
+            .transpose()
     }
 }
 
