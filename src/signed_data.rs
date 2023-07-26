@@ -12,8 +12,10 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::{der, Error};
 use ring::signature;
+
+use crate::der::{self, FromDer};
+use crate::error::Error;
 
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
@@ -206,7 +208,7 @@ pub(crate) fn verify_signature(
     msg: untrusted::Input,
     signature: untrusted::Input,
 ) -> Result<(), Error> {
-    let spki = SubjectPublicKeyInfo::from_der(spki_value)?;
+    let spki = spki_value.read_all(Error::BadDer, SubjectPublicKeyInfo::from_der)?;
     if !signature_alg
         .public_key_alg_id
         .matches_algorithm_id_value(spki.algorithm_id_value)
@@ -226,19 +228,17 @@ struct SubjectPublicKeyInfo<'a> {
     key_value: untrusted::Input<'a>,
 }
 
-impl<'a> SubjectPublicKeyInfo<'a> {
+impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
     // Parse the public key into an algorithm OID, an optional curve OID, and the
     // key value. The caller needs to check whether these match the
     // `PublicKeyAlgorithm` for the `SignatureAlgorithm` that is matched when
     // parsing the signature.
-    fn from_der(input: untrusted::Input<'a>) -> Result<Self, Error> {
-        input.read_all(Error::BadDer, |input| {
-            let algorithm_id_value = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
-            let key_value = der::bit_string_with_no_unused_bits(input)?;
-            Ok(SubjectPublicKeyInfo {
-                algorithm_id_value,
-                key_value,
-            })
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        let algorithm_id_value = der::expect_tag_and_get_value(reader, der::Tag::Sequence)?;
+        let key_value = der::bit_string_with_no_unused_bits(reader)?;
+        Ok(SubjectPublicKeyInfo {
+            algorithm_id_value,
+            key_value,
         })
     }
 }

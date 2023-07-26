@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::Tag;
-use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::der::{self, DerIterator, FromDer, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::signed_data::SignedData;
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 use crate::Error;
@@ -150,11 +150,10 @@ impl<'a> Cert<'a> {
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
     #[allow(dead_code)] // TODO(@cpu): remove once used in CRL validation.
-    pub(crate) fn crl_distribution_points(&self) -> Option<CrlDistributionPoints> {
-        self.crl_distribution_points
-            .map(|crl_distribution_points| CrlDistributionPoints {
-                reader: untrusted::Reader::new(crl_distribution_points),
-            })
+    pub(crate) fn crl_distribution_points(
+        &self,
+    ) -> Option<impl Iterator<Item = Result<CrlDistributionPoint<'a>, Error>>> {
+        self.crl_distribution_points.map(DerIterator::new)
     }
 }
 
@@ -236,25 +235,6 @@ fn remember_cert_extension<'a>(
     })
 }
 
-/// Iterator over a certificate's certificate revocation list (CRL) distribution
-/// points as described in RFC 5280 section 4.2.3.13[^1].
-///
-/// The CRL distribution point extensions describes how CRL information can be obtained for
-/// a given certificate.
-///
-/// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
-pub(crate) struct CrlDistributionPoints<'a> {
-    reader: untrusted::Reader<'a>,
-}
-
-impl<'a> Iterator for CrlDistributionPoints<'a> {
-    type Item = Result<CrlDistributionPoint<'a>, Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        (!self.reader.at_end()).then(|| CrlDistributionPoint::from_der(&mut self.reader))
-    }
-}
-
 /// A certificate revocation list (CRL) distribution point, describing a source of
 /// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
 ///
@@ -273,7 +253,17 @@ pub(crate) struct CrlDistributionPoint<'a> {
 }
 
 impl<'a> CrlDistributionPoint<'a> {
-    fn from_der(der: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+    /// Return the distribution point names (if any).
+    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
+    pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
+        self.distribution_point
+            .map(|input| DistributionPointName::from_der(&mut untrusted::Reader::new(input)))
+            .transpose()
+    }
+}
+
+impl<'a> FromDer<'a> for CrlDistributionPoint<'a> {
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         // RFC 5280 section §4.2.1.13:
         //   A DistributionPoint consists of three fields, each of which is optional:
         //   distributionPoint, reasons, and cRLIssuer.
@@ -283,7 +273,7 @@ impl<'a> CrlDistributionPoint<'a> {
             crl_issuer: None,
         };
 
-        der::nested(der, Tag::Sequence, Error::BadDer, |der| {
+        der::nested(reader, Tag::Sequence, Error::BadDer, |der| {
             const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
             const REASONS_TAG: u8 = CONTEXT_SPECIFIC | 1;
             const CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 2;
@@ -311,14 +301,6 @@ impl<'a> CrlDistributionPoint<'a> {
             }
         })
     }
-
-    /// Return the distribution point names (if any).
-    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
-    pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
-        self.distribution_point
-            .map(DistributionPointName::from_der)
-            .transpose()
-    }
 }
 
 #[cfg(test)]
@@ -328,7 +310,6 @@ mod tests {
     use crate::{
         cert::{CrlDistributionPoint, DistributionPointName},
         subject_name::GeneralName,
-        x509::GeneralNames,
         Error, RevocationReason,
     };
 
@@ -612,7 +593,9 @@ mod tests {
                 .expect("missing second distribution point"),
         );
 
-        fn get_names<'a>(point: &'a CrlDistributionPoint<'a>) -> GeneralNames<'a> {
+        fn get_names<'a>(
+            point: &'a CrlDistributionPoint<'a>,
+        ) -> impl Iterator<Item = Result<GeneralName<'a>, Error>> {
             match point
                 .names()
                 .expect("failed to parse distribution point names")

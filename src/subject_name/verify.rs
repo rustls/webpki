@@ -17,9 +17,10 @@ use super::{
     ip_address::{self, IpAddrRef},
     name::SubjectNameRef,
 };
+use crate::der::{self, FromDer};
 use crate::{
     cert::{Cert, EndEntityOrCa},
-    der, Error,
+    Error,
 };
 #[cfg(feature = "alloc")]
 use {
@@ -404,8 +405,8 @@ pub(crate) enum GeneralName<'a> {
     Unsupported(u8),
 }
 
-impl<'a> GeneralName<'a> {
-    pub(crate) fn from_der(input: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+impl<'a> FromDer<'a> for GeneralName<'a> {
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
         use GeneralName::*;
 
@@ -420,7 +421,7 @@ impl<'a> GeneralName<'a> {
         const IP_ADDRESS_TAG: u8 = CONTEXT_SPECIFIC | 7;
         const REGISTERED_ID_TAG: u8 = CONTEXT_SPECIFIC | 8;
 
-        let (tag, value) = der::read_tag_and_get_value(input)?;
+        let (tag, value) = der::read_tag_and_get_value(reader)?;
         Ok(match tag {
             DNS_NAME_TAG => DnsName(value),
             DIRECTORY_NAME_TAG => DirectoryName(value),

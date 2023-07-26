@@ -12,8 +12,39 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use core::marker::PhantomData;
+
 use crate::{calendar, time, Error};
 pub(crate) use ring::io::der::{CONSTRUCTED, CONTEXT_SPECIFIC};
+
+#[derive(Debug)]
+pub struct DerIterator<'a, T> {
+    reader: untrusted::Reader<'a>,
+    marker: PhantomData<T>,
+}
+
+impl<'a, T> DerIterator<'a, T> {
+    /// [`DerIterator`] will consume all of the bytes in `input` reading values of type `T`.
+    pub(crate) fn new(input: untrusted::Input<'a>) -> Self {
+        Self {
+            reader: untrusted::Reader::new(input),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: FromDer<'a>> Iterator for DerIterator<'a, T> {
+    type Item = Result<T, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (!self.reader.at_end()).then(|| T::from_der(&mut self.reader))
+    }
+}
+
+pub(crate) trait FromDer<'a>: Sized + 'a {
+    /// Parse a value of type `Self` from the given DER-encoded input.
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error>;
+}
 
 // Copied (and extended) from ring's src/der.rs
 #[allow(clippy::upper_case_acronyms)]
