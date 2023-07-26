@@ -43,7 +43,7 @@ fn check_cert(
         &[],
         time,
         KeyUsage::server_auth(),
-        &[],
+        None,
     )?;
 
     for valid in valid_names {

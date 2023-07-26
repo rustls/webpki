@@ -14,7 +14,7 @@
 
 #![cfg(feature = "ring")]
 
-use webpki::KeyUsage;
+use webpki::{KeyUsage, RevocationCheckDepth, RevocationOptionsBuilder};
 
 fn check_cert(
     ee: &[u8],
@@ -25,14 +25,24 @@ fn check_cert(
     let anchors = &[webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-
+    // TODO(XXX): Allow configuring depth and revocation status requirements per-test.
+    let revocation = match crls.len() {
+        0 => None,
+        _ => Some(
+            RevocationOptionsBuilder::new(crls)
+                .unwrap()
+                .with_depth(RevocationCheckDepth::Chain)
+                .allow_unknown_status()
+                .build(),
+        ),
+    };
     cert.verify_for_usage(
         &[webpki::ECDSA_P256_SHA256],
         anchors,
         intermediates,
         time,
         KeyUsage::client_auth(),
-        crls,
+        revocation,
     )
 }
 

@@ -72,7 +72,10 @@ pub use {
     },
     time::Time,
     trust_anchor::TrustAnchor,
-    verify_cert::KeyUsage,
+    verify_cert::{
+        KeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
+        UnknownStatusPolicy,
+    },
 };
 
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
