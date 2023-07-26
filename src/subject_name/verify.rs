@@ -12,21 +12,17 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::{
-    dns_name::{self, DnsNameRef},
-    ip_address::{self, IpAddrRef},
-    name::SubjectNameRef,
-};
-use crate::der::{self, FromDer};
-use crate::{
-    cert::{Cert, EndEntityOrCa},
-    Error,
-};
 #[cfg(feature = "alloc")]
-use {
-    alloc::vec::Vec,
-    dns_name::{GeneralDnsNameRef, WildcardDnsNameRef},
-};
+use alloc::vec::Vec;
+
+use super::dns_name::{self, DnsNameRef};
+#[cfg(feature = "alloc")]
+use super::dns_name::{GeneralDnsNameRef, WildcardDnsNameRef};
+use super::ip_address::{self, IpAddrRef};
+use super::name::SubjectNameRef;
+use crate::cert::{Cert, EndEntityOrCa};
+use crate::der::{self, FromDer};
+use crate::error::Error;
 
 pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
