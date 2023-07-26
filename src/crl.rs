@@ -12,10 +12,11 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::cert::lenient_certificate_serial_number;
+use crate::cert::{lenient_certificate_serial_number, Cert, EndEntityOrCa};
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::signed_data::{self, SignedData};
+use crate::subject_name::GeneralName;
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 use crate::{SignatureVerificationAlgorithm, Time};
 use core::fmt::Debug;
@@ -639,7 +640,6 @@ impl TryFrom<u8> for RevocationReason {
     }
 }
 
-#[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
 pub(crate) struct IssuingDistributionPoint<'a> {
     distribution_point: Option<untrusted::Input<'a>>,
     pub(crate) only_contains_user_certs: bool,
@@ -650,7 +650,6 @@ pub(crate) struct IssuingDistributionPoint<'a> {
 }
 
 impl<'a> IssuingDistributionPoint<'a> {
-    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
     pub(crate) fn from_der(der: untrusted::Input<'a>) -> Result<IssuingDistributionPoint, Error> {
         const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
         const ONLY_CONTAINS_USER_CERTS_TAG: u8 = CONTEXT_SPECIFIC | 1;
@@ -747,11 +746,99 @@ impl<'a> IssuingDistributionPoint<'a> {
     }
 
     /// Return the distribution point names (if any).
-    #[allow(dead_code)] // TODO(@cpu): remove this once used in CRL validation.
     pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
         self.distribution_point
             .map(|input| DistributionPointName::from_der(&mut untrusted::Reader::new(input)))
             .transpose()
+    }
+
+    /// Returns true if the CRL can be considered authoritative for the given certificate. We make
+    /// this determination using the certificate and CRL issuers, and the distribution point names
+    /// that may be present in extensions found on both.
+    ///
+    /// We consider the CRL authoritative for the certificate if the CRL issuing distribution point
+    /// has a scope that could include the cert and if the cert has CRL distribution points, that
+    /// at least one CRL DP has a valid distribution point full name where one of the general names
+    /// is a Uniform Resource Identifier (URI) general name that can also be found in the CRL
+    /// issuing distribution point.
+    ///
+    /// We do not consider:
+    /// * Distribution point names relative to an issuer.
+    /// * General names of a type other than URI.
+    /// * Malformed names or invalid IDP or CRL DP extensions.
+    pub(crate) fn authoritative_for(&self, cert: &Cert<'a>) -> bool {
+        assert!(!self.only_contains_attribute_certs); // We check this at time of parse.
+
+        // Check that the scope of the CRL issuing distribution point could include the cert.
+        if self.only_contains_ca_certs && matches!(cert.ee_or_ca, EndEntityOrCa::EndEntity)
+            || self.only_contains_user_certs && matches!(cert.ee_or_ca, EndEntityOrCa::Ca(_))
+        {
+            return false;
+        }
+
+        let cert_dps = match cert.crl_distribution_points() {
+            // If the certificate has no distribution points, then the CRL can be authoritative
+            // based on the issuer matching and the scope including the cert.
+            None => return true,
+            Some(cert_dps) => cert_dps,
+        };
+
+        let mut idp_general_names = match self.names() {
+            Ok(Some(DistributionPointName::FullName(general_names))) => general_names,
+            _ => return false, // Note: Either no full names, or malformed. Shouldn't occur, we check at CRL parse time.
+        };
+
+        for cert_dp in cert_dps {
+            let cert_dp = match cert_dp {
+                Ok(cert_dp) => cert_dp,
+                // certificate CRL DP was invalid, can't match.
+                Err(_) => return false,
+            };
+
+            // If the certificate CRL DP was for an indirect CRL, or a CRL
+            // sharded by revocation reason, it can't match.
+            if cert_dp.crl_issuer.is_some() || cert_dp.reasons.is_some() {
+                return false;
+            }
+
+            let mut dp_general_names = match cert_dp.names() {
+                Ok(Some(DistributionPointName::FullName(general_names))) => general_names,
+                _ => return false, // Either no full names, or malformed.
+            };
+
+            // At least one URI type name in the IDP full names must match a URI type name in the
+            // DP full names.
+            if Self::uri_name_in_common(&mut idp_general_names, &mut dp_general_names) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn uri_name_in_common(
+        idp_general_names: &mut DerIterator<'a, GeneralName<'a>>,
+        dp_general_names: &mut DerIterator<'a, GeneralName<'a>>,
+    ) -> bool {
+        use GeneralName::UniformResourceIdentifier;
+        for name in idp_general_names.flatten() {
+            let uri = match name {
+                UniformResourceIdentifier(uri) => uri,
+                _ => continue,
+            };
+
+            for other_name in (&mut *dp_general_names).flatten() {
+                match other_name {
+                    UniformResourceIdentifier(other_uri)
+                        if uri.as_slice_less_safe() == other_uri.as_slice_less_safe() =>
+                    {
+                        return true
+                    }
+                    _ => continue,
+                }
+            }
+        }
+        false
     }
 }
 
@@ -765,7 +852,8 @@ mod tests {
 
     use crate::{
         crl::IssuingDistributionPoint, subject_name::GeneralName, x509::DistributionPointName,
-        BorrowedCertRevocationList, CertRevocationList, Error, RevocationReason,
+        BorrowedCertRevocationList, Cert, CertRevocationList, EndEntityOrCa, Error,
+        RevocationReason,
     };
 
     #[test]
@@ -901,6 +989,13 @@ mod tests {
 
         // We should find the expected bool state.
         assert!(crl_issuing_dp.only_contains_user_certs);
+
+        // The IDP shouldn't be considered authoritative for a CA Cert.
+        let ee = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..]), EndEntityOrCa::EndEntity).unwrap();
+        let ca = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.int.a.ca.der");
+        let ca = Cert::from_der(untrusted::Input::from(&ca[..]), EndEntityOrCa::Ca(&ee)).unwrap();
+        assert!(!crl_issuing_dp.authoritative_for(&ca))
     }
 
     #[test]
@@ -918,6 +1013,11 @@ mod tests {
 
         // We should find the expected bool state.
         assert!(crl_issuing_dp.only_contains_ca_certs);
+
+        // The IDP shouldn't be considered authoritative for an EE Cert.
+        let ee = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..]), EndEntityOrCa::EndEntity).unwrap();
+        assert!(!crl_issuing_dp.authoritative_for(&ee))
     }
 
     #[test]
