@@ -18,6 +18,7 @@ use crate::error::{DerTypeId, Error};
 use crate::signed_data::{self, SignedData};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 use crate::{SignatureVerificationAlgorithm, Time};
+use core::fmt::Debug;
 
 #[cfg(feature = "alloc")]
 use alloc::collections::BTreeMap;
@@ -31,7 +32,7 @@ use private::Sealed;
 /// [`BorrowedCertRevocationList`].
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-pub trait CertRevocationList: Sealed {
+pub trait CertRevocationList: Sealed + Debug {
     /// Return the DER encoded issuer of the CRL.
     fn issuer(&self) -> &[u8];
 

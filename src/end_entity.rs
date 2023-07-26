@@ -15,7 +15,7 @@
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
-    cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, KeyUsage,
+    cert, signed_data, subject_name, verify_cert, Error, KeyUsage, RevocationOptions,
     SignatureVerificationAlgorithm, SubjectNameRef, Time, TrustAnchor,
 };
 
@@ -96,7 +96,7 @@ impl<'a> EndEntityCert<'a> {
         intermediate_certs: &[&[u8]],
         time: Time,
         usage: KeyUsage,
-        crls: &[&dyn CertRevocationList],
+        revocation: Option<RevocationOptions>,
     ) -> Result<(), Error> {
         verify_cert::build_chain(
             &verify_cert::ChainOptions {
@@ -104,7 +104,7 @@ impl<'a> EndEntityCert<'a> {
                 supported_sig_algs,
                 trust_anchors,
                 intermediate_certs,
-                crls,
+                revocation,
             },
             &self.inner,
             time,

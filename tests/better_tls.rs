@@ -42,7 +42,7 @@ pub fn path_building() {
             intermediates,
             now,
             KeyUsage::server_auth(),
-            &[],
+            None,
         );
 
         match testcase.expected {

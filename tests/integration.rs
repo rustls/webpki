@@ -54,7 +54,7 @@ pub fn netflix() {
             &[inter],
             time,
             KeyUsage::server_auth(),
-            &[]
+            None,
         )
     );
 }
@@ -80,7 +80,7 @@ pub fn cloudflare_dns() {
             &[inter],
             time,
             KeyUsage::server_auth(),
-            &[]
+            None,
         )
     );
 
@@ -134,7 +134,7 @@ pub fn wpt() {
             &[],
             time,
             KeyUsage::server_auth(),
-            &[]
+            None,
         )
     );
 }
@@ -157,7 +157,7 @@ pub fn ed25519() {
             &[],
             time,
             KeyUsage::server_auth(),
-            &[]
+            None,
         )
     );
 }
@@ -179,7 +179,7 @@ fn critical_extensions() {
             &[ca],
             time,
             KeyUsage::server_auth(),
-            &[],
+            None,
         )
     });
     assert_eq!(res, Ok(()), "accept non-critical unknown extension");
@@ -192,7 +192,7 @@ fn critical_extensions() {
             &[ca],
             time,
             KeyUsage::server_auth(),
-            &[],
+            None,
         )
     });
     assert_eq!(
@@ -234,7 +234,7 @@ fn read_ee_with_neg_serial() {
             &[],
             time,
             KeyUsage::server_auth(),
-            &[]
+            None,
         )
     );
 }

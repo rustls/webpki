@@ -18,7 +18,7 @@ fn check_cert(
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();
 
     assert_eq!(
-        cert.verify_for_usage(algs, &anchors, &[], time, eku, &[]),
+        cert.verify_for_usage(algs, &anchors, &[], time, eku, None),
         result
     );
 }

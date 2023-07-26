@@ -113,6 +113,9 @@ pub enum Error {
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
 
+    /// The certificate's revocation status could not be determined.
+    UnknownRevocationStatus,
+
     /// The certificate is not a v3 X.509 certificate.
     ///
     /// This error may be also reported if the certificate version field
@@ -194,7 +197,7 @@ impl Error {
             // Errors related to certificate validity
             Error::CertNotValidYet | Error::CertExpired => 29,
             Error::CertNotValidForName => 28,
-            Error::CertRevoked => 27,
+            Error::CertRevoked | Error::UnknownRevocationStatus => 27,
             Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 26,
             Error::SignatureAlgorithmMismatch => 25,
             Error::RequiredEkuNotFound => 24,
