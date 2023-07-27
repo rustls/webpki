@@ -18,8 +18,6 @@ use crate::{
     cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, KeyUsage,
     SignatureAlgorithm, SubjectNameRef, Time, TrustAnchor,
 };
-#[allow(deprecated)]
-use crate::{TlsClientTrustAnchors, TlsServerTrustAnchors};
 
 /// An end-entity certificate.
 ///
@@ -76,28 +74,6 @@ impl<'a> EndEntityCert<'a> {
         &self.inner
     }
 
-    fn verify_is_valid_cert(
-        &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
-        trust_anchors: &[TrustAnchor],
-        intermediate_certs: &[&[u8]],
-        time: Time,
-        eku: KeyUsage,
-        crls: &[&dyn CertRevocationList],
-    ) -> Result<(), Error> {
-        verify_cert::build_chain(
-            &verify_cert::ChainOptions {
-                eku,
-                supported_sig_algs,
-                trust_anchors,
-                intermediate_certs,
-                crls,
-            },
-            &self.inner,
-            time,
-        )
-    }
-
     /// Verifies that the end-entity certificate is valid for use against the
     /// specified Extended Key Usage (EKU).
     ///
@@ -122,73 +98,16 @@ impl<'a> EndEntityCert<'a> {
         usage: KeyUsage,
         crls: &[&dyn CertRevocationList],
     ) -> Result<(), Error> {
-        self.verify_is_valid_cert(
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
+        verify_cert::build_chain(
+            &verify_cert::ChainOptions {
+                eku: usage,
+                supported_sig_algs,
+                trust_anchors,
+                intermediate_certs,
+                crls,
+            },
+            &self.inner,
             time,
-            usage,
-            crls,
-        )
-    }
-
-    /// Verifies that the end-entity certificate is valid for use by a TLS
-    /// server.
-    ///
-    /// `supported_sig_algs` is the list of signature algorithms that are
-    /// trusted for use in certificate signatures; the end-entity certificate's
-    /// public key is not validated against this list. `trust_anchors` is the
-    /// list of root CAs to trust. `intermediate_certs` is the sequence of
-    /// intermediate certificates that the server sent in the TLS handshake.
-    /// `time` is the time for which the validation is effective (usually the
-    /// current time).
-    #[allow(deprecated)]
-    #[deprecated(since = "0.101.2", note = "Use `verify_for_usage` instead")]
-    pub fn verify_is_valid_tls_server_cert(
-        &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
-        &TlsServerTrustAnchors(trust_anchors): &TlsServerTrustAnchors,
-        intermediate_certs: &[&[u8]],
-        time: Time,
-    ) -> Result<(), Error> {
-        self.verify_is_valid_cert(
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
-            time,
-            KeyUsage::server_auth(),
-            &[],
-        )
-    }
-
-    /// Verifies that the end-entity certificate is valid for use by a TLS
-    /// client.
-    ///
-    /// `supported_sig_algs` is the list of signature algorithms that are
-    /// trusted for use in certificate signatures; the end-entity certificate's
-    /// public key is not validated against this list. `trust_anchors` is the
-    /// list of root CAs to trust. `intermediate_certs` is the sequence of
-    /// intermediate certificates that the client sent in the TLS handshake.
-    /// `cert` is the purported end-entity certificate of the client. `time` is
-    /// the time for which the validation is effective (usually the current
-    /// time).
-    #[allow(deprecated)]
-    #[deprecated(since = "0.101.2", note = "Use `verify_for_usage` instead")]
-    pub fn verify_is_valid_tls_client_cert(
-        &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
-        &TlsClientTrustAnchors(trust_anchors): &TlsClientTrustAnchors,
-        intermediate_certs: &[&[u8]],
-        time: Time,
-        crls: &[&dyn CertRevocationList],
-    ) -> Result<(), Error> {
-        self.verify_is_valid_cert(
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
-            time,
-            KeyUsage::client_auth(),
-            crls,
         )
     }
 
