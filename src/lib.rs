@@ -58,8 +58,6 @@ mod crl;
 mod verify_cert;
 mod x509;
 
-#[allow(deprecated)]
-pub use trust_anchor::{TlsClientTrustAnchors, TlsServerTrustAnchors};
 pub use {
     cert::{Cert, EndEntityOrCa},
     crl::{BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason},
