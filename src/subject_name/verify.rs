@@ -141,137 +141,122 @@ fn check_presented_id_conforms_to_constraints(
     permitted_subtrees: Option<untrusted::Input>,
     excluded_subtrees: Option<untrusted::Input>,
 ) -> Option<Result<(), Error>> {
-    match check_presented_id_conforms_to_constraints_in_subtree(
-        name,
-        Subtrees::PermittedSubtrees,
-        permitted_subtrees,
-    ) {
-        Some(result) => return Some(result),
-        None => (),
-    };
+    let subtrees = [
+        (Subtrees::PermittedSubtrees, permitted_subtrees),
+        (Subtrees::ExcludedSubtrees, excluded_subtrees),
+    ];
 
-    check_presented_id_conforms_to_constraints_in_subtree(
-        name,
-        Subtrees::ExcludedSubtrees,
-        excluded_subtrees,
-    )
+    for (subtrees, constraints) in subtrees {
+        let mut constraints = match constraints {
+            Some(constraints) => untrusted::Reader::new(constraints),
+            None => continue,
+        };
+
+        let mut has_permitted_subtrees_match = false;
+        let mut has_permitted_subtrees_mismatch = false;
+        while !constraints.at_end() {
+            // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
+            // profile, the minimum and maximum fields are not used with any name
+            // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
+            //
+            // Since the default value isn't allowed to be encoded according to the
+            // DER encoding rules for DEFAULT, this is equivalent to saying that
+            // neither minimum or maximum must be encoded.
+            fn general_subtree<'b>(
+                input: &mut untrusted::Reader<'b>,
+            ) -> Result<GeneralName<'b>, Error> {
+                let general_subtree = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
+                general_subtree.read_all(Error::BadDer, GeneralName::from_der)
+            }
+
+            let base = match general_subtree(&mut constraints) {
+                Ok(base) => base,
+                Err(err) => return Some(Err(err)),
+            };
+
+            let matches = match (name, base) {
+                (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
+                    dns_name::presented_id_matches_constraint(name, base)
+                }
+
+                (GeneralName::DirectoryName(_), GeneralName::DirectoryName(_)) => Ok(
+                    // Reject any uses of directory name constraints; we don't implement this.
+                    //
+                    // Rejecting everything technically confirms to RFC5280:
+                    //
+                    //   "If a name constraints extension that is marked as critical imposes constraints
+                    //    on a particular name form, and an instance of that name form appears in the
+                    //    subject field or subjectAltName extension of a subsequent certificate, then
+                    //    the application MUST either process the constraint or _reject the certificate_."
+                    //
+                    // TODO: rustls/webpki#19
+                    //
+                    // Rejection is achieved by not matching any PermittedSubtrees, and matching all
+                    // ExcludedSubtrees.
+                    match subtrees {
+                        Subtrees::PermittedSubtrees => false,
+                        Subtrees::ExcludedSubtrees => true,
+                    },
+                ),
+
+                (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
+                    ip_address::presented_id_matches_constraint(name, base)
+                }
+
+                // RFC 4280 says "If a name constraints extension that is marked as
+                // critical imposes constraints on a particular name form, and an
+                // instance of that name form appears in the subject field or
+                // subjectAltName extension of a subsequent certificate, then the
+                // application MUST either process the constraint or reject the
+                // certificate." Later, the CABForum agreed to support non-critical
+                // constraints, so it is important to reject the cert without
+                // considering whether the name constraint it critical.
+                (GeneralName::Unsupported(name_tag), GeneralName::Unsupported(base_tag))
+                    if name_tag == base_tag =>
+                {
+                    Err(Error::NameConstraintViolation)
+                }
+
+                _ => {
+                    // mismatch between constraint and name types; continue with current
+                    // name and next constraint
+                    continue;
+                }
+            };
+
+            match (subtrees, matches) {
+                (Subtrees::PermittedSubtrees, Ok(true)) => {
+                    has_permitted_subtrees_match = true;
+                }
+
+                (Subtrees::PermittedSubtrees, Ok(false)) => {
+                    has_permitted_subtrees_mismatch = true;
+                }
+
+                (Subtrees::ExcludedSubtrees, Ok(true)) => {
+                    return Some(Err(Error::NameConstraintViolation));
+                }
+
+                (Subtrees::ExcludedSubtrees, Ok(false)) => (),
+                (_, Err(err)) => return Some(Err(err)),
+            }
+        }
+
+        if has_permitted_subtrees_mismatch && !has_permitted_subtrees_match {
+            // If there was any entry of the given type in permittedSubtrees, then
+            // it required that at least one of them must match. Since none of them
+            // did, we have a failure.
+            return Some(Err(Error::NameConstraintViolation));
+        }
+    }
+
+    None
 }
 
 #[derive(Clone, Copy)]
 enum Subtrees {
     PermittedSubtrees,
     ExcludedSubtrees,
-}
-
-fn check_presented_id_conforms_to_constraints_in_subtree(
-    name: GeneralName,
-    subtrees: Subtrees,
-    constraints: Option<untrusted::Input>,
-) -> Option<Result<(), Error>> {
-    let mut constraints = match constraints {
-        Some(constraints) => untrusted::Reader::new(constraints),
-        None => return None,
-    };
-
-    let mut has_permitted_subtrees_match = false;
-    let mut has_permitted_subtrees_mismatch = false;
-
-    while !constraints.at_end() {
-        // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
-        // profile, the minimum and maximum fields are not used with any name
-        // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
-        //
-        // Since the default value isn't allowed to be encoded according to the
-        // DER encoding rules for DEFAULT, this is equivalent to saying that
-        // neither minimum or maximum must be encoded.
-        fn general_subtree<'b>(
-            input: &mut untrusted::Reader<'b>,
-        ) -> Result<GeneralName<'b>, Error> {
-            let general_subtree = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
-            general_subtree.read_all(Error::BadDer, GeneralName::from_der)
-        }
-
-        let base = match general_subtree(&mut constraints) {
-            Ok(base) => base,
-            Err(err) => return Some(Err(err)),
-        };
-
-        let matches = match (name, base) {
-            (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
-                dns_name::presented_id_matches_constraint(name, base)
-            }
-
-            (GeneralName::DirectoryName(_), GeneralName::DirectoryName(_)) => Ok(
-                // Reject any uses of directory name constraints; we don't implement this.
-                //
-                // Rejecting everything technically confirms to RFC5280:
-                //
-                //   "If a name constraints extension that is marked as critical imposes constraints
-                //    on a particular name form, and an instance of that name form appears in the
-                //    subject field or subjectAltName extension of a subsequent certificate, then
-                //    the application MUST either process the constraint or _reject the certificate_."
-                //
-                // TODO: rustls/webpki#19
-                //
-                // Rejection is achieved by not matching any PermittedSubtrees, and matching all
-                // ExcludedSubtrees.
-                match subtrees {
-                    Subtrees::PermittedSubtrees => false,
-                    Subtrees::ExcludedSubtrees => true,
-                },
-            ),
-
-            (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
-                ip_address::presented_id_matches_constraint(name, base)
-            }
-
-            // RFC 4280 says "If a name constraints extension that is marked as
-            // critical imposes constraints on a particular name form, and an
-            // instance of that name form appears in the subject field or
-            // subjectAltName extension of a subsequent certificate, then the
-            // application MUST either process the constraint or reject the
-            // certificate." Later, the CABForum agreed to support non-critical
-            // constraints, so it is important to reject the cert without
-            // considering whether the name constraint it critical.
-            (GeneralName::Unsupported(name_tag), GeneralName::Unsupported(base_tag))
-                if name_tag == base_tag =>
-            {
-                Err(Error::NameConstraintViolation)
-            }
-
-            _ => {
-                // mismatch between constraint and name types; continue with current
-                // name and next constraint
-                continue;
-            }
-        };
-
-        match (subtrees, matches) {
-            (Subtrees::PermittedSubtrees, Ok(true)) => {
-                has_permitted_subtrees_match = true;
-            }
-
-            (Subtrees::PermittedSubtrees, Ok(false)) => {
-                has_permitted_subtrees_mismatch = true;
-            }
-
-            (Subtrees::ExcludedSubtrees, Ok(true)) => {
-                return Some(Err(Error::NameConstraintViolation));
-            }
-
-            (Subtrees::ExcludedSubtrees, Ok(false)) => (),
-            (_, Err(err)) => return Some(Err(err)),
-        }
-    }
-
-    if has_permitted_subtrees_mismatch && !has_permitted_subtrees_match {
-        // If there was any entry of the given type in permittedSubtrees, then
-        // it required that at least one of them must match. Since none of them
-        // did, we have a failure.
-        Some(Err(Error::NameConstraintViolation))
-    } else {
-        None
-    }
 }
 
 #[derive(Clone, Copy)]
