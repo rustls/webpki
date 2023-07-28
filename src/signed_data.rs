@@ -215,12 +215,14 @@ pub(crate) fn verify_signature(
     {
         return Err(Error::UnsupportedSignatureAlgorithmForPublicKey);
     }
-    signature::UnparsedPublicKey::new(
-        signature_alg.verification_alg,
-        spki.key_value.as_slice_less_safe(),
-    )
-    .verify(msg.as_slice_less_safe(), signature.as_slice_less_safe())
-    .map_err(|_| Error::InvalidSignatureForPublicKey)
+
+    signature_alg
+        .verify_signature(
+            spki.key_value.as_slice_less_safe(),
+            msg.as_slice_less_safe(),
+            signature.as_slice_less_safe(),
+        )
+        .map_err(|_| Error::InvalidSignatureForPublicKey)
 }
 
 struct SubjectPublicKeyInfo<'a> {
@@ -248,6 +250,19 @@ pub struct SignatureAlgorithm {
     public_key_alg_id: alg_id::AlgorithmIdentifier,
     signature_alg_id: alg_id::AlgorithmIdentifier,
     verification_alg: &'static dyn signature::VerificationAlgorithm,
+}
+
+impl SignatureAlgorithm {
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        signature::UnparsedPublicKey::new(self.verification_alg, public_key)
+            .verify(message, signature)
+            .map_err(|_| InvalidSignature)
+    }
 }
 
 /// ECDSA signatures using the P-256 curve and SHA-256.
@@ -363,6 +378,10 @@ pub static ED25519: SignatureAlgorithm = SignatureAlgorithm {
     signature_alg_id: alg_id::ED25519,
     verification_alg: &signature::ED25519,
 };
+
+/// A detail-less error when a signature is not valid.
+#[derive(Debug, Copy, Clone)]
+struct InvalidSignature;
 
 /// Encodings of the PKIX AlgorithmIdentifier type:
 ///
