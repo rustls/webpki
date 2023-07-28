@@ -36,14 +36,16 @@ pub(crate) fn verify_cert_dns_name(
         SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
         &mut |name| {
-            if let GeneralName::DnsName(presented_id) = name {
-                match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-                    Ok(true) => return Some(Ok(())),
-                    Ok(false) | Err(Error::MalformedDnsIdentifier) => (),
-                    Err(e) => return Some(Err(e)),
-                }
+            let presented_id = match name {
+                GeneralName::DnsName(presented) => presented,
+                _ => return None,
+            };
+
+            match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
+                Ok(true) => Some(Ok(())),
+                Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
+                Err(e) => Some(Err(e)),
             }
-            None
         },
     )
 }
@@ -70,13 +72,15 @@ pub(crate) fn verify_cert_subject_name(
         SubjectCommonNameContents::Ignore,
         Err(Error::CertNotValidForName),
         &mut |name| {
-            if let GeneralName::IpAddress(presented_id) = name {
-                match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
-                    true => return Some(Ok(())),
-                    false => (),
-                }
+            let presented_id = match name {
+                GeneralName::IpAddress(presented) => presented,
+                _ => return None,
+            };
+
+            match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
+                true => Some(Ok(())),
+                false => None,
             }
-            None
         },
     )
 }
@@ -344,20 +348,24 @@ pub(crate) fn list_cert_dns_names<'names>(
         SubjectCommonNameContents::DnsName,
         Ok(()),
         &mut |name| {
-            if let GeneralName::DnsName(presented_id) = name {
-                let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                    .map(GeneralDnsNameRef::DnsName)
-                    .or_else(|_| {
-                        WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                            .map(GeneralDnsNameRef::Wildcard)
-                    });
+            let presented_id = match name {
+                GeneralName::DnsName(presented) => presented,
+                _ => return None,
+            };
 
-                // if the name could be converted to a DNS name, add it; otherwise,
-                // keep going.
-                if let Ok(name) = dns_name {
-                    names.push(name)
-                }
+            let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                .map(GeneralDnsNameRef::DnsName)
+                .or_else(|_| {
+                    WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                        .map(GeneralDnsNameRef::Wildcard)
+                });
+
+            // if the name could be converted to a DNS name, add it; otherwise,
+            // keep going.
+            if let Ok(name) = dns_name {
+                names.push(name)
             }
+
             None
         },
     )
