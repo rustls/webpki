@@ -30,24 +30,29 @@ pub(crate) fn verify_cert_dns_name(
 ) -> Result<(), Error> {
     let cert = cert.inner();
     let dns_name = untrusted::Input::from(dns_name.as_ref().as_bytes());
-    iterate_names(
+    NameIterator::new(
         Some(cert.subject),
         cert.subject_alt_name,
         SubjectCommonNameContents::Ignore,
-        Err(Error::CertNotValidForName),
-        &mut |name| {
-            let presented_id = match name {
-                GeneralName::DnsName(presented) => presented,
-                _ => return None,
-            };
-
-            match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-                Ok(true) => Some(Ok(())),
-                Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
-                Err(e) => Some(Err(e)),
-            }
-        },
     )
+    .find_map(|result| {
+        let name = match result {
+            Ok(name) => name,
+            Err(err) => return Some(Err(err)),
+        };
+
+        let presented_id = match name {
+            GeneralName::DnsName(presented) => presented,
+            _ => return None,
+        };
+
+        match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
+            Ok(true) => Some(Ok(())),
+            Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
+            Err(e) => Some(Err(e)),
+        }
+    })
+    .unwrap_or(Err(Error::CertNotValidForName))
 }
 
 pub(crate) fn verify_cert_subject_name(
@@ -64,25 +69,30 @@ pub(crate) fn verify_cert_subject_name(
         }
     };
 
-    iterate_names(
+    NameIterator::new(
         // IP addresses are not compared against the subject field;
         // only against Subject Alternative Names.
         None,
         cert.inner().subject_alt_name,
         SubjectCommonNameContents::Ignore,
-        Err(Error::CertNotValidForName),
-        &mut |name| {
-            let presented_id = match name {
-                GeneralName::IpAddress(presented) => presented,
-                _ => return None,
-            };
-
-            match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
-                true => Some(Ok(())),
-                false => None,
-            }
-        },
     )
+    .find_map(|result| {
+        let name = match result {
+            Ok(name) => name,
+            Err(err) => return Some(Err(err)),
+        };
+
+        let presented_id = match name {
+            GeneralName::IpAddress(presented) => presented,
+            _ => return None,
+        };
+
+        match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
+            true => Some(Ok(())),
+            false => None,
+        }
+    })
+    .unwrap_or(Err(Error::CertNotValidForName))
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
@@ -111,19 +121,23 @@ pub(crate) fn check_name_constraints(
 
     let mut child = subordinate_certs;
     loop {
-        iterate_names(
+        let result = NameIterator::new(
             Some(child.subject),
             child.subject_alt_name,
             subject_common_name_contents,
-            Ok(()),
-            &mut |name| {
-                check_presented_id_conforms_to_constraints(
-                    name,
-                    permitted_subtrees,
-                    excluded_subtrees,
-                )
-            },
-        )?;
+        )
+        .find_map(|result| {
+            let name = match result {
+                Ok(name) => name,
+                Err(err) => return Some(Err(err)),
+            };
+
+            check_presented_id_conforms_to_constraints(name, permitted_subtrees, excluded_subtrees)
+        });
+
+        if let Some(Err(err)) = result {
+            return Err(err);
+        }
 
         child = match child.ee_or_ca {
             EndEntityOrCa::Ca(child_cert) => child_cert,
@@ -265,49 +279,77 @@ pub(crate) enum SubjectCommonNameContents {
     Ignore,
 }
 
-fn iterate_names<'names>(
-    subject: Option<untrusted::Input<'names>>,
-    subject_alt_name: Option<untrusted::Input<'names>>,
-    subject_common_name_contents: SubjectCommonNameContents,
-    result_if_never_stopped_early: Result<(), Error>,
-    f: &mut impl FnMut(GeneralName<'names>) -> Option<Result<(), Error>>,
-) -> Result<(), Error> {
-    if let Some(subject_alt_name) = subject_alt_name {
-        let mut subject_alt_name = untrusted::Reader::new(subject_alt_name);
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=1143085: An empty
-        // subjectAltName is not legal, but some certificates have an empty
-        // subjectAltName. Since we don't support CN-IDs, the certificate
-        // will be rejected either way, but checking `at_end` before
-        // attempting to parse the first entry allows us to return a better
-        // error code.
-        while !subject_alt_name.at_end() {
-            let name = GeneralName::from_der(&mut subject_alt_name)?;
-            if let Some(result) = f(name) {
-                return result;
-            }
+struct NameIterator<'a> {
+    subject_alt_name: Option<untrusted::Reader<'a>>,
+    subject_directory_name: Option<untrusted::Input<'a>>,
+    subject_common_name: Option<untrusted::Input<'a>>,
+}
+
+impl<'a> NameIterator<'a> {
+    fn new(
+        subject: Option<untrusted::Input<'a>>,
+        subject_alt_name: Option<untrusted::Input<'a>>,
+        subject_common_name_contents: SubjectCommonNameContents,
+    ) -> Self {
+        // If `subject` is present, we always consider it as a `DirectoryName`.
+        // We yield its common name only if the policy in `subject_common_name_contents` allows it.
+        let (subject_directory_name, subject_common_name) =
+            match (subject, subject_common_name_contents) {
+                (Some(input), SubjectCommonNameContents::DnsName) => (Some(input), Some(input)),
+                (Some(input), SubjectCommonNameContents::Ignore) => (Some(input), None),
+                (None, _) => (None, None),
+            };
+
+        NameIterator {
+            subject_alt_name: subject_alt_name.map(untrusted::Reader::new),
+            subject_directory_name,
+            subject_common_name,
         }
     }
+}
 
-    let subject = match subject {
-        Some(subject) => subject,
-        None => return result_if_never_stopped_early,
-    };
+impl<'a> Iterator for NameIterator<'a> {
+    type Item = Result<GeneralName<'a>, Error>;
 
-    if let Some(result) = f(GeneralName::DirectoryName(subject)) {
-        return result;
-    }
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(subject_alt_name) = &mut self.subject_alt_name {
+            // https://bugzilla.mozilla.org/show_bug.cgi?id=1143085: An empty
+            // subjectAltName is not legal, but some certificates have an empty
+            // subjectAltName. Since we don't support CN-IDs, the certificate
+            // will be rejected either way, but checking `at_end` before
+            // attempting to parse the first entry allows us to return a better
+            // error code.
 
-    if let SubjectCommonNameContents::Ignore = subject_common_name_contents {
-        return result_if_never_stopped_early;
-    }
+            if !subject_alt_name.at_end() {
+                let err = match GeneralName::from_der(subject_alt_name) {
+                    Ok(name) => return Some(Ok(name)),
+                    Err(err) => err,
+                };
 
-    match common_name(subject) {
-        Ok(Some(cn)) => match f(GeneralName::DnsName(cn)) {
-            Some(result) => result,
-            None => result_if_never_stopped_early,
-        },
-        Ok(None) => result_if_never_stopped_early,
-        Err(err) => Err(err),
+                // Make sure we don't yield any items after this error.
+                self.subject_alt_name = None;
+                self.subject_directory_name = None;
+                self.subject_common_name = None;
+                return Some(Err(err));
+            } else {
+                self.subject_alt_name = None;
+            }
+        }
+
+        if let Some(subject_directory_name) = self.subject_directory_name.take() {
+            return Some(Ok(GeneralName::DirectoryName(subject_directory_name)));
+        }
+
+        if let Some(subject_common_name) = self.subject_common_name.take() {
+            return match common_name(subject_common_name) {
+                Ok(Some(cn)) => Some(Ok(GeneralName::DnsName(cn))),
+                Ok(None) => None,
+                // All the iterator fields should be `None` at this point
+                Err(err) => Some(Err(err)),
+            };
+        }
+
+        None
     }
 }
 
@@ -318,34 +360,42 @@ pub(crate) fn list_cert_dns_names<'names>(
     let cert = &cert.inner();
     let mut names = Vec::new();
 
-    iterate_names(
+    let result = NameIterator::new(
         Some(cert.subject),
         cert.subject_alt_name,
         SubjectCommonNameContents::DnsName,
-        Ok(()),
-        &mut |name| {
-            let presented_id = match name {
-                GeneralName::DnsName(presented) => presented,
-                _ => return None,
-            };
-
-            let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                .map(GeneralDnsNameRef::DnsName)
-                .or_else(|_| {
-                    WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                        .map(GeneralDnsNameRef::Wildcard)
-                });
-
-            // if the name could be converted to a DNS name, add it; otherwise,
-            // keep going.
-            if let Ok(name) = dns_name {
-                names.push(name)
-            }
-
-            None
-        },
     )
-    .map(|_| names.into_iter())
+    .find_map(&mut |result| {
+        let name = match result {
+            Ok(name) => name,
+            Err(err) => return Some(err),
+        };
+
+        let presented_id = match name {
+            GeneralName::DnsName(presented) => presented,
+            _ => return None,
+        };
+
+        let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+            .map(GeneralDnsNameRef::DnsName)
+            .or_else(|_| {
+                WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                    .map(GeneralDnsNameRef::Wildcard)
+            });
+
+        // if the name could be converted to a DNS name, add it; otherwise,
+        // keep going.
+        if let Ok(name) = dns_name {
+            names.push(name)
+        }
+
+        None
+    });
+
+    match result {
+        Some(err) => Err(err),
+        _ => Ok(names.into_iter()),
+    }
 }
 
 // It is *not* valid to derive `Eq`, `PartialEq, etc. for this type. In
