@@ -201,8 +201,24 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
                 dns_name::presented_id_matches_constraint(name, base)
             }
 
-            (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => Ok(
-                presented_directory_name_matches_constraint(name, base, subtrees),
+            (GeneralName::DirectoryName(_), GeneralName::DirectoryName(_)) => Ok(
+                // Reject any uses of directory name constraints; we don't implement this.
+                //
+                // Rejecting everything technically confirms to RFC5280:
+                //
+                //   "If a name constraints extension that is marked as critical imposes constraints
+                //    on a particular name form, and an instance of that name form appears in the
+                //    subject field or subjectAltName extension of a subsequent certificate, then
+                //    the application MUST either process the constraint or _reject the certificate_."
+                //
+                // TODO: rustls/webpki#19
+                //
+                // Rejection is achieved by not matching any PermittedSubtrees, and matching all
+                // ExcludedSubtrees.
+                match subtrees {
+                    Subtrees::PermittedSubtrees => false,
+                    Subtrees::ExcludedSubtrees => true,
+                },
             ),
 
             (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
@@ -255,30 +271,6 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
         Some(Err(Error::NameConstraintViolation))
     } else {
         None
-    }
-}
-
-fn presented_directory_name_matches_constraint(
-    _name: untrusted::Input,
-    _constraint: untrusted::Input,
-    subtrees: Subtrees,
-) -> bool {
-    // Reject any uses of directory name constraints; we don't implement this.
-    //
-    // Rejecting everything technically confirms to RFC5280:
-    //
-    //   "If a name constraints extension that is marked as critical imposes constraints
-    //    on a particular name form, and an instance of that name form appears in the
-    //    subject field or subjectAltName extension of a subsequent certificate, then
-    //    the application MUST either process the constraint or _reject the certificate_."
-    //
-    // TODO: rustls/webpki#19
-    //
-    // Rejection is achieved by not matching any PermittedSubtrees, and matching all
-    // ExcludedSubtrees.
-    match subtrees {
-        Subtrees::PermittedSubtrees => false,
-        Subtrees::ExcludedSubtrees => true,
     }
 }
 
