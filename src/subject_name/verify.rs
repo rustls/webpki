@@ -305,33 +305,32 @@ fn iterate_names<'names>(
         // error code.
         while !subject_alt_name.at_end() {
             let name = GeneralName::from_der(&mut subject_alt_name)?;
-            match f(name) {
-                Some(result) => return result,
-                None => (),
+            if let Some(result) = f(name) {
+                return result;
             }
         }
     }
 
-    if let Some(subject) = subject {
-        match f(GeneralName::DirectoryName(subject)) {
-            Some(result) => return result,
-            None => (),
-        };
+    let subject = match subject {
+        Some(subject) => subject,
+        None => return result_if_never_stopped_early,
+    };
+
+    if let Some(result) = f(GeneralName::DirectoryName(subject)) {
+        return result;
     }
 
-    if let (SubjectCommonNameContents::DnsName, Some(subject)) =
-        (subject_common_name_contents, subject)
-    {
-        match common_name(subject) {
-            Ok(Some(cn)) => match f(GeneralName::DnsName(cn)) {
-                Some(result) => result,
-                None => result_if_never_stopped_early,
-            },
-            Ok(None) => result_if_never_stopped_early,
-            Err(err) => Err(err),
-        }
-    } else {
-        result_if_never_stopped_early
+    if let SubjectCommonNameContents::Ignore = subject_common_name_contents {
+        return result_if_never_stopped_early;
+    }
+
+    match common_name(subject) {
+        Ok(Some(cn)) => match f(GeneralName::DnsName(cn)) {
+            Some(result) => result,
+            None => result_if_never_stopped_early,
+        },
+        Ok(None) => result_if_never_stopped_early,
+        Err(err) => Err(err),
     }
 }
 
