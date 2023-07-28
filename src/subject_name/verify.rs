@@ -38,12 +38,12 @@ pub(crate) fn verify_cert_dns_name(
         &mut |name| {
             if let GeneralName::DnsName(presented_id) = name {
                 match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-                    Ok(true) => return NameIteration::Stop(Ok(())),
+                    Ok(true) => return Some(Ok(())),
                     Ok(false) | Err(Error::MalformedDnsIdentifier) => (),
-                    Err(e) => return NameIteration::Stop(Err(e)),
+                    Err(e) => return Some(Err(e)),
                 }
             }
-            NameIteration::KeepGoing
+            None
         },
     )
 }
@@ -72,11 +72,11 @@ pub(crate) fn verify_cert_subject_name(
         &mut |name| {
             if let GeneralName::IpAddress(presented_id) = name {
                 match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
-                    true => return NameIteration::Stop(Ok(())),
+                    true => return Some(Ok(())),
                     false => (),
                 }
             }
-            NameIteration::KeepGoing
+            None
         },
     )
 }
@@ -89,9 +89,7 @@ pub(crate) fn check_name_constraints(
 ) -> Result<(), Error> {
     let input = match input {
         Some(input) => input,
-        None => {
-            return Ok(());
-        }
+        None => return Ok(()),
     };
 
     fn parse_subtrees<'b>(
@@ -138,16 +136,14 @@ fn check_presented_id_conforms_to_constraints(
     name: GeneralName,
     permitted_subtrees: Option<untrusted::Input>,
     excluded_subtrees: Option<untrusted::Input>,
-) -> NameIteration {
+) -> Option<Result<(), Error>> {
     match check_presented_id_conforms_to_constraints_in_subtree(
         name,
         Subtrees::PermittedSubtrees,
         permitted_subtrees,
     ) {
-        stop @ NameIteration::Stop(..) => {
-            return stop;
-        }
-        NameIteration::KeepGoing => (),
+        Some(result) => return Some(result),
+        None => (),
     };
 
     check_presented_id_conforms_to_constraints_in_subtree(
@@ -167,12 +163,10 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
     name: GeneralName,
     subtrees: Subtrees,
     constraints: Option<untrusted::Input>,
-) -> NameIteration {
+) -> Option<Result<(), Error>> {
     let mut constraints = match constraints {
         Some(constraints) => untrusted::Reader::new(constraints),
-        None => {
-            return NameIteration::KeepGoing;
-        }
+        None => return None,
     };
 
     let mut has_permitted_subtrees_match = false;
@@ -195,9 +189,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
 
         let base = match general_subtree(&mut constraints) {
             Ok(base) => base,
-            Err(err) => {
-                return NameIteration::Stop(Err(err));
-            }
+            Err(err) => return Some(Err(err)),
         };
 
         let matches = match (name, base) {
@@ -244,14 +236,11 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
             }
 
             (Subtrees::ExcludedSubtrees, Ok(true)) => {
-                return NameIteration::Stop(Err(Error::NameConstraintViolation));
+                return Some(Err(Error::NameConstraintViolation));
             }
 
             (Subtrees::ExcludedSubtrees, Ok(false)) => (),
-
-            (_, Err(err)) => {
-                return NameIteration::Stop(Err(err));
-            }
+            (_, Err(err)) => return Some(Err(err)),
         }
     }
 
@@ -259,9 +248,9 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
         // If there was any entry of the given type in permittedSubtrees, then
         // it required that at least one of them must match. Since none of them
         // did, we have a failure.
-        NameIteration::Stop(Err(Error::NameConstraintViolation))
+        Some(Err(Error::NameConstraintViolation))
     } else {
-        NameIteration::KeepGoing
+        None
     }
 }
 
@@ -290,12 +279,6 @@ fn presented_directory_name_matches_constraint(
 }
 
 #[derive(Clone, Copy)]
-enum NameIteration {
-    KeepGoing,
-    Stop(Result<(), Error>),
-}
-
-#[derive(Clone, Copy)]
 pub(crate) enum SubjectCommonNameContents {
     DnsName,
     Ignore,
@@ -306,7 +289,7 @@ fn iterate_names<'names>(
     subject_alt_name: Option<untrusted::Input<'names>>,
     subject_common_name_contents: SubjectCommonNameContents,
     result_if_never_stopped_early: Result<(), Error>,
-    f: &mut impl FnMut(GeneralName<'names>) -> NameIteration,
+    f: &mut impl FnMut(GeneralName<'names>) -> Option<Result<(), Error>>,
 ) -> Result<(), Error> {
     if let Some(subject_alt_name) = subject_alt_name {
         let mut subject_alt_name = untrusted::Reader::new(subject_alt_name);
@@ -319,18 +302,16 @@ fn iterate_names<'names>(
         while !subject_alt_name.at_end() {
             let name = GeneralName::from_der(&mut subject_alt_name)?;
             match f(name) {
-                NameIteration::Stop(result) => {
-                    return result;
-                }
-                NameIteration::KeepGoing => (),
+                Some(result) => return result,
+                None => (),
             }
         }
     }
 
     if let Some(subject) = subject {
         match f(GeneralName::DirectoryName(subject)) {
-            NameIteration::Stop(result) => return result,
-            NameIteration::KeepGoing => (),
+            Some(result) => return result,
+            None => (),
         };
     }
 
@@ -339,8 +320,8 @@ fn iterate_names<'names>(
     {
         match common_name(subject) {
             Ok(Some(cn)) => match f(GeneralName::DnsName(cn)) {
-                NameIteration::Stop(result) => result,
-                NameIteration::KeepGoing => result_if_never_stopped_early,
+                Some(result) => result,
+                None => result_if_never_stopped_early,
             },
             Ok(None) => result_if_never_stopped_early,
             Err(err) => Err(err),
@@ -377,7 +358,7 @@ pub(crate) fn list_cert_dns_names<'names>(
                     names.push(name)
                 }
             }
-            NameIteration::KeepGoing
+            None
         },
     )
     .map(|_| names.into_iter())
