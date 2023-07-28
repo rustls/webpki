@@ -25,7 +25,7 @@ fn check_cert(
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
 
     cert.verify_for_usage(
-        &[&webpki::ECDSA_P256_SHA256],
+        &[webpki::ECDSA_P256_SHA256],
         anchors,
         intermediates,
         time,

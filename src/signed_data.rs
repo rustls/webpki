@@ -151,7 +151,7 @@ impl<'a> SignedData<'a> {
 /// but generally more common algorithms should go first, as it is scanned
 /// linearly for matches.
 pub(crate) fn verify_signed_data(
-    supported_algorithms: &[&SignatureAlgorithm],
+    supported_algorithms: &[&dyn SignatureVerificationAlgorithm],
     spki_value: untrusted::Input,
     signed_data: &SignedData,
 ) -> Result<(), Error> {
@@ -176,11 +176,11 @@ pub(crate) fn verify_signed_data(
     //
     let mut found_signature_alg_match = false;
     for supported_alg in supported_algorithms.iter().filter(|alg| {
-        alg.signature_alg_id
+        alg.signature_alg_id()
             .matches_algorithm_id_value(signed_data.algorithm)
     }) {
         match verify_signature(
-            supported_alg,
+            *supported_alg,
             spki_value,
             signed_data.data,
             signed_data.signature,
@@ -203,14 +203,14 @@ pub(crate) fn verify_signed_data(
 }
 
 pub(crate) fn verify_signature(
-    signature_alg: &SignatureAlgorithm,
+    signature_alg: &dyn SignatureVerificationAlgorithm,
     spki_value: untrusted::Input,
     msg: untrusted::Input,
     signature: untrusted::Input,
 ) -> Result<(), Error> {
     let spki = spki_value.read_all(Error::BadDer, SubjectPublicKeyInfo::from_der)?;
     if !signature_alg
-        .public_key_alg_id
+        .public_key_alg_id()
         .matches_algorithm_id_value(spki.algorithm_id_value)
     {
         return Err(Error::UnsupportedSignatureAlgorithmForPublicKey);
@@ -233,7 +233,7 @@ struct SubjectPublicKeyInfo<'a> {
 impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
     // Parse the public key into an algorithm OID, an optional curve OID, and the
     // key value. The caller needs to check whether these match the
-    // `PublicKeyAlgorithm` for the `SignatureAlgorithm` that is matched when
+    // `PublicKeyAlgorithm` for the `SignatureVerificationAlgorithm` that is matched when
     // parsing the signature.
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         let algorithm_id_value = der::expect_tag_and_get_value(reader, der::Tag::Sequence)?;
@@ -245,14 +245,63 @@ impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
     }
 }
 
-/// A signature algorithm.
-pub struct SignatureAlgorithm {
+/// An abstract signature verification algorithm.
+///
+/// One of these is needed per supported pair of public key type (identified
+/// with `public_key_alg_id()`) and `signatureAlgorithm` (identified with
+/// `signature_alg_id()`).  Note that both of these `AlgorithmIdentifier`s include
+/// the parameters encoding, so separate `SignatureVerificationAlgorithm`s are needed
+/// for each possible public key or signature parameters.
+pub trait SignatureVerificationAlgorithm: Send + Sync {
+    /// Return the `AlgorithmIdentifier` that must be present on a `subjectPublicKeyInfo`
+    /// for this `SignatureVerificationAlgorithm` to be considered for verification.
+    fn public_key_alg_id(&self) -> alg_id::AlgorithmIdentifier;
+
+    /// Return the `AlgorithmIdentifier` that must be present as the `signatureAlgorithm`
+    /// on the data to be verified for this `SignatureVerificationAlgorithm` to be considered
+    /// for this `SignatureVerificationAlgorithm` to be considered.
+    fn signature_alg_id(&self) -> alg_id::AlgorithmIdentifier;
+
+    /// Verify a signature.
+    ///
+    /// `public_key` is the `subjectPublicKey` value from a `SubjectPublicKeyInfo` encoding
+    ///  and is untrusted.
+    ///
+    ///  `message` is the data over which the signature was allegedly computed.
+    ///  It is not hashed; implementations of this trait function must do hashing
+    ///  if that is required by the algorithm they implement.
+    ///
+    ///  `signature` is the signature allegedly over `message`.
+    ///
+    /// Return `Ok(())` only if `signature` is a valid signature on `message`.
+    ///
+    /// Return `Err(InvalidSignature)` if the signature is invalid, including if the `public_key`
+    /// encoding is invalid.  There is no need or opportunity to produce errors
+    /// that are more specific than this.
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature>;
+}
+
+/// A `SignatureVerificationAlgorithm` implemented using *ring*.
+struct RingAlgorithm {
     public_key_alg_id: alg_id::AlgorithmIdentifier,
     signature_alg_id: alg_id::AlgorithmIdentifier,
     verification_alg: &'static dyn signature::VerificationAlgorithm,
 }
 
-impl SignatureAlgorithm {
+impl SignatureVerificationAlgorithm for RingAlgorithm {
+    fn public_key_alg_id(&self) -> alg_id::AlgorithmIdentifier {
+        self.public_key_alg_id
+    }
+
+    fn signature_alg_id(&self) -> alg_id::AlgorithmIdentifier {
+        self.signature_alg_id
+    }
+
     fn verify_signature(
         &self,
         public_key: &[u8],
@@ -266,28 +315,28 @@ impl SignatureAlgorithm {
 }
 
 /// ECDSA signatures using the P-256 curve and SHA-256.
-pub static ECDSA_P256_SHA256: SignatureAlgorithm = SignatureAlgorithm {
+pub static ECDSA_P256_SHA256: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::ECDSA_P256,
     signature_alg_id: alg_id::ECDSA_SHA256,
     verification_alg: &signature::ECDSA_P256_SHA256_ASN1,
 };
 
 /// ECDSA signatures using the P-256 curve and SHA-384. Deprecated.
-pub static ECDSA_P256_SHA384: SignatureAlgorithm = SignatureAlgorithm {
+pub static ECDSA_P256_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::ECDSA_P256,
     signature_alg_id: alg_id::ECDSA_SHA384,
     verification_alg: &signature::ECDSA_P256_SHA384_ASN1,
 };
 
 /// ECDSA signatures using the P-384 curve and SHA-256. Deprecated.
-pub static ECDSA_P384_SHA256: SignatureAlgorithm = SignatureAlgorithm {
+pub static ECDSA_P384_SHA256: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::ECDSA_P384,
     signature_alg_id: alg_id::ECDSA_SHA256,
     verification_alg: &signature::ECDSA_P384_SHA256_ASN1,
 };
 
 /// ECDSA signatures using the P-384 curve and SHA-384.
-pub static ECDSA_P384_SHA384: SignatureAlgorithm = SignatureAlgorithm {
+pub static ECDSA_P384_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::ECDSA_P384,
     signature_alg_id: alg_id::ECDSA_SHA384,
     verification_alg: &signature::ECDSA_P384_SHA384_ASN1,
@@ -297,7 +346,7 @@ pub static ECDSA_P384_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PKCS1_2048_8192_SHA256: SignatureAlgorithm = SignatureAlgorithm {
+pub static RSA_PKCS1_2048_8192_SHA256: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
     signature_alg_id: alg_id::RSA_PKCS1_SHA256,
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA256,
@@ -307,7 +356,7 @@ pub static RSA_PKCS1_2048_8192_SHA256: SignatureAlgorithm = SignatureAlgorithm {
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PKCS1_2048_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
+pub static RSA_PKCS1_2048_8192_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
     signature_alg_id: alg_id::RSA_PKCS1_SHA384,
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA384,
@@ -317,7 +366,7 @@ pub static RSA_PKCS1_2048_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PKCS1_2048_8192_SHA512: SignatureAlgorithm = SignatureAlgorithm {
+pub static RSA_PKCS1_2048_8192_SHA512: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
     signature_alg_id: alg_id::RSA_PKCS1_SHA512,
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA512,
@@ -327,7 +376,7 @@ pub static RSA_PKCS1_2048_8192_SHA512: SignatureAlgorithm = SignatureAlgorithm {
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PKCS1_3072_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
+pub static RSA_PKCS1_3072_8192_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
     signature_alg_id: alg_id::RSA_PKCS1_SHA384,
     verification_alg: &signature::RSA_PKCS1_3072_8192_SHA384,
@@ -340,11 +389,12 @@ pub static RSA_PKCS1_3072_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: alg_id::RSA_ENCRYPTION,
-    signature_alg_id: alg_id::RSA_PSS_SHA256,
-    verification_alg: &signature::RSA_PSS_2048_8192_SHA256,
-};
+pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: &dyn SignatureVerificationAlgorithm =
+    &RingAlgorithm {
+        public_key_alg_id: alg_id::RSA_ENCRYPTION,
+        signature_alg_id: alg_id::RSA_PSS_SHA256,
+        verification_alg: &signature::RSA_PSS_2048_8192_SHA256,
+    };
 
 /// RSA PSS signatures using SHA-384 for keys of 2048-8192 bits and of
 /// type rsaEncryption; see [RFC 4055 Section 1.2].
@@ -353,11 +403,12 @@ pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: SignatureAlgorithm = SignatureAl
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: alg_id::RSA_ENCRYPTION,
-    signature_alg_id: alg_id::RSA_PSS_SHA384,
-    verification_alg: &signature::RSA_PSS_2048_8192_SHA384,
-};
+pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: &dyn SignatureVerificationAlgorithm =
+    &RingAlgorithm {
+        public_key_alg_id: alg_id::RSA_ENCRYPTION,
+        signature_alg_id: alg_id::RSA_PSS_SHA384,
+        verification_alg: &signature::RSA_PSS_2048_8192_SHA384,
+    };
 
 /// RSA PSS signatures using SHA-512 for keys of 2048-8192 bits and of
 /// type rsaEncryption; see [RFC 4055 Section 1.2].
@@ -366,14 +417,15 @@ pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: SignatureAlgorithm = SignatureAl
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-pub static RSA_PSS_2048_8192_SHA512_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: alg_id::RSA_ENCRYPTION,
-    signature_alg_id: alg_id::RSA_PSS_SHA512,
-    verification_alg: &signature::RSA_PSS_2048_8192_SHA512,
-};
+pub static RSA_PSS_2048_8192_SHA512_LEGACY_KEY: &dyn SignatureVerificationAlgorithm =
+    &RingAlgorithm {
+        public_key_alg_id: alg_id::RSA_ENCRYPTION,
+        signature_alg_id: alg_id::RSA_PSS_SHA512,
+        verification_alg: &signature::RSA_PSS_2048_8192_SHA512,
+    };
 
 /// ED25519 signatures according to RFC 8410
-pub static ED25519: SignatureAlgorithm = SignatureAlgorithm {
+pub static ED25519: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::ED25519,
     signature_alg_id: alg_id::ED25519,
     verification_alg: &signature::ED25519,
@@ -381,7 +433,7 @@ pub static ED25519: SignatureAlgorithm = SignatureAlgorithm {
 
 /// A detail-less error when a signature is not valid.
 #[derive(Debug, Copy, Clone)]
-struct InvalidSignature;
+pub struct InvalidSignature;
 
 /// Encodings of the PKIX AlgorithmIdentifier type:
 ///
@@ -884,28 +936,28 @@ mod tests {
         general_purpose::STANDARD.decode(&base64).unwrap()
     }
 
-    static SUPPORTED_ALGORITHMS_IN_TESTS: &[&signed_data::SignatureAlgorithm] = &[
+    static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn signed_data::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
-        &signed_data::ECDSA_P256_SHA256,
-        &signed_data::ECDSA_P384_SHA384,
-        &signed_data::ED25519,
+        signed_data::ECDSA_P256_SHA256,
+        signed_data::ECDSA_P384_SHA384,
+        signed_data::ED25519,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PKCS1_2048_8192_SHA256,
+        signed_data::RSA_PKCS1_2048_8192_SHA256,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PKCS1_2048_8192_SHA384,
+        signed_data::RSA_PKCS1_2048_8192_SHA384,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PKCS1_2048_8192_SHA512,
+        signed_data::RSA_PKCS1_2048_8192_SHA512,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PKCS1_3072_8192_SHA384,
+        signed_data::RSA_PKCS1_3072_8192_SHA384,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        signed_data::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+        signed_data::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
         #[cfg(feature = "alloc")]
-        &signed_data::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        signed_data::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
         // Algorithms deprecated because they are annoying (P-521) or because
         // they are nonsensical combinations.
-        &signed_data::ECDSA_P256_SHA384, // Truncates digest.
-        &signed_data::ECDSA_P384_SHA256, // Digest is unnecessarily short.
+        signed_data::ECDSA_P256_SHA384, // Truncates digest.
+        signed_data::ECDSA_P384_SHA256, // Digest is unnecessarily short.
     ];
 }
