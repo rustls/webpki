@@ -10,3 +10,6 @@ target/
 
 # Benchmark data
 benches/*.der
+
+# Python virtualenv
+.venv
