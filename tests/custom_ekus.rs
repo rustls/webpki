@@ -11,8 +11,8 @@ fn check_cert(
 ) {
     let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
     let algs = &[
-        &webpki::RSA_PKCS1_2048_8192_SHA256,
-        &webpki::ECDSA_P256_SHA256,
+        webpki::RSA_PKCS1_2048_8192_SHA256,
+        webpki::ECDSA_P256_SHA256,
     ];
 
     let cert = webpki::EndEntityCert::try_from(ee).unwrap();

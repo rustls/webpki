@@ -14,13 +14,13 @@
 
 use crate::cert::{Cert, EndEntityOrCa};
 use crate::{
-    der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
-    TrustAnchor,
+    der, signed_data, subject_name, time, CertRevocationList, Error,
+    SignatureVerificationAlgorithm, TrustAnchor,
 };
 
 pub(crate) struct ChainOptions<'a> {
     pub(crate) eku: KeyUsage,
-    pub(crate) supported_sig_algs: &'a [&'a SignatureAlgorithm],
+    pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
     pub(crate) intermediate_certs: &'a [&'a [u8]],
     pub(crate) crls: &'a [&'a dyn CertRevocationList],
@@ -138,7 +138,7 @@ fn build_chain_inner(
 }
 
 fn check_signatures(
-    supported_sig_algs: &[&SignatureAlgorithm],
+    supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
     crls: &[&dyn CertRevocationList],
@@ -189,7 +189,7 @@ impl CertNotRevoked {
 }
 
 fn check_crls(
-    supported_sig_algs: &[&SignatureAlgorithm],
+    supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
     cert: &Cert,
     issuer_subject: untrusted::Input,
     issuer_spki: untrusted::Input,

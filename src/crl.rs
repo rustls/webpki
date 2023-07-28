@@ -16,7 +16,7 @@ use crate::cert::lenient_certificate_serial_number;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::signed_data::{self, SignedData};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::{Error, SignatureAlgorithm, Time};
+use crate::{Error, SignatureVerificationAlgorithm, Time};
 
 #[cfg(feature = "alloc")]
 use std::collections::HashMap;
@@ -40,10 +40,10 @@ pub trait CertRevocationList: Sealed {
     fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error>;
 
     /// Verify the CRL signature using the issuer's subject public key information (SPKI)
-    /// and a list of supported signature algorithms.
+    /// and a list of supported signature verification algorithms.
     fn verify_signature(
         &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
     ) -> Result<(), Error>;
 }
@@ -91,7 +91,7 @@ impl CertRevocationList for OwnedCertRevocationList {
 
     fn verify_signature(
         &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
@@ -235,7 +235,7 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
 
     fn verify_signature(
         &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(

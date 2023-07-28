@@ -16,7 +16,7 @@
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
     cert, signed_data, subject_name, verify_cert, CertRevocationList, Error, KeyUsage,
-    SignatureAlgorithm, SubjectNameRef, Time, TrustAnchor,
+    SignatureVerificationAlgorithm, SubjectNameRef, Time, TrustAnchor,
 };
 
 /// An end-entity certificate.
@@ -91,7 +91,7 @@ impl<'a> EndEntityCert<'a> {
     ///   the certificate against.
     pub fn verify_for_usage(
         &self,
-        supported_sig_algs: &[&SignatureAlgorithm],
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         trust_anchors: &[TrustAnchor],
         intermediate_certs: &[&[u8]],
         time: Time,
@@ -130,7 +130,7 @@ impl<'a> EndEntityCert<'a> {
     /// `DigitallySigned.signature` and `signature_alg` corresponds to TLS's
     /// `DigitallySigned.algorithm` of TLS type `SignatureAndHashAlgorithm`. In
     /// TLS 1.2 a single `SignatureAndHashAlgorithm` may map to multiple
-    /// `SignatureAlgorithm`s. For example, a TLS 1.2
+    /// `SignatureVerificationAlgorithm`s. For example, a TLS 1.2
     /// `SignatureAndHashAlgorithm` of (ECDSA, SHA-256) may map to any or all
     /// of {`ECDSA_P256_SHA256`, `ECDSA_P384_SHA256`}, depending on how the TLS
     /// implementation is configured.
@@ -138,10 +138,10 @@ impl<'a> EndEntityCert<'a> {
     /// For current TLS 1.3 drafts, `signature_alg` corresponds to TLS's
     /// `algorithm` fields of type `SignatureScheme`. There is (currently) a
     /// one-to-one correspondence between TLS 1.3's `SignatureScheme` and
-    /// `SignatureAlgorithm`.
+    /// `SignatureVerificationAlgorithm`.
     pub fn verify_signature(
         &self,
-        signature_alg: &SignatureAlgorithm,
+        signature_alg: &dyn SignatureVerificationAlgorithm,
         msg: &[u8],
         signature: &[u8],
     ) -> Result<(), Error> {

@@ -35,7 +35,7 @@ pub fn path_building() {
         let now = webpki::Time::from_seconds_since_unix_epoch(1_688_651_734);
 
         let result = ee_cert.verify_for_usage(
-            &[&webpki::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
+            &[webpki::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
             roots,
             intermediates,
             now,

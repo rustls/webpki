@@ -15,16 +15,16 @@
 
 use webpki::KeyUsage;
 
-static ALL_SIGALGS: &[&webpki::SignatureAlgorithm] = &[
-    &webpki::ECDSA_P256_SHA256,
-    &webpki::ECDSA_P256_SHA384,
-    &webpki::ECDSA_P384_SHA256,
-    &webpki::ECDSA_P384_SHA384,
-    &webpki::ED25519,
-    &webpki::RSA_PKCS1_2048_8192_SHA256,
-    &webpki::RSA_PKCS1_2048_8192_SHA384,
-    &webpki::RSA_PKCS1_2048_8192_SHA512,
-    &webpki::RSA_PKCS1_3072_8192_SHA384,
+static ALL_SIGALGS: &[&dyn webpki::SignatureVerificationAlgorithm] = &[
+    webpki::ECDSA_P256_SHA256,
+    webpki::ECDSA_P256_SHA384,
+    webpki::ECDSA_P384_SHA256,
+    webpki::ECDSA_P384_SHA384,
+    webpki::ED25519,
+    webpki::RSA_PKCS1_2048_8192_SHA256,
+    webpki::RSA_PKCS1_2048_8192_SHA384,
+    webpki::RSA_PKCS1_2048_8192_SHA512,
+    webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
 
 fn check_cert(

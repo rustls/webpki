@@ -64,8 +64,8 @@ pub use {
     end_entity::EndEntityCert,
     error::Error,
     signed_data::{
-        alg_id, SignatureAlgorithm, ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256,
-        ECDSA_P384_SHA384, ED25519,
+        alg_id, InvalidSignature, SignatureVerificationAlgorithm, ECDSA_P256_SHA256,
+        ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
     },
     subject_name::{
         AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,

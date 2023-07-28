@@ -674,7 +674,7 @@ fn %(lower_test_name)s() {
     let message = include_bytes!("%(message_path)s");
     let signature = include_bytes!("%(sig_path)s");
     assert_eq!(
-        check_sig(ee, &webpki::%(algorithm)s, message, signature),
+        check_sig(ee, webpki::%(algorithm)s, message, signature),
         %(expected)s
     );
 }"""
@@ -718,7 +718,7 @@ fn %(lower_test_name)s() {
         cert_path: str = _cert_path(cert_type)
         test_name_lower: str = test_name.lower()
         unusable_algs_str: str = ", ".join(
-            "&webpki::" + alg for alg in sorted(unusable_algs)
+            "webpki::" + alg for alg in sorted(unusable_algs)
         )
         print(
             """
@@ -728,7 +728,7 @@ fn %(test_name_lower)s() {
     let ee = include_bytes!("%(cert_path)s");
     for algorithm in &[ %(unusable_algs_str)s ] {
         assert_eq!(
-            check_sig(ee, algorithm, b"", b""),
+            check_sig(ee, *algorithm, b"", b""),
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
         );
     }
