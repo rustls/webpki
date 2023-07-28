@@ -66,7 +66,7 @@ pub use {
     end_entity::EndEntityCert,
     error::Error,
     signed_data::{
-        SignatureAlgorithm, ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256,
+        alg_id, SignatureAlgorithm, ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256,
         ECDSA_P384_SHA384, ED25519,
     },
     subject_name::{
