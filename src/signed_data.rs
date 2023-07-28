@@ -245,36 +245,36 @@ impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
 
 /// A signature algorithm.
 pub struct SignatureAlgorithm {
-    public_key_alg_id: AlgorithmIdentifier,
-    signature_alg_id: AlgorithmIdentifier,
+    public_key_alg_id: alg_id::AlgorithmIdentifier,
+    signature_alg_id: alg_id::AlgorithmIdentifier,
     verification_alg: &'static dyn signature::VerificationAlgorithm,
 }
 
 /// ECDSA signatures using the P-256 curve and SHA-256.
 pub static ECDSA_P256_SHA256: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: ECDSA_P256,
-    signature_alg_id: ECDSA_SHA256,
+    public_key_alg_id: alg_id::ECDSA_P256,
+    signature_alg_id: alg_id::ECDSA_SHA256,
     verification_alg: &signature::ECDSA_P256_SHA256_ASN1,
 };
 
 /// ECDSA signatures using the P-256 curve and SHA-384. Deprecated.
 pub static ECDSA_P256_SHA384: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: ECDSA_P256,
-    signature_alg_id: ECDSA_SHA384,
+    public_key_alg_id: alg_id::ECDSA_P256,
+    signature_alg_id: alg_id::ECDSA_SHA384,
     verification_alg: &signature::ECDSA_P256_SHA384_ASN1,
 };
 
 /// ECDSA signatures using the P-384 curve and SHA-256. Deprecated.
 pub static ECDSA_P384_SHA256: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: ECDSA_P384,
-    signature_alg_id: ECDSA_SHA256,
+    public_key_alg_id: alg_id::ECDSA_P384,
+    signature_alg_id: alg_id::ECDSA_SHA256,
     verification_alg: &signature::ECDSA_P384_SHA256_ASN1,
 };
 
 /// ECDSA signatures using the P-384 curve and SHA-384.
 pub static ECDSA_P384_SHA384: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: ECDSA_P384,
-    signature_alg_id: ECDSA_SHA384,
+    public_key_alg_id: alg_id::ECDSA_P384,
+    signature_alg_id: alg_id::ECDSA_SHA384,
     verification_alg: &signature::ECDSA_P384_SHA384_ASN1,
 };
 
@@ -283,8 +283,8 @@ pub static ECDSA_P384_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA256: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PKCS1_SHA256,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PKCS1_SHA256,
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA256,
 };
 
@@ -293,8 +293,8 @@ pub static RSA_PKCS1_2048_8192_SHA256: SignatureAlgorithm = SignatureAlgorithm {
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PKCS1_SHA384,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PKCS1_SHA384,
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA384,
 };
 
@@ -303,8 +303,8 @@ pub static RSA_PKCS1_2048_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA512: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PKCS1_SHA512,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PKCS1_SHA512,
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA512,
 };
 
@@ -313,8 +313,8 @@ pub static RSA_PKCS1_2048_8192_SHA512: SignatureAlgorithm = SignatureAlgorithm {
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_3072_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PKCS1_SHA384,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PKCS1_SHA384,
     verification_alg: &signature::RSA_PKCS1_3072_8192_SHA384,
 };
 
@@ -326,8 +326,8 @@ pub static RSA_PKCS1_3072_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PSS_SHA256,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PSS_SHA256,
     verification_alg: &signature::RSA_PSS_2048_8192_SHA256,
 };
 
@@ -339,8 +339,8 @@ pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: SignatureAlgorithm = SignatureAl
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PSS_SHA384,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PSS_SHA384,
     verification_alg: &signature::RSA_PSS_2048_8192_SHA384,
 };
 
@@ -352,84 +352,128 @@ pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: SignatureAlgorithm = SignatureAl
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PSS_2048_8192_SHA512_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: RSA_ENCRYPTION,
-    signature_alg_id: RSA_PSS_SHA512,
+    public_key_alg_id: alg_id::RSA_ENCRYPTION,
+    signature_alg_id: alg_id::RSA_PSS_SHA512,
     verification_alg: &signature::RSA_PSS_2048_8192_SHA512,
 };
 
 /// ED25519 signatures according to RFC 8410
 pub static ED25519: SignatureAlgorithm = SignatureAlgorithm {
-    public_key_alg_id: ED_25519,
-    signature_alg_id: ED_25519,
+    public_key_alg_id: alg_id::ED25519,
+    signature_alg_id: alg_id::ED25519,
     verification_alg: &signature::ED25519,
 };
 
-struct AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input<'static>,
-}
+/// Encodings of the PKIX AlgorithmIdentifier type:
+///
+/// ```ASN.1
+/// AlgorithmIdentifier  ::=  SEQUENCE  {
+///     algorithm               OBJECT IDENTIFIER,
+///     parameters              ANY DEFINED BY algorithm OPTIONAL  }
+///                                -- contains a value of the type
+///                                -- registered for use with the
+///                                -- algorithm object identifier value
+/// ```
+/// (from <https://www.rfc-editor.org/rfc/rfc5280#section-4.1.1.2>)
+///
+/// The outer sequence encoding is not included, so this is an OID encoding
+/// for `algorithm` plus the `parameters` value.
+///
+/// This module contains a set of common values, and exists to keep the
+/// names of these separate from the actual algorithm implementations.
+pub mod alg_id {
+    /// A `AlgorithmIdentifier` encoding.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct AlgorithmIdentifier {
+        asn1_id_value: untrusted::Input<'static>,
+    }
 
-impl AlgorithmIdentifier {
-    fn matches_algorithm_id_value(&self, encoded: untrusted::Input) -> bool {
-        encoded == self.asn1_id_value
+    impl AlgorithmIdentifier {
+        /// Makes a new `AlgorithmIdentifier` from a static octet string.
+        ///
+        /// This does not validate the contents of the string.
+        pub const fn new(bytes: &'static [u8]) -> Self {
+            Self {
+                asn1_id_value: untrusted::Input::from(bytes),
+            }
+        }
+
+        pub(crate) fn matches_algorithm_id_value(&self, encoded: untrusted::Input) -> bool {
+            encoded == self.asn1_id_value
+        }
+    }
+
+    // See src/data/README.md.
+
+    /// AlgorithmIdentifier for `id-ecPublicKey` with named curve `secp256r1`.
+    pub const ECDSA_P256: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-p256.der"));
+
+    /// AlgorithmIdentifier for `id-ecPublicKey` with named curve `secp384r1`.
+    pub const ECDSA_P384: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-p384.der"));
+
+    /// AlgorithmIdentifier for `ecdsa-with-SHA256`.
+    pub const ECDSA_SHA256: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-sha256.der"));
+
+    /// AlgorithmIdentifier for `ecdsa-with-SHA384`.
+    pub const ECDSA_SHA384: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-sha384.der"));
+
+    /// AlgorithmIdentifier for `rsaEncryption`.
+    pub const RSA_ENCRYPTION: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-encryption.der"));
+
+    /// AlgorithmIdentifier for `sha256WithRSAEncryption`.
+    pub const RSA_PKCS1_SHA256: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pkcs1-sha256.der"));
+
+    /// AlgorithmIdentifier for `sha384WithRSAEncryption`.
+    pub const RSA_PKCS1_SHA384: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pkcs1-sha384.der"));
+
+    /// AlgorithmIdentifier for `sha512WithRSAEncryption`.
+    pub const RSA_PKCS1_SHA512: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pkcs1-sha512.der"));
+
+    /// AlgorithmIdentifier for `rsassaPss` with:
+    ///
+    /// - hashAlgorithm: sha256
+    /// - maskGenAlgorithm: mgf1 with sha256
+    /// - saltLength: 32
+    pub const RSA_PSS_SHA256: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pss-sha256.der"));
+
+    /// AlgorithmIdentifier for `rsassaPss` with:
+    ///
+    /// - hashAlgorithm: sha384
+    /// - maskGenAlgorithm: mgf1 with sha384
+    /// - saltLength: 48
+    pub const RSA_PSS_SHA384: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pss-sha384.der"));
+
+    /// AlgorithmIdentifier for `rsassaPss` with:
+    ///
+    /// - hashAlgorithm: sha512
+    /// - maskGenAlgorithm: mgf1 with sha512
+    /// - saltLength: 64
+    pub const RSA_PSS_SHA512: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pss-sha512.der"));
+
+    /// AlgorithmIdentifier for `ED25519`.
+    pub const ED25519: AlgorithmIdentifier =
+        AlgorithmIdentifier::new(include_bytes!("data/alg-ed25519.der"));
+
+    #[test]
+    fn test_algorithm_identifer() {
+        let id = AlgorithmIdentifier::new(&[1, 2, 3]);
+        #[allow(clippy::clone_on_copy)]
+        let _ = id.clone();
+        let _ = id;
+        assert!(format!("{:?}", id).starts_with("AlgorithmIdentifier "));
     }
 }
-
-// See src/data/README.md.
-
-const ECDSA_P256: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-ecdsa-p256.der")),
-};
-
-const ECDSA_P384: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-ecdsa-p384.der")),
-};
-
-const ECDSA_SHA256: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-ecdsa-sha256.der")),
-};
-
-const ECDSA_SHA384: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-ecdsa-sha384.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_ENCRYPTION: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-encryption.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_PKCS1_SHA256: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pkcs1-sha256.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_PKCS1_SHA384: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pkcs1-sha384.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_PKCS1_SHA512: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pkcs1-sha512.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_PSS_SHA256: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pss-sha256.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_PSS_SHA384: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pss-sha384.der")),
-};
-
-#[cfg(feature = "alloc")]
-const RSA_PSS_SHA512: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pss-sha512.der")),
-};
-
-const ED_25519: AlgorithmIdentifier = AlgorithmIdentifier {
-    asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-ed25519.der")),
-};
 
 #[cfg(test)]
 mod tests {
