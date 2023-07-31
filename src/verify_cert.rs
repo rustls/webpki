@@ -13,9 +13,10 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::cert::{Cert, EndEntityOrCa};
+use crate::der::{self, FromDer};
 use crate::{
-    der, signed_data, subject_name, time, CertRevocationList, Error,
-    SignatureVerificationAlgorithm, TrustAnchor,
+    signed_data, subject_name, time, CertRevocationList, Error, SignatureVerificationAlgorithm,
+    TrustAnchor,
 };
 
 pub(crate) struct ChainOptions<'a> {
@@ -268,8 +269,8 @@ fn check_issuer_independent_properties(
 
 // https://tools.ietf.org/html/rfc5280#section-4.1.2.5
 fn check_validity(input: &mut untrusted::Reader, time: time::Time) -> Result<(), Error> {
-    let not_before = der::time_choice(input)?;
-    let not_after = der::time_choice(input)?;
+    let not_before = time::Time::from_der(input)?;
+    let not_after = time::Time::from_der(input)?;
 
     if not_before > not_after {
         return Err(Error::InvalidCertValidity);
