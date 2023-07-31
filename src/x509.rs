@@ -33,9 +33,9 @@ impl<'a> Extension<'a> {
 
 impl<'a> FromDer<'a> for Extension<'a> {
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
-        let id = der::expect_tag_and_get_value(reader, der::Tag::OID)?;
+        let id = der::expect_tag(reader, der::Tag::OID)?;
         let critical = bool::from_der(reader)?;
-        let value = der::expect_tag_and_get_value(reader, der::Tag::OctetString)?;
+        let value = der::expect_tag(reader, der::Tag::OctetString)?;
         Ok(Extension {
             id,
             critical,

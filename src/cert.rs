@@ -68,7 +68,7 @@ impl<'a> Cert<'a> {
 
             let serial = lenient_certificate_serial_number(tbs)?;
 
-            let signature = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+            let signature = der::expect_tag(tbs, der::Tag::Sequence)?;
             // TODO: In mozilla::pkix, the comparison is done based on the
             // normalized value (ignoring whether or not there is an optional NULL
             // parameter for RSA-based algorithms), so this may be too strict.
@@ -76,9 +76,9 @@ impl<'a> Cert<'a> {
                 return Err(Error::SignatureAlgorithmMismatch);
             }
 
-            let issuer = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-            let validity = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
-            let subject = der::expect_tag_and_get_value(tbs, der::Tag::Sequence)?;
+            let issuer = der::expect_tag(tbs, der::Tag::Sequence)?;
+            let validity = der::expect_tag(tbs, der::Tag::Sequence)?;
+            let subject = der::expect_tag(tbs, der::Tag::Sequence)?;
             let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
 
             // In theory there could be fields [1] issuerUniqueID and [2]
@@ -188,7 +188,7 @@ pub(crate) fn lenient_certificate_serial_number<'a>(
     //   Note: Non-conforming CAs may issue certificates with serial numbers
     //   that are negative or zero.  Certificate users SHOULD be prepared to
     //   gracefully handle such certificates.
-    der::expect_tag_and_get_value(input, Tag::Integer)
+    der::expect_tag(input, Tag::Integer)
 }
 
 fn remember_cert_extension<'a>(
@@ -229,7 +229,7 @@ fn remember_cert_extension<'a>(
                 // read the raw bytes here and parse at the time of use.
                 15 => Ok(value.read_bytes_to_end()),
                 // All other remembered certificate extensions are wrapped in a Sequence.
-                _ => der::expect_tag_and_get_value(value, Tag::Sequence),
+                _ => der::expect_tag(value, Tag::Sequence),
             })
         })
     })

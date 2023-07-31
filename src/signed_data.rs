@@ -117,7 +117,7 @@ impl<'a> SignedData<'a> {
         let (data, tbs) = der.read_partial(|input| {
             der::expect_tag_and_get_value_limited(input, der::Tag::Sequence, size_limit)
         })?;
-        let algorithm = der::expect_tag_and_get_value(der, der::Tag::Sequence)?;
+        let algorithm = der::expect_tag(der, der::Tag::Sequence)?;
         let signature = der::bit_string_with_no_unused_bits(der)?;
 
         Ok((
@@ -237,7 +237,7 @@ impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
     // `PublicKeyAlgorithm` for the `SignatureVerificationAlgorithm` that is matched when
     // parsing the signature.
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
-        let algorithm_id_value = der::expect_tag_and_get_value(reader, der::Tag::Sequence)?;
+        let algorithm_id_value = der::expect_tag(reader, der::Tag::Sequence)?;
         let key_value = der::bit_string_with_no_unused_bits(reader)?;
         Ok(SubjectPublicKeyInfo {
             algorithm_id_value,

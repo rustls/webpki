@@ -90,18 +90,6 @@ impl From<Tag> for u8 {
 }
 
 #[inline(always)]
-pub(crate) fn expect_tag_and_get_value<'a>(
-    input: &mut untrusted::Reader<'a>,
-    tag: Tag,
-) -> Result<untrusted::Input<'a>, Error> {
-    let (actual_tag, inner) = read_tag_and_get_value_limited(input, TWO_BYTE_DER_SIZE)?;
-    if usize::from(tag) != usize::from(actual_tag) {
-        return Err(Error::BadDer);
-    }
-    Ok(inner)
-}
-
-#[inline(always)]
 pub(crate) fn expect_tag_and_get_value_limited<'a>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
@@ -370,7 +358,7 @@ impl<'a> FromDer<'a> for u8 {
 pub(crate) fn nonnegative_integer<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<untrusted::Input<'a>, Error> {
-    let value = expect_tag_and_get_value(input, Tag::Integer)?;
+    let value = expect_tag(input, Tag::Integer)?;
     match value
         .as_slice_less_safe()
         .split_first()

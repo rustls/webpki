@@ -192,7 +192,7 @@ mod tests {
         let spki_value = untrusted::Input::from(&tsd.spki);
         let spki_value = spki_value
             .read_all(Error::BadDer, |input| {
-                der::expect_tag_and_get_value(input, der::Tag::Sequence)
+                der::expect_tag(input, der::Tag::Sequence)
             })
             .unwrap();
 
@@ -205,7 +205,7 @@ mod tests {
         let algorithm = untrusted::Input::from(&tsd.algorithm);
         let algorithm = algorithm
             .read_all(Error::BadDer, |input| {
-                der::expect_tag_and_get_value(input, der::Tag::Sequence)
+                der::expect_tag(input, der::Tag::Sequence)
             })
             .unwrap();
 
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(
             Err(expected_error),
             spki.read_all(Error::BadDer, |input| {
-                der::expect_tag_and_get_value(input, der::Tag::Sequence)
+                der::expect_tag(input, der::Tag::Sequence)
             })
         );
     }
