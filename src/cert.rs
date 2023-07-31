@@ -116,7 +116,7 @@ impl<'a> Cert<'a> {
                             der::Tag::Sequence,
                             Error::BadDer,
                             |extension| {
-                                remember_cert_extension(&mut cert, &Extension::parse(extension)?)
+                                remember_cert_extension(&mut cert, &Extension::from_der(extension)?)
                             },
                         )
                     },

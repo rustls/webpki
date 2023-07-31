@@ -351,7 +351,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
                             //   that the application cannot process, then the application MUST NOT
                             //   use that CRL to determine the status of certificates.  However,
                             //   applications may ignore unrecognized non-critical extensions.
-                            crl.remember_extension(&Extension::parse(extension)?)
+                            crl.remember_extension(&Extension::from_der(extension)?)
                         },
                     )
                 },
@@ -537,7 +537,7 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
                     //   process, then the application MUST NOT use that CRL to determine the
                     //   status of any certificates.  However, applications may ignore
                     //   unrecognized non-critical CRL entry extensions.
-                    revoked_cert.remember_extension(&Extension::parse(ext_der)?)
+                    revoked_cert.remember_extension(&Extension::from_der(ext_der)?)
                 })?;
                 if reader.at_end() {
                     break;

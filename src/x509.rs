@@ -23,22 +23,24 @@ pub(crate) struct Extension<'a> {
 }
 
 impl<'a> Extension<'a> {
-    pub(crate) fn parse(der: &mut untrusted::Reader<'a>) -> Result<Extension<'a>, Error> {
-        let id = der::expect_tag_and_get_value(der, der::Tag::OID)?;
-        let critical = bool::from_der(der)?;
-        let value = der::expect_tag_and_get_value(der, der::Tag::OctetString)?;
-        Ok(Extension {
-            id,
-            critical,
-            value,
-        })
-    }
-
     pub(crate) fn unsupported(&self) -> Result<(), Error> {
         match self.critical {
             true => Err(Error::UnsupportedCriticalExtension),
             false => Ok(()),
         }
+    }
+}
+
+impl<'a> FromDer<'a> for Extension<'a> {
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        let id = der::expect_tag_and_get_value(reader, der::Tag::OID)?;
+        let critical = bool::from_der(reader)?;
+        let value = der::expect_tag_and_get_value(reader, der::Tag::OctetString)?;
+        Ok(Extension {
+            id,
+            critical,
+            value,
+        })
     }
 }
 
