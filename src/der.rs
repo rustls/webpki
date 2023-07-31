@@ -102,13 +102,13 @@ pub(crate) fn expect_tag_and_get_value_limited<'a>(
     Ok(inner)
 }
 
-pub(crate) fn nested_limited<'a, R, E: Copy>(
+pub(crate) fn nested_limited<'a, R>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
-    error: E,
-    decoder: impl FnOnce(&mut untrusted::Reader<'a>) -> Result<R, E>,
+    error: Error,
+    decoder: impl FnOnce(&mut untrusted::Reader<'a>) -> Result<R, Error>,
     size_limit: usize,
-) -> Result<R, E> {
+) -> Result<R, Error> {
     expect_tag_and_get_value_limited(input, tag, size_limit)
         .map_err(|_| error)?
         .read_all(error, decoder)
@@ -116,12 +116,12 @@ pub(crate) fn nested_limited<'a, R, E: Copy>(
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
-pub(crate) fn nested<'a, R, E: Copy>(
+pub(crate) fn nested<'a, R>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
-    error: E,
-    decoder: impl FnOnce(&mut untrusted::Reader<'a>) -> Result<R, E>,
-) -> Result<R, E> {
+    error: Error,
+    decoder: impl FnOnce(&mut untrusted::Reader<'a>) -> Result<R, Error>,
+) -> Result<R, Error> {
     nested_limited(input, tag, error, decoder, TWO_BYTE_DER_SIZE)
 }
 
@@ -262,16 +262,13 @@ const LONG_FORM_LEN_FOUR_BYTES_MAX: usize = 0xff_ff_ff_ff;
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
-pub(crate) fn nested_of_mut<'a, E>(
+pub(crate) fn nested_of_mut<'a>(
     input: &mut untrusted::Reader<'a>,
     outer_tag: Tag,
     inner_tag: Tag,
-    error: E,
-    mut decoder: impl FnMut(&mut untrusted::Reader<'a>) -> Result<(), E>,
-) -> Result<(), E>
-where
-    E: Copy,
-{
+    error: Error,
+    mut decoder: impl FnMut(&mut untrusted::Reader<'a>) -> Result<(), Error>,
+) -> Result<(), Error> {
     nested(input, outer_tag, error, |outer| {
         loop {
             nested(outer, inner_tag, error, |inner| decoder(inner))?;
