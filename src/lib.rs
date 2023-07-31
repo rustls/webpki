@@ -46,7 +46,6 @@ extern crate alloc;
 #[macro_use]
 mod der;
 
-mod calendar;
 mod cert;
 mod end_entity;
 mod error;
