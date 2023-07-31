@@ -14,7 +14,7 @@
 
 use core::marker::PhantomData;
 
-use crate::Error;
+use crate::{error::DerTypeId, Error};
 
 #[derive(Debug)]
 pub struct DerIterator<'a, T> {
@@ -43,10 +43,12 @@ impl<'a, T: FromDer<'a>> Iterator for DerIterator<'a, T> {
 pub(crate) trait FromDer<'a>: Sized + 'a {
     /// Parse a value of type `Self` from the given DER-encoded input.
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error>;
+
+    const TYPE_ID: DerTypeId;
 }
 
 pub(crate) fn read_all<'a, T: FromDer<'a>>(input: untrusted::Input<'a>) -> Result<T, Error> {
-    input.read_all(Error::BadDer, T::from_der)
+    input.read_all(Error::TrailingData(T::TYPE_ID), T::from_der)
 }
 
 // Copied (and extended) from ring's src/der.rs
@@ -283,13 +285,18 @@ pub(crate) fn nested_of_mut<'a>(
 pub(crate) fn bit_string_with_no_unused_bits<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<untrusted::Input<'a>, Error> {
-    nested(input, Tag::BitString, Error::BadDer, |value| {
-        let unused_bits_at_end = value.read_byte().map_err(|_| Error::BadDer)?;
-        if unused_bits_at_end != 0 {
-            return Err(Error::BadDer);
-        }
-        Ok(value.read_bytes_to_end())
-    })
+    nested(
+        input,
+        Tag::BitString,
+        Error::TrailingData(DerTypeId::BitString),
+        |value| {
+            let unused_bits_at_end = value.read_byte().map_err(|_| Error::BadDer)?;
+            if unused_bits_at_end != 0 {
+                return Err(Error::BadDer);
+            }
+            Ok(value.read_bytes_to_end())
+        },
+    )
 }
 
 pub(crate) struct BitStringFlags<'a> {
@@ -350,6 +357,8 @@ impl<'a> FromDer<'a> for u8 {
             _ => Err(Error::BadDer),
         }
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::U8;
 }
 
 pub(crate) fn nonnegative_integer<'a>(
@@ -387,14 +396,19 @@ impl<'a> FromDer<'a> for bool {
             return Ok(false);
         }
 
-        nested(reader, Tag::Boolean, Error::BadDer, |input| {
-            match input.read_byte() {
+        nested(
+            reader,
+            Tag::Boolean,
+            Error::TrailingData(Self::TYPE_ID),
+            |input| match input.read_byte() {
                 Ok(0xff) => Ok(true),
                 Ok(0x00) => Ok(false),
                 _ => Err(Error::BadDer),
-            }
-        })
+            },
+        )
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::Bool;
 }
 
 macro_rules! oid {
@@ -406,6 +420,8 @@ macro_rules! oid {
 
 #[cfg(test)]
 mod tests {
+    use super::DerTypeId;
+
     #[test]
     fn test_optional_boolean() {
         use super::{Error, FromDer};
@@ -435,19 +451,19 @@ mod tests {
 
         // Unexpected type
         assert_eq!(
-            Err(Error::BadDer),
+            Err(Error::TrailingData(DerTypeId::BitString)),
             bit_string_with_no_unused_bits(&mut bytes_reader(&[0x01, 0x01, 0xff]))
         );
 
         // Unexpected nonexistent type
         assert_eq!(
-            Err(Error::BadDer),
-            bit_string_with_no_unused_bits(&mut bytes_reader(&[0x42, 0xff, 0xff]))
+            Err(Error::TrailingData(DerTypeId::BitString)),
+            bit_string_with_no_unused_bits(&mut bytes_reader(&[0x42, 0xff, 0xff])),
         );
 
         // Unexpected empty input
         assert_eq!(
-            Err(Error::BadDer),
+            Err(Error::TrailingData(DerTypeId::BitString)),
             bit_string_with_no_unused_bits(&mut bytes_reader(&[]))
         );
 

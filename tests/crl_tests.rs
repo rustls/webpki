@@ -1,4 +1,4 @@
-use webpki::{BorrowedCertRevocationList, CertRevocationList, Error};
+use webpki::{BorrowedCertRevocationList, CertRevocationList, DerTypeId, Error};
 
 const REVOKED_SERIAL: &[u8] = &[0x03, 0xAE, 0x51, 0xDB, 0x51, 0x15, 0x5A, 0x3C];
 
@@ -59,7 +59,7 @@ fn parse_missing_next_update_crl() {
     // Parsing a CRL with a missing next update time should error.
     let crl = include_bytes!("crls/crl.missing.next.update.der");
     let res = BorrowedCertRevocationList::from_der(&crl[..]);
-    assert!(matches!(res, Err(Error::BadDer)));
+    assert!(matches!(res, Err(Error::TrailingData(DerTypeId::Time))));
 }
 
 #[test]

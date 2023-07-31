@@ -107,6 +107,9 @@ pub enum Error {
     /// does not match the algorithm in the signature of the certificate.
     SignatureAlgorithmMismatch,
 
+    /// Trailing data was found while parsing DER-encoded input for the named type.
+    TrailingData(DerTypeId),
+
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
 
@@ -222,7 +225,7 @@ impl Error {
             // Errors related to malformed data.
             Error::MalformedDnsIdentifier => 6,
             Error::MalformedNameConstraint => 5,
-            Error::MalformedExtensions => 4,
+            Error::MalformedExtensions | Error::TrailingData(_) => 4,
             Error::ExtensionValueInvalid => 3,
 
             // Generic DER errors.
@@ -249,4 +252,37 @@ impl From<untrusted::EndOfInput> for Error {
     fn from(_: untrusted::EndOfInput) -> Self {
         Error::BadDer
     }
+}
+
+/// Trailing data was found while parsing DER-encoded input for the named type.
+#[allow(missing_docs)]
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DerTypeId {
+    BitString,
+    Bool,
+    Certificate,
+    CertificateExtensions,
+    CertificateTbsCertificate,
+    CertRevocationList,
+    CertRevocationListExtension,
+    CrlDistributionPoint,
+    CommonNameInner,
+    CommonNameOuter,
+    DistributionPointName,
+    Extension,
+    GeneralName,
+    RevocationReason,
+    Signature,
+    SignatureAlgorithm,
+    SignedData,
+    SubjectPublicKeyInfo,
+    Time,
+    TrustAnchorV1,
+    TrustAnchorV1TbsCertificate,
+    U8,
+    RevokedCertificate,
+    RevokedCertificateExtension,
+    RevokedCertEntry,
+    IssuingDistributionPoint,
 }

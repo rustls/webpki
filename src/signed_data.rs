@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::{self, FromDer};
-use crate::error::Error;
+use crate::error::{DerTypeId, Error};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
@@ -244,6 +244,8 @@ impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
             key_value,
         })
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::SubjectPublicKeyInfo;
 }
 
 /// An abstract signature verification algorithm.

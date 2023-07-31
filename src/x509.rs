@@ -13,8 +13,8 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::{self, DerIterator, FromDer, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::error::{DerTypeId, Error};
 use crate::subject_name::GeneralName;
-use crate::Error;
 
 pub(crate) struct Extension<'a> {
     pub(crate) critical: bool,
@@ -42,6 +42,8 @@ impl<'a> FromDer<'a> for Extension<'a> {
             value,
         })
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::Extension;
 }
 
 pub(crate) fn set_extension_once<T>(
@@ -107,4 +109,6 @@ impl<'a> FromDer<'a> for DistributionPointName<'a> {
             _ => Err(Error::BadDer),
         }
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::DistributionPointName;
 }

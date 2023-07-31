@@ -12,11 +12,10 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::der::Tag;
-use crate::der::{self, DerIterator, FromDer, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::error::{DerTypeId, Error};
 use crate::signed_data::SignedData;
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::Error;
 
 /// An enumeration indicating whether a [`Cert`] is a leaf end-entity cert, or a linked
 /// list node from the CA `Cert` to a child `Cert` it issued.
@@ -56,75 +55,87 @@ impl<'a> Cert<'a> {
         cert_der: untrusted::Input<'a>,
         ee_or_ca: EndEntityOrCa<'a>,
     ) -> Result<Self, Error> {
-        let (tbs, signed_data) = cert_der.read_all(Error::BadDer, |cert_der| {
-            der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |der| {
-                // limited to SEQUENCEs of size 2^16 or less.
-                SignedData::from_der(der, der::TWO_BYTE_DER_SIZE)
-            })
-        })?;
-
-        tbs.read_all(Error::BadDer, |tbs| {
-            version3(tbs)?;
-
-            let serial = lenient_certificate_serial_number(tbs)?;
-
-            let signature = der::expect_tag(tbs, der::Tag::Sequence)?;
-            // TODO: In mozilla::pkix, the comparison is done based on the
-            // normalized value (ignoring whether or not there is an optional NULL
-            // parameter for RSA-based algorithms), so this may be too strict.
-            if signature != signed_data.algorithm {
-                return Err(Error::SignatureAlgorithmMismatch);
-            }
-
-            let issuer = der::expect_tag(tbs, der::Tag::Sequence)?;
-            let validity = der::expect_tag(tbs, der::Tag::Sequence)?;
-            let subject = der::expect_tag(tbs, der::Tag::Sequence)?;
-            let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
-
-            // In theory there could be fields [1] issuerUniqueID and [2]
-            // subjectUniqueID, but in practice there never are, and to keep the
-            // code small and simple we don't accept any certificates that do
-            // contain them.
-
-            let mut cert = Cert {
-                ee_or_ca,
-
-                signed_data,
-                serial,
-                issuer,
-                validity,
-                subject,
-                spki,
-
-                basic_constraints: None,
-                key_usage: None,
-                eku: None,
-                name_constraints: None,
-                subject_alt_name: None,
-                crl_distribution_points: None,
-            };
-
-            if !tbs.at_end() {
+        let (tbs, signed_data) =
+            cert_der.read_all(Error::TrailingData(DerTypeId::Certificate), |cert_der| {
                 der::nested(
-                    tbs,
-                    der::Tag::ContextSpecificConstructed3,
-                    Error::MalformedExtensions,
-                    |tagged| {
-                        der::nested_of_mut(
-                            tagged,
-                            der::Tag::Sequence,
-                            der::Tag::Sequence,
-                            Error::BadDer,
-                            |extension| {
-                                remember_cert_extension(&mut cert, &Extension::from_der(extension)?)
-                            },
-                        )
+                    cert_der,
+                    der::Tag::Sequence,
+                    Error::TrailingData(DerTypeId::SignedData),
+                    |der| {
+                        // limited to SEQUENCEs of size 2^16 or less.
+                        SignedData::from_der(der, der::TWO_BYTE_DER_SIZE)
                     },
-                )?;
-            }
+                )
+            })?;
 
-            Ok(cert)
-        })
+        tbs.read_all(
+            Error::TrailingData(DerTypeId::CertificateTbsCertificate),
+            |tbs| {
+                version3(tbs)?;
+
+                let serial = lenient_certificate_serial_number(tbs)?;
+
+                let signature = der::expect_tag(tbs, der::Tag::Sequence)?;
+                // TODO: In mozilla::pkix, the comparison is done based on the
+                // normalized value (ignoring whether or not there is an optional NULL
+                // parameter for RSA-based algorithms), so this may be too strict.
+                if signature != signed_data.algorithm {
+                    return Err(Error::SignatureAlgorithmMismatch);
+                }
+
+                let issuer = der::expect_tag(tbs, der::Tag::Sequence)?;
+                let validity = der::expect_tag(tbs, der::Tag::Sequence)?;
+                let subject = der::expect_tag(tbs, der::Tag::Sequence)?;
+                let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
+
+                // In theory there could be fields [1] issuerUniqueID and [2]
+                // subjectUniqueID, but in practice there never are, and to keep the
+                // code small and simple we don't accept any certificates that do
+                // contain them.
+
+                let mut cert = Cert {
+                    ee_or_ca,
+
+                    signed_data,
+                    serial,
+                    issuer,
+                    validity,
+                    subject,
+                    spki,
+
+                    basic_constraints: None,
+                    key_usage: None,
+                    eku: None,
+                    name_constraints: None,
+                    subject_alt_name: None,
+                    crl_distribution_points: None,
+                };
+
+                if !tbs.at_end() {
+                    der::nested(
+                        tbs,
+                        der::Tag::ContextSpecificConstructed3,
+                        Error::TrailingData(DerTypeId::CertificateExtensions),
+                        |tagged| {
+                            der::nested_of_mut(
+                                tagged,
+                                der::Tag::Sequence,
+                                der::Tag::Sequence,
+                                Error::TrailingData(DerTypeId::Extension),
+                                |extension| {
+                                    remember_cert_extension(
+                                        &mut cert,
+                                        &Extension::from_der(extension)?,
+                                    )
+                                },
+                            )
+                        },
+                    )?;
+                }
+
+                Ok(cert)
+            },
+        )
     }
 
     /// Raw DER encoded certificate serial number.
@@ -273,34 +284,41 @@ impl<'a> FromDer<'a> for CrlDistributionPoint<'a> {
             crl_issuer: None,
         };
 
-        der::nested(reader, Tag::Sequence, Error::BadDer, |der| {
-            const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
-            const REASONS_TAG: u8 = CONTEXT_SPECIFIC | 1;
-            const CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 2;
+        der::nested(
+            reader,
+            Tag::Sequence,
+            Error::TrailingData(Self::TYPE_ID),
+            |der| {
+                const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
+                const REASONS_TAG: u8 = CONTEXT_SPECIFIC | 1;
+                const CRL_ISSUER_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 2;
 
-            while !der.at_end() {
-                let (tag, value) = der::read_tag_and_get_value(der)?;
-                match tag {
-                    DISTRIBUTION_POINT_TAG => {
-                        set_extension_once(&mut result.distribution_point, || Ok(value))?
+                while !der.at_end() {
+                    let (tag, value) = der::read_tag_and_get_value(der)?;
+                    match tag {
+                        DISTRIBUTION_POINT_TAG => {
+                            set_extension_once(&mut result.distribution_point, || Ok(value))?
+                        }
+                        REASONS_TAG => set_extension_once(&mut result.reasons, || {
+                            der::bit_string_flags(value)
+                        })?,
+                        CRL_ISSUER_TAG => set_extension_once(&mut result.crl_issuer, || Ok(value))?,
+                        _ => return Err(Error::BadDer),
                     }
-                    REASONS_TAG => {
-                        set_extension_once(&mut result.reasons, || der::bit_string_flags(value))?
-                    }
-                    CRL_ISSUER_TAG => set_extension_once(&mut result.crl_issuer, || Ok(value))?,
-                    _ => return Err(Error::BadDer),
                 }
-            }
 
-            // RFC 5280 section §4.2.1.13:
-            //   a DistributionPoint MUST NOT consist of only the reasons field; either distributionPoint or
-            //   cRLIssuer MUST be present.
-            match (result.distribution_point, result.crl_issuer) {
-                (None, None) => Err(Error::MalformedExtensions),
-                _ => Ok(result),
-            }
-        })
+                // RFC 5280 section §4.2.1.13:
+                //   a DistributionPoint MUST NOT consist of only the reasons field; either distributionPoint or
+                //   cRLIssuer MUST be present.
+                match (result.distribution_point, result.crl_issuer) {
+                    (None, None) => Err(Error::MalformedExtensions),
+                    _ => Ok(result),
+                }
+            },
+        )
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::CrlDistributionPoint;
 }
 
 #[cfg(test)]

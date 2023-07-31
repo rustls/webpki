@@ -64,7 +64,7 @@ pub use {
     cert::{Cert, EndEntityOrCa},
     crl::{BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason},
     end_entity::EndEntityCert,
-    error::Error,
+    error::{DerTypeId, Error},
     signed_data::{alg_id, InvalidSignature, SignatureVerificationAlgorithm},
     subject_name::{
         AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,
