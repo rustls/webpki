@@ -135,8 +135,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
     ///
     /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
     pub fn from_der(crl_der: &'a [u8]) -> Result<Self, Error> {
-        let input = untrusted::Input::from(crl_der);
-        input.read_all(Error::BadDer, <Self as FromDer>::from_der)
+        der::read_all(untrusted::Input::from(crl_der))
     }
 
     /// Convert the CRL to an [`OwnedCertRevocationList`]. This may error if any of the revoked
@@ -462,11 +461,7 @@ impl<'a> BorrowedRevokedCert<'a> {
         remember_extension(extension, |id| {
             match id {
                 // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
-                21 => set_extension_once(&mut self.reason_code, || {
-                    extension
-                        .value
-                        .read_all(Error::BadDer, RevocationReason::from_der)
-                }),
+                21 => set_extension_once(&mut self.reason_code, || der::read_all(extension.value)),
 
                 // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
                 24 => set_extension_once(&mut self.invalidity_date, || {

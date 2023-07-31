@@ -161,8 +161,7 @@ fn check_presented_id_conforms_to_constraints(
     ];
 
     fn general_subtree<'b>(input: &mut untrusted::Reader<'b>) -> Result<GeneralName<'b>, Error> {
-        der::expect_tag_and_get_value(input, der::Tag::Sequence)?
-            .read_all(Error::BadDer, GeneralName::from_der)
+        der::read_all(der::expect_tag_and_get_value(input, der::Tag::Sequence)?)
     }
 
     for (subtrees, constraints) in subtrees {

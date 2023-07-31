@@ -45,6 +45,10 @@ pub(crate) trait FromDer<'a>: Sized + 'a {
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error>;
 }
 
+pub(crate) fn read_all<'a, T: FromDer<'a>>(input: untrusted::Input<'a>) -> Result<T, Error> {
+    input.read_all(Error::BadDer, T::from_der)
+}
+
 // Copied (and extended) from ring's src/der.rs
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Eq, PartialEq)]

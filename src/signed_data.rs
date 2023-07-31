@@ -209,7 +209,7 @@ pub(crate) fn verify_signature(
     msg: untrusted::Input,
     signature: untrusted::Input,
 ) -> Result<(), Error> {
-    let spki = spki_value.read_all(Error::BadDer, SubjectPublicKeyInfo::from_der)?;
+    let spki = der::read_all::<SubjectPublicKeyInfo>(spki_value)?;
     if !signature_alg
         .public_key_alg_id()
         .matches_algorithm_id_value(spki.algorithm_id_value)
