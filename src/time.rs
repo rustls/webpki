@@ -15,7 +15,7 @@
 //! Conversions into the library's time type.
 
 use crate::der::{self, FromDer, Tag};
-use crate::error::Error;
+use crate::error::{DerTypeId, Error};
 
 /// The time type.
 ///
@@ -70,33 +70,40 @@ impl<'a> FromDer<'a> for Time {
             Ok(value)
         }
 
-        der::nested(input, expected_tag, Error::BadDer, |value| {
-            let (year_hi, year_lo) = if is_utc_time {
-                let lo = read_two_digits(value, 0, 99)?;
-                let hi = if lo >= 50 { 19 } else { 20 };
-                (hi, lo)
-            } else {
-                let hi = read_two_digits(value, 0, 99)?;
-                let lo = read_two_digits(value, 0, 99)?;
-                (hi, lo)
-            };
+        der::nested(
+            input,
+            expected_tag,
+            Error::TrailingData(Self::TYPE_ID),
+            |value| {
+                let (year_hi, year_lo) = if is_utc_time {
+                    let lo = read_two_digits(value, 0, 99)?;
+                    let hi = if lo >= 50 { 19 } else { 20 };
+                    (hi, lo)
+                } else {
+                    let hi = read_two_digits(value, 0, 99)?;
+                    let lo = read_two_digits(value, 0, 99)?;
+                    (hi, lo)
+                };
 
-            let year = (year_hi * 100) + year_lo;
-            let month = read_two_digits(value, 1, 12)?;
-            let days_in_month = days_in_month(year, month);
-            let day_of_month = read_two_digits(value, 1, days_in_month)?;
-            let hours = read_two_digits(value, 0, 23)?;
-            let minutes = read_two_digits(value, 0, 59)?;
-            let seconds = read_two_digits(value, 0, 59)?;
+                let year = (year_hi * 100) + year_lo;
+                let month = read_two_digits(value, 1, 12)?;
+                let days_in_month = days_in_month(year, month);
+                let day_of_month = read_two_digits(value, 1, days_in_month)?;
+                let hours = read_two_digits(value, 0, 23)?;
+                let minutes = read_two_digits(value, 0, 59)?;
+                let seconds = read_two_digits(value, 0, 59)?;
 
-            let time_zone = value.read_byte().map_err(|_| Error::BadDerTime)?;
-            if time_zone != b'Z' {
-                return Err(Error::BadDerTime);
-            }
+                let time_zone = value.read_byte().map_err(|_| Error::BadDerTime)?;
+                if time_zone != b'Z' {
+                    return Err(Error::BadDerTime);
+                }
 
-            time_from_ymdhms_utc(year, month, day_of_month, hours, minutes, seconds)
-        })
+                time_from_ymdhms_utc(year, month, day_of_month, hours, minutes, seconds)
+            },
+        )
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::Time;
 }
 
 #[cfg(feature = "std")]

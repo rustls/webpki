@@ -164,7 +164,8 @@ pub static ED25519: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
 mod tests {
     use base64::{engine::general_purpose, Engine as _};
 
-    use crate::{der, signed_data, Error};
+    use crate::error::{DerTypeId, Error};
+    use crate::{der, signed_data};
     use alloc::{string::String, vec::Vec};
 
     macro_rules! test_file_bytes {
@@ -204,14 +205,15 @@ mod tests {
 
         let algorithm = untrusted::Input::from(&tsd.algorithm);
         let algorithm = algorithm
-            .read_all(Error::BadDer, |input| {
-                der::expect_tag(input, der::Tag::Sequence)
-            })
+            .read_all(
+                Error::TrailingData(DerTypeId::SignatureAlgorithm),
+                |input| der::expect_tag(input, der::Tag::Sequence),
+            )
             .unwrap();
 
         let signature = untrusted::Input::from(&tsd.signature);
         let signature = signature
-            .read_all(Error::BadDer, |input| {
+            .read_all(Error::TrailingData(DerTypeId::Signature), |input| {
                 der::bit_string_with_no_unused_bits(input)
             })
             .unwrap();
@@ -250,7 +252,7 @@ mod tests {
         let signature = untrusted::Input::from(&tsd.signature);
         assert_eq!(
             Err(expected_error),
-            signature.read_all(Error::BadDer, |input| {
+            signature.read_all(Error::TrailingData(DerTypeId::Signature), |input| {
                 der::bit_string_with_no_unused_bits(input)
             })
         );

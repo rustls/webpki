@@ -22,7 +22,7 @@ use super::ip_address::{self, IpAddrRef};
 use super::name::SubjectNameRef;
 use crate::cert::{Cert, EndEntityOrCa};
 use crate::der::{self, FromDer};
-use crate::error::Error;
+use crate::error::{DerTypeId, Error};
 
 pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
@@ -442,24 +442,36 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
             _ => return Err(Error::BadDer),
         })
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::GeneralName;
 }
 
 static COMMON_NAME: untrusted::Input = untrusted::Input::from(&[85, 4, 3]);
 
 fn common_name(input: untrusted::Input) -> Result<Option<untrusted::Input>, Error> {
     let inner = &mut untrusted::Reader::new(input);
-    der::nested(inner, der::Tag::Set, Error::BadDer, |tagged| {
-        der::nested(tagged, der::Tag::Sequence, Error::BadDer, |tagged| {
-            while !tagged.at_end() {
-                let name_oid = der::expect_tag(tagged, der::Tag::OID)?;
-                if name_oid == COMMON_NAME {
-                    return der::expect_tag(tagged, der::Tag::UTF8String).map(Some);
-                } else {
-                    // discard unused name value
-                    der::read_tag_and_get_value(tagged)?;
-                }
-            }
-            Ok(None)
-        })
-    })
+    der::nested(
+        inner,
+        der::Tag::Set,
+        Error::TrailingData(DerTypeId::CommonNameOuter),
+        |tagged| {
+            der::nested(
+                tagged,
+                der::Tag::Sequence,
+                Error::TrailingData(DerTypeId::CommonNameInner),
+                |tagged| {
+                    while !tagged.at_end() {
+                        let name_oid = der::expect_tag(tagged, der::Tag::OID)?;
+                        if name_oid == COMMON_NAME {
+                            return der::expect_tag(tagged, der::Tag::UTF8String).map(Some);
+                        } else {
+                            // discard unused name value
+                            der::read_tag_and_get_value(tagged)?;
+                        }
+                    }
+                    Ok(None)
+                },
+            )
+        },
+    )
 }

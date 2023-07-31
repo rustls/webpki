@@ -14,9 +14,10 @@
 
 use crate::cert::lenient_certificate_serial_number;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::error::{DerTypeId, Error};
 use crate::signed_data::{self, SignedData};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::{Error, SignatureVerificationAlgorithm, Time};
+use crate::{SignatureVerificationAlgorithm, Time};
 
 #[cfg(feature = "alloc")]
 use std::collections::HashMap;
@@ -260,7 +261,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
         let (tbs_cert_list, signed_data) = der::nested_limited(
             reader,
             Tag::Sequence,
-            Error::BadDer,
+            Error::TrailingData(Self::TYPE_ID),
             |signed_der| SignedData::from_der(signed_der, der::MAX_DER_SIZE),
             der::MAX_DER_SIZE,
         )?;
@@ -343,7 +344,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
                         tagged,
                         Tag::Sequence,
                         Tag::Sequence,
-                        Error::BadDer,
+                        Error::TrailingData(DerTypeId::CertRevocationListExtension),
                         |extension| {
                             // RFC 5280 §5.2:
                             //   If a CRL contains a critical extension
@@ -367,6 +368,8 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
 
         Ok(crl)
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::CertRevocationList;
 }
 
 impl<'a> IntoIterator for &'a BorrowedCertRevocationList<'a> {
@@ -484,64 +487,76 @@ impl<'a> BorrowedRevokedCert<'a> {
 
 impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
-        der::nested(reader, Tag::Sequence, Error::BadDer, |der| {
-            // RFC 5280 §4.1.2.2:
-            //    Certificate users MUST be able to handle serialNumber values up to 20 octets.
-            //    Conforming CAs MUST NOT use serialNumber values longer than 20 octets.
-            //
-            //    Note: Non-conforming CAs may issue certificates with serial numbers
-            //    that are negative or zero.  Certificate users SHOULD be prepared to
-            //    gracefully handle such certificates.
-            // Like the handling in cert.rs we choose to be lenient here, not enforcing the length
-            // of a CRL revoked certificate's serial number is less than 20 octets in encoded form.
-            let serial_number = lenient_certificate_serial_number(der)
-                .map_err(|_| Error::InvalidSerialNumber)?
-                .as_slice_less_safe();
+        der::nested(
+            reader,
+            Tag::Sequence,
+            Error::TrailingData(DerTypeId::RevokedCertEntry),
+            |der| {
+                // RFC 5280 §4.1.2.2:
+                //    Certificate users MUST be able to handle serialNumber values up to 20 octets.
+                //    Conforming CAs MUST NOT use serialNumber values longer than 20 octets.
+                //
+                //    Note: Non-conforming CAs may issue certificates with serial numbers
+                //    that are negative or zero.  Certificate users SHOULD be prepared to
+                //    gracefully handle such certificates.
+                // Like the handling in cert.rs we choose to be lenient here, not enforcing the length
+                // of a CRL revoked certificate's serial number is less than 20 octets in encoded form.
+                let serial_number = lenient_certificate_serial_number(der)
+                    .map_err(|_| Error::InvalidSerialNumber)?
+                    .as_slice_less_safe();
 
-            let revocation_date = Time::from_der(der)?;
+                let revocation_date = Time::from_der(der)?;
 
-            let mut revoked_cert = BorrowedRevokedCert {
-                serial_number,
-                revocation_date,
-                reason_code: None,
-                invalidity_date: None,
-            };
+                let mut revoked_cert = BorrowedRevokedCert {
+                    serial_number,
+                    revocation_date,
+                    reason_code: None,
+                    invalidity_date: None,
+                };
 
-            // RFC 5280 §5.3:
-            //   Support for the CRL entry extensions defined in this specification is
-            //   optional for conforming CRL issuers and applications.  However, CRL
-            //   issuers SHOULD include reason codes (Section 5.3.1) and invalidity
-            //   dates (Section 5.3.2) whenever this information is available.
-            if der.at_end() {
-                return Ok(revoked_cert);
-            }
-
-            // It would be convenient to use der::nested_of_mut here to unpack a SEQUENCE of one or
-            // more SEQUENCEs, however CAs have been mis-encoding the absence of extensions as an
-            // empty SEQUENCE so we must be tolerant of that.
-            let ext_seq = der::expect_tag(der, Tag::Sequence)?;
-            if ext_seq.is_empty() {
-                return Ok(revoked_cert);
-            }
-
-            let mut reader = untrusted::Reader::new(ext_seq);
-            loop {
-                der::nested(&mut reader, Tag::Sequence, Error::BadDer, |ext_der| {
-                    // RFC 5280 §5.3:
-                    //   If a CRL contains a critical CRL entry extension that the application cannot
-                    //   process, then the application MUST NOT use that CRL to determine the
-                    //   status of any certificates.  However, applications may ignore
-                    //   unrecognized non-critical CRL entry extensions.
-                    revoked_cert.remember_extension(&Extension::from_der(ext_der)?)
-                })?;
-                if reader.at_end() {
-                    break;
+                // RFC 5280 §5.3:
+                //   Support for the CRL entry extensions defined in this specification is
+                //   optional for conforming CRL issuers and applications.  However, CRL
+                //   issuers SHOULD include reason codes (Section 5.3.1) and invalidity
+                //   dates (Section 5.3.2) whenever this information is available.
+                if der.at_end() {
+                    return Ok(revoked_cert);
                 }
-            }
 
-            Ok(revoked_cert)
-        })
+                // It would be convenient to use der::nested_of_mut here to unpack a SEQUENCE of one or
+                // more SEQUENCEs, however CAs have been mis-encoding the absence of extensions as an
+                // empty SEQUENCE so we must be tolerant of that.
+                let ext_seq = der::expect_tag(der, Tag::Sequence)?;
+                if ext_seq.is_empty() {
+                    return Ok(revoked_cert);
+                }
+
+                let mut reader = untrusted::Reader::new(ext_seq);
+                loop {
+                    der::nested(
+                        &mut reader,
+                        Tag::Sequence,
+                        Error::TrailingData(DerTypeId::RevokedCertificateExtension),
+                        |ext_der| {
+                            // RFC 5280 §5.3:
+                            //   If a CRL contains a critical CRL entry extension that the application cannot
+                            //   process, then the application MUST NOT use that CRL to determine the
+                            //   status of any certificates.  However, applications may ignore
+                            //   unrecognized non-critical CRL entry extensions.
+                            revoked_cert.remember_extension(&Extension::from_der(ext_der)?)
+                        },
+                    )?;
+                    if reader.at_end() {
+                        break;
+                    }
+                }
+
+                Ok(revoked_cert)
+            },
+        )
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::RevokedCertificate;
 }
 
 /// Identifies the reason a certificate was revoked.
@@ -595,6 +610,8 @@ impl<'a> FromDer<'a> for RevocationReason {
             reason.read_byte().map_err(|_| Error::BadDer)
         })?)
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::RevocationReason;
 }
 
 impl TryFrom<u8> for RevocationReason {
@@ -668,7 +685,7 @@ impl<'a> IssuingDistributionPoint<'a> {
         der::nested(
             &mut untrusted::Reader::new(der),
             Tag::Sequence,
-            Error::BadDer,
+            Error::TrailingData(DerTypeId::IssuingDistributionPoint),
             |der| {
                 while !der.at_end() {
                     let (tag, value) = der::read_tag_and_get_value(der)?;

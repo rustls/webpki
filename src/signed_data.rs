@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::{self, FromDer};
-use crate::error::Error;
+use crate::error::{DerTypeId, Error};
 
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
@@ -241,6 +241,8 @@ impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
             key_value,
         })
     }
+
+    const TYPE_ID: DerTypeId = DerTypeId::SubjectPublicKeyInfo;
 }
 
 /// An abstract signature verification algorithm.

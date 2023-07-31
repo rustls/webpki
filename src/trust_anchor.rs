@@ -1,5 +1,6 @@
 use crate::cert::{lenient_certificate_serial_number, Cert, EndEntityOrCa};
-use crate::{der, Error};
+use crate::der;
+use crate::error::{DerTypeId, Error};
 
 /// A trust anchor (a.k.a. root CA).
 ///
@@ -53,30 +54,40 @@ impl<'a> TrustAnchor<'a> {
     fn from_v1_der(cert_der: untrusted::Input<'a>) -> Result<Self, Error> {
         // X.509 Certificate: https://tools.ietf.org/html/rfc5280#section-4.1.
         cert_der.read_all(Error::BadDer, |cert_der| {
-            der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |cert_der| {
-                let anchor = der::nested(cert_der, der::Tag::Sequence, Error::BadDer, |tbs| {
-                    // The version number field does not appear in v1 certificates.
-                    lenient_certificate_serial_number(tbs)?;
+            der::nested(
+                cert_der,
+                der::Tag::Sequence,
+                Error::TrailingData(DerTypeId::TrustAnchorV1),
+                |cert_der| {
+                    let anchor = der::nested(
+                        cert_der,
+                        der::Tag::Sequence,
+                        Error::TrailingData(DerTypeId::TrustAnchorV1TbsCertificate),
+                        |tbs| {
+                            // The version number field does not appear in v1 certificates.
+                            lenient_certificate_serial_number(tbs)?;
 
-                    skip(tbs, der::Tag::Sequence)?; // signature.
-                    skip(tbs, der::Tag::Sequence)?; // issuer.
-                    skip(tbs, der::Tag::Sequence)?; // validity.
-                    let subject = der::expect_tag(tbs, der::Tag::Sequence)?;
-                    let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
+                            skip(tbs, der::Tag::Sequence)?; // signature.
+                            skip(tbs, der::Tag::Sequence)?; // issuer.
+                            skip(tbs, der::Tag::Sequence)?; // validity.
+                            let subject = der::expect_tag(tbs, der::Tag::Sequence)?;
+                            let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
 
-                    Ok(TrustAnchor {
-                        subject: subject.as_slice_less_safe(),
-                        spki: spki.as_slice_less_safe(),
-                        name_constraints: None,
-                    })
-                });
+                            Ok(TrustAnchor {
+                                subject: subject.as_slice_less_safe(),
+                                spki: spki.as_slice_less_safe(),
+                                name_constraints: None,
+                            })
+                        },
+                    );
 
-                // read and discard signatureAlgorithm + signature
-                skip(cert_der, der::Tag::Sequence)?;
-                skip(cert_der, der::Tag::BitString)?;
+                    // read and discard signatureAlgorithm + signature
+                    skip(cert_der, der::Tag::Sequence)?;
+                    skip(cert_der, der::Tag::BitString)?;
 
-                anchor
-            })
+                    anchor
+                },
+            )
         })
     }
 }
