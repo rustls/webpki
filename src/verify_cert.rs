@@ -395,7 +395,7 @@ impl ExtendedKeyUsage {
         };
 
         loop {
-            let value = der::expect_tag_and_get_value(input, der::Tag::OID)?;
+            let value = der::expect_tag(input, der::Tag::OID)?;
             if self.key_purpose_id_equals(value) {
                 input.skip_to_end();
                 break;
@@ -464,10 +464,9 @@ impl KeyUsageMode {
     // https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
     fn check(self, input: Option<untrusted::Input>) -> Result<(), Error> {
         let bit_string = match input {
-            Some(input) => der::expect_tag_and_get_value(
-                &mut untrusted::Reader::new(input),
-                der::Tag::BitString,
-            )?,
+            Some(input) => {
+                der::expect_tag(&mut untrusted::Reader::new(input), der::Tag::BitString)?
+            }
             // While RFC 5280 requires KeyUsage be present, historically the absence of a KeyUsage
             // has been treated as "Any Usage". We follow that convention here and assume the absence
             // of KeyUsage implies the required_ku_bit_if_present we're checking for.

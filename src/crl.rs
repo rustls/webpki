@@ -283,14 +283,14 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             // RFC 5280 §5.1.2.2:
             //   This field MUST contain the same algorithm identifier as the
             //   signatureAlgorithm field in the sequence CertificateList
-            let signature = der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?;
+            let signature = der::expect_tag(tbs_cert_list, Tag::Sequence)?;
             if signature != signed_data.algorithm {
                 return Err(Error::SignatureAlgorithmMismatch);
             }
 
             // RFC 5280 §5.1.2.3:
             //   The issuer field MUST contain a non-empty X.500 distinguished name (DN).
-            let issuer = der::expect_tag_and_get_value(tbs_cert_list, Tag::Sequence)?;
+            let issuer = der::expect_tag(tbs_cert_list, Tag::Sequence)?;
 
             // RFC 5280 §5.1.2.4:
             //    This field indicates the issue date of this CRL.  thisUpdate may be
@@ -519,7 +519,7 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
             // It would be convenient to use der::nested_of_mut here to unpack a SEQUENCE of one or
             // more SEQUENCEs, however CAs have been mis-encoding the absence of extensions as an
             // empty SEQUENCE so we must be tolerant of that.
-            let ext_seq = der::expect_tag_and_get_value(der, Tag::Sequence)?;
+            let ext_seq = der::expect_tag(der, Tag::Sequence)?;
             if ext_seq.is_empty() {
                 return Ok(revoked_cert);
             }

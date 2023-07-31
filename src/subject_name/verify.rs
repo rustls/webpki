@@ -113,7 +113,7 @@ pub(crate) fn check_name_constraints(
         if !inner.peek(subtrees_tag.into()) {
             return Ok(None);
         }
-        der::expect_tag_and_get_value(inner, subtrees_tag).map(Some)
+        der::expect_tag(inner, subtrees_tag).map(Some)
     }
 
     let permitted_subtrees = parse_subtrees(input, der::Tag::ContextSpecificConstructed0)?;
@@ -161,7 +161,7 @@ fn check_presented_id_conforms_to_constraints(
     ];
 
     fn general_subtree<'b>(input: &mut untrusted::Reader<'b>) -> Result<GeneralName<'b>, Error> {
-        der::read_all(der::expect_tag_and_get_value(input, der::Tag::Sequence)?)
+        der::read_all(der::expect_tag(input, der::Tag::Sequence)?)
     }
 
     for (subtrees, constraints) in subtrees {
@@ -451,9 +451,9 @@ fn common_name(input: untrusted::Input) -> Result<Option<untrusted::Input>, Erro
     der::nested(inner, der::Tag::Set, Error::BadDer, |tagged| {
         der::nested(tagged, der::Tag::Sequence, Error::BadDer, |tagged| {
             while !tagged.at_end() {
-                let name_oid = der::expect_tag_and_get_value(tagged, der::Tag::OID)?;
+                let name_oid = der::expect_tag(tagged, der::Tag::OID)?;
                 if name_oid == COMMON_NAME {
-                    return der::expect_tag_and_get_value(tagged, der::Tag::UTF8String).map(Some);
+                    return der::expect_tag(tagged, der::Tag::UTF8String).map(Some);
                 } else {
                     // discard unused name value
                     der::read_tag_and_get_value(tagged)?;
