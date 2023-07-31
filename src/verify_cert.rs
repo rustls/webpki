@@ -317,8 +317,7 @@ fn check_basic_constraints(
             // it is a CA certificate, but some real-world end-entity
             // certificates have pathLenConstraint.
             let path_len_constraint = if !input.at_end() {
-                let value = der::small_nonnegative_integer(input)?;
-                Some(usize::from(value))
+                Some(usize::from(u8::from_der(input)?))
             } else {
                 None
             };

@@ -379,6 +379,15 @@ pub(crate) fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Er
     })
 }
 
+impl<'a> FromDer<'a> for u8 {
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        match *nonnegative_integer(reader)?.as_slice_less_safe() {
+            [b] => Ok(b),
+            _ => Err(Error::BadDer),
+        }
+    }
+}
+
 pub(crate) fn nonnegative_integer<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<untrusted::Input<'a>, Error> {
@@ -403,14 +412,6 @@ pub(crate) fn nonnegative_integer<'a>(
         (first, _) if first & 0x80 == 0x00 => Ok(value),
         // Negative value.
         (_, _) => Err(Error::BadDer),
-    }
-}
-
-// Parse an integer in the range 0..=255.
-pub(crate) fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {
-    match *nonnegative_integer(input)?.as_slice_less_safe() {
-        [b] => Ok(b),
-        _ => Err(Error::BadDer),
     }
 }
 
@@ -683,23 +684,23 @@ mod tests {
 
     #[test]
     fn test_small_nonnegative_integer() {
-        use super::{small_nonnegative_integer, Error, Tag};
+        use super::{Error, FromDer, Tag};
 
         for value in 0..=127 {
             let data = [Tag::Integer.into(), 1, value];
             let mut rd = untrusted::Reader::new(untrusted::Input::from(&data));
-            assert_eq!(small_nonnegative_integer(&mut rd), Ok(value),);
+            assert_eq!(u8::from_der(&mut rd), Ok(value),);
         }
 
         for value in 128..=255 {
             let data = [Tag::Integer.into(), 2, 0x00, value];
             let mut rd = untrusted::Reader::new(untrusted::Input::from(&data));
-            assert_eq!(small_nonnegative_integer(&mut rd), Ok(value),);
+            assert_eq!(u8::from_der(&mut rd), Ok(value),);
         }
 
         // not an integer
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Sequence.into(),
                 1,
                 1
@@ -709,7 +710,7 @@ mod tests {
 
         // negative
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Integer.into(),
                 1,
                 0xff
@@ -719,7 +720,7 @@ mod tests {
 
         // positive but too large
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Integer.into(),
                 2,
                 0x01,
@@ -730,7 +731,7 @@ mod tests {
 
         // unnecessary leading zero
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Integer.into(),
                 2,
                 0x00,
@@ -741,19 +742,19 @@ mod tests {
 
         // truncations
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[]))),
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[]))),
             Err(Error::BadDer)
         );
 
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Integer.into(),
             ]))),
             Err(Error::BadDer)
         );
 
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Integer.into(),
                 1,
             ]))),
@@ -761,7 +762,7 @@ mod tests {
         );
 
         assert_eq!(
-            small_nonnegative_integer(&mut untrusted::Reader::new(untrusted::Input::from(&[
+            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
                 Tag::Integer.into(),
                 2,
                 0
