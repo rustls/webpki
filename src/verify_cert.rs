@@ -310,7 +310,7 @@ fn check_basic_constraints(
 ) -> Result<(), Error> {
     let (is_ca, path_len_constraint) = match input {
         Some(input) => {
-            let is_ca = der::optional_boolean(input)?;
+            let is_ca = bool::from_der(input)?;
 
             // https://bugzilla.mozilla.org/show_bug.cgi?id=985025: RFC 5280
             // says that a certificate must not have pathLenConstraint unless

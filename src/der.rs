@@ -364,21 +364,6 @@ pub(crate) fn bit_string_flags(input: untrusted::Input) -> Result<BitStringFlags
     })
 }
 
-// Like mozilla::pkix, we accept the nonconformant explicit encoding of
-// the default value (false) for compatibility with real-world certificates.
-pub(crate) fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
-    if !input.peek(Tag::Boolean.into()) {
-        return Ok(false);
-    }
-    nested(input, Tag::Boolean, Error::BadDer, |input| {
-        match input.read_byte() {
-            Ok(0xff) => Ok(true),
-            Ok(0x00) => Ok(false),
-            _ => Err(Error::BadDer),
-        }
-    })
-}
-
 impl<'a> FromDer<'a> for u8 {
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         match *nonnegative_integer(reader)?.as_slice_less_safe() {
@@ -415,6 +400,24 @@ pub(crate) fn nonnegative_integer<'a>(
     }
 }
 
+// Like mozilla::pkix, we accept the nonconformant explicit encoding of
+// the default value (false) for compatibility with real-world certificates.
+impl<'a> FromDer<'a> for bool {
+    fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
+        if !reader.peek(Tag::Boolean.into()) {
+            return Ok(false);
+        }
+
+        nested(reader, Tag::Boolean, Error::BadDer, |input| {
+            match input.read_byte() {
+                Ok(0xff) => Ok(true),
+                Ok(0x00) => Ok(false),
+                _ => Err(Error::BadDer),
+            }
+        })
+    }
+}
+
 macro_rules! oid {
     ( $first:expr, $second:expr, $( $tail:expr ),* ) =>
     (
@@ -426,25 +429,25 @@ macro_rules! oid {
 mod tests {
     #[test]
     fn test_optional_boolean() {
-        use super::{optional_boolean, Error};
+        use super::{Error, FromDer};
 
         // Empty input results in false
-        assert!(!optional_boolean(&mut bytes_reader(&[])).unwrap());
+        assert!(!bool::from_der(&mut bytes_reader(&[])).unwrap());
 
         // Optional, so another data type results in false
-        assert!(!optional_boolean(&mut bytes_reader(&[0x05, 0x00])).unwrap());
+        assert!(!bool::from_der(&mut bytes_reader(&[0x05, 0x00])).unwrap());
 
         // Only 0x00 and 0xff are accepted values
         assert_eq!(
             Err(Error::BadDer),
-            optional_boolean(&mut bytes_reader(&[0x01, 0x01, 0x42]))
+            bool::from_der(&mut bytes_reader(&[0x01, 0x01, 0x42]))
         );
 
         // True
-        assert!(optional_boolean(&mut bytes_reader(&[0x01, 0x01, 0xff])).unwrap());
+        assert!(bool::from_der(&mut bytes_reader(&[0x01, 0x01, 0xff])).unwrap());
 
         // False
-        assert!(!optional_boolean(&mut bytes_reader(&[0x01, 0x01, 0x00])).unwrap());
+        assert!(!bool::from_der(&mut bytes_reader(&[0x01, 0x01, 0x00])).unwrap());
     }
 
     #[test]

@@ -25,7 +25,7 @@ pub(crate) struct Extension<'a> {
 impl<'a> Extension<'a> {
     pub(crate) fn parse(der: &mut untrusted::Reader<'a>) -> Result<Extension<'a>, Error> {
         let id = der::expect_tag_and_get_value(der, der::Tag::OID)?;
-        let critical = der::optional_boolean(der)?;
+        let critical = bool::from_der(der)?;
         let value = der::expect_tag_and_get_value(der, der::Tag::OctetString)?;
         Ok(Extension {
             id,
