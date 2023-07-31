@@ -160,6 +160,11 @@ fn check_presented_id_conforms_to_constraints(
         (Subtrees::ExcludedSubtrees, excluded_subtrees),
     ];
 
+    fn general_subtree<'b>(input: &mut untrusted::Reader<'b>) -> Result<GeneralName<'b>, Error> {
+        der::expect_tag_and_get_value(input, der::Tag::Sequence)?
+            .read_all(Error::BadDer, GeneralName::from_der)
+    }
+
     for (subtrees, constraints) in subtrees {
         let mut constraints = match constraints {
             Some(constraints) => untrusted::Reader::new(constraints),
@@ -176,13 +181,6 @@ fn check_presented_id_conforms_to_constraints(
             // Since the default value isn't allowed to be encoded according to the
             // DER encoding rules for DEFAULT, this is equivalent to saying that
             // neither minimum or maximum must be encoded.
-            fn general_subtree<'b>(
-                input: &mut untrusted::Reader<'b>,
-            ) -> Result<GeneralName<'b>, Error> {
-                let general_subtree = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
-                general_subtree.read_all(Error::BadDer, GeneralName::from_der)
-            }
-
             let base = match general_subtree(&mut constraints) {
                 Ok(base) => base,
                 Err(err) => return Some(Err(err)),
