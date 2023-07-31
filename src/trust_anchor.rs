@@ -85,7 +85,7 @@ impl<'a> From<Cert<'a>> for TrustAnchor<'a> {
     fn from(cert: Cert<'a>) -> Self {
         Self {
             subject: cert.subject.as_slice_less_safe(),
-            spki: cert.spki.value().as_slice_less_safe(),
+            spki: cert.spki.as_slice_less_safe(),
             name_constraints: cert.name_constraints.map(|nc| nc.as_slice_less_safe()),
         }
     }

@@ -592,8 +592,8 @@ impl RevocationReason {
 impl<'a> FromDer<'a> for RevocationReason {
     // RFC 5280 §5.3.1.
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
-        let value = der::expect_tag(reader, Tag::Enum)?;
-        Self::try_from(value.value().read_all(Error::BadDer, |reason| {
+        let input = der::expect_tag(reader, Tag::Enum)?;
+        Self::try_from(input.read_all(Error::BadDer, |reason| {
             reason.read_byte().map_err(|_| Error::BadDer)
         })?)
     }

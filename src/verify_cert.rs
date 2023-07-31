@@ -110,9 +110,7 @@ fn build_chain_inner(
         // Prevent loops; see RFC 4158 section 5.2.
         let mut prev = cert;
         loop {
-            if potential_issuer.spki.value() == prev.spki.value()
-                && potential_issuer.subject == prev.subject
-            {
+            if potential_issuer.spki == prev.spki && potential_issuer.subject == prev.subject {
                 return Err(Error::UnknownIssuer);
             }
             match &prev.ee_or_ca {
@@ -164,7 +162,7 @@ fn check_signatures(
 
         match &cert.ee_or_ca {
             EndEntityOrCa::Ca(child_cert) => {
-                spki_value = cert.spki.value();
+                spki_value = cert.spki;
                 issuer_subject = cert.subject;
                 issuer_key_usage = cert.key_usage;
                 cert = child_cert;

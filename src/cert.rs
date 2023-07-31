@@ -37,7 +37,7 @@ pub struct Cert<'a> {
     pub(crate) issuer: untrusted::Input<'a>,
     pub(crate) validity: untrusted::Input<'a>,
     pub(crate) subject: untrusted::Input<'a>,
-    pub(crate) spki: der::Value<'a>,
+    pub(crate) spki: untrusted::Input<'a>,
 
     pub(crate) basic_constraints: Option<untrusted::Input<'a>>,
     // key usage (KU) extension (if any). When validating certificate revocation lists (CRLs) this
