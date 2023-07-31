@@ -298,13 +298,13 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             //    encoded as UTCTime or GeneralizedTime.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            der::time_choice(tbs_cert_list)?;
+            Time::from_der(tbs_cert_list)?;
 
             // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
             //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            der::time_choice(tbs_cert_list)?;
+            Time::from_der(tbs_cert_list)?;
 
             // RFC 5280 §5.1.2.6:
             //   When there are no revoked certificates, the revoked certificates list
@@ -468,7 +468,7 @@ impl<'a> BorrowedRevokedCert<'a> {
 
                 // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
                 24 => set_extension_once(&mut self.invalidity_date, || {
-                    extension.value.read_all(Error::BadDer, der::time_choice)
+                    extension.value.read_all(Error::BadDer, Time::from_der)
                 }),
 
                 // id-ce-certificateIssuer 2.5.29.29 - RFC 5280 §5.3.3.
@@ -503,7 +503,7 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
                 .map_err(|_| Error::InvalidSerialNumber)?
                 .as_slice_less_safe();
 
-            let revocation_date = der::time_choice(der)?;
+            let revocation_date = Time::from_der(der)?;
 
             let mut revoked_cert = BorrowedRevokedCert {
                 serial_number,
