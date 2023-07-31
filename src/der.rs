@@ -137,26 +137,16 @@ pub(crate) fn nested<'a, R, E: Copy>(
     nested_limited(input, tag, error, decoder, TWO_BYTE_DER_SIZE)
 }
 
-pub(crate) struct Value<'a> {
-    value: untrusted::Input<'a>,
-}
-
-impl<'a> Value<'a> {
-    pub(crate) fn value(&self) -> untrusted::Input<'a> {
-        self.value
-    }
-}
-
 pub(crate) fn expect_tag<'a>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
-) -> Result<Value<'a>, Error> {
+) -> Result<untrusted::Input<'a>, Error> {
     let (actual_tag, value) = read_tag_and_get_value(input)?;
     if usize::from(tag) != usize::from(actual_tag) {
         return Err(Error::BadDer);
     }
 
-    Ok(Value { value })
+    Ok(value)
 }
 
 #[inline(always)]
