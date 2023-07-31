@@ -277,7 +277,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             //   extensions in all CRLs issued.
             // As a result of the above we parse this as a required section, not OPTIONAL.
             // NOTE: Encoded value of version 2 is 1.
-            if der::small_nonnegative_integer(tbs_cert_list)? != 1 {
+            if u8::from_der(tbs_cert_list)? != 1 {
                 return Err(Error::UnsupportedCrlVersion);
             }
 
