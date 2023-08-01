@@ -65,7 +65,7 @@ name = "webpki"
 [features]
 default = ["std", "ring"]
 ring = ["dep:ring"]
-alloc = ["ring/alloc"]
+alloc = ["ring?/alloc"]
 std = ["alloc"]
 
 [dependencies]
