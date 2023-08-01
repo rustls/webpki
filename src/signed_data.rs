@@ -15,6 +15,9 @@
 use crate::der::{self, FromDer};
 use crate::error::Error;
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
 /// captures this pattern as an owned data type.
