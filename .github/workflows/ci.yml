@@ -266,3 +266,29 @@ jobs:
           files: ./lcov.info
           fail_ci_if_error: true
           verbose: true
+
+  nostd:
+    name: Verify that no-std modes do not rely on libstd
+    runs-on: ubuntu-20.04
+    # a target without a pre-compiled libstd like this one will catch any use of libstd in the
+    # entire dependency graph whereas a target like x86_64-unknown-linux-gnu will not
+    env:
+      NOSTD_TARGET: x86_64-unknown-none
+    strategy:
+      matrix:
+        features:
+          - --no-default-features
+          - --no-default-features --features alloc
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: "$NOSTD_TARGET"
+
+      - name: check no-std mode
+        run: cargo check --target $NOSTD_TARGET ${{ matrix.features  }}
