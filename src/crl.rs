@@ -19,7 +19,9 @@ use crate::x509::{remember_extension, set_extension_once, DistributionPointName,
 use crate::{Error, SignatureVerificationAlgorithm, Time};
 
 #[cfg(feature = "alloc")]
-use std::collections::HashMap;
+use alloc::collections::BTreeMap;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use private::Sealed;
 
@@ -57,7 +59,7 @@ pub trait CertRevocationList: Sealed {
 pub struct OwnedCertRevocationList {
     /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
     /// of the revoked cert's serial number.
-    revoked_certs: HashMap<Vec<u8>, OwnedRevokedCert>,
+    revoked_certs: BTreeMap<Vec<u8>, OwnedRevokedCert>,
 
     issuer: Vec<u8>,
 
@@ -149,7 +151,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
             .collect::<Result<Vec<_>, _>>()?
             .iter()
             .map(|revoked_cert| (revoked_cert.serial_number.to_vec(), revoked_cert.to_owned()))
-            .collect::<HashMap<_, _>>();
+            .collect::<BTreeMap<_, _>>();
 
         Ok(OwnedCertRevocationList {
             signed_data: self.signed_data.to_owned(),
