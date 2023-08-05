@@ -12,12 +12,13 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use pki_types::{CertificateDer, TrustAnchor};
+
 use crate::cert::{Cert, EndEntityOrCa};
 use crate::crl::IssuingDistributionPoint;
 use crate::der::{self, FromDer};
 use crate::{
     signed_data, subject_name, time, CertRevocationList, Error, SignatureVerificationAlgorithm,
-    TrustAnchor,
 };
 
 /// Builds a RevocationOptions instance to control how revocation checking is performed.
@@ -124,7 +125,7 @@ pub(crate) struct ChainOptions<'a> {
     pub(crate) eku: KeyUsage,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
-    pub(crate) intermediate_certs: &'a [&'a [u8]],
+    pub(crate) intermediate_certs: &'a [CertificateDer<'a>],
     pub(crate) revocation: Option<RevocationOptions<'a>>,
 }
 
@@ -177,12 +178,15 @@ fn build_chain_inner(
         Error::UnknownIssuer,
         opts.trust_anchors,
         |trust_anchor: &TrustAnchor| {
-            let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject);
+            let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
             if cert.issuer != trust_anchor_subject {
                 return Err(Error::UnknownIssuer);
             }
 
-            let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
+            let name_constraints = trust_anchor
+                .name_constraints
+                .as_ref()
+                .map(|der| untrusted::Input::from(der.as_ref()));
 
             untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
                 subject_name::check_name_constraints(value, cert, subject_common_name_contents)
@@ -251,8 +255,8 @@ fn check_signatures(
     revocation: Option<RevocationOptions>,
     signatures: &mut usize,
 ) -> Result<(), Error> {
-    let mut spki_value = untrusted::Input::from(trust_anchor.spki);
-    let mut issuer_subject = untrusted::Input::from(trust_anchor.subject);
+    let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
+    let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
     let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
     let mut cert = cert_chain;
     loop {
@@ -790,7 +794,8 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn test_too_many_signatures() {
-        use crate::ECDSA_P256_SHA256;
+        use crate::types::CertificateDer;
+        use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
         use crate::{EndEntityCert, Time};
 
         let alg = &rcgen::PKCS_ECDSA_P256_SHA256;
@@ -811,7 +816,7 @@ mod tests {
         };
 
         let ca_cert = make_issuer();
-        let ca_cert_der = ca_cert.serialize_der().unwrap();
+        let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
         let mut intermediates = Vec::with_capacity(101);
         let mut issuer = ca_cert;
@@ -826,20 +831,22 @@ mod tests {
         ee_params.is_ca = rcgen::IsCa::ExplicitNoCa;
         ee_params.alg = alg;
         let ee_cert = rcgen::Certificate::from_params(ee_params).unwrap();
-        let ee_cert_der = ee_cert.serialize_der_with_signer(&issuer).unwrap();
+        let ee_cert_der = CertificateDer::from(ee_cert.serialize_der_with_signer(&issuer).unwrap());
 
-        let anchors = &[TrustAnchor::try_from_cert_der(&ca_cert_der).unwrap()];
+        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
         let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-        let cert = EndEntityCert::try_from(&ee_cert_der[..]).unwrap();
-        let intermediates_der: Vec<&[u8]> = intermediates.iter().map(|x| x.as_ref()).collect();
-        let intermediate_certs: &[&[u8]] = intermediates_der.as_ref();
+        let cert = EndEntityCert::try_from(&ee_cert_der).unwrap();
+        let intermediates_der = intermediates
+            .iter()
+            .map(|x| CertificateDer::from(x.as_ref()))
+            .collect::<Vec<_>>();
 
         let result = build_chain(
             &ChainOptions {
                 eku: KeyUsage::server_auth(),
                 supported_sig_algs: &[ECDSA_P256_SHA256],
                 trust_anchors: anchors,
-                intermediate_certs,
+                intermediate_certs: &intermediates_der,
                 revocation: None,
             },
             cert.inner(),

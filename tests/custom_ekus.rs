@@ -1,6 +1,7 @@
 #![cfg(all(feature = "alloc", feature = "ring"))]
 
-use webpki::KeyUsage;
+use pki_types::CertificateDer;
+use webpki::{extract_trust_anchor, KeyUsage};
 
 fn check_cert(
     ee: &[u8],
@@ -9,13 +10,15 @@ fn check_cert(
     time: webpki::Time,
     result: Result<(), webpki::Error>,
 ) {
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let ca = CertificateDer::from(ca);
+    let anchors = [extract_trust_anchor(&ca).unwrap()];
     let algs = &[
         webpki::RSA_PKCS1_2048_8192_SHA256,
         webpki::ECDSA_P256_SHA256,
     ];
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
 
     assert_eq!(
         cert.verify_for_usage(algs, &anchors, &[], time, eku, None),

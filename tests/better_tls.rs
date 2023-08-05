@@ -7,13 +7,15 @@ use base64::{engine::general_purpose, Engine as _};
 use bzip2::read::BzDecoder;
 use serde::Deserialize;
 
-use webpki::{KeyUsage, SubjectNameRef, TrustAnchor};
+use webpki::types::{CertificateDer, TrustAnchor};
+use webpki::{extract_trust_anchor, KeyUsage, SubjectNameRef};
 
 #[test]
 fn better_tls() {
     let better_tls = testdata();
     let root_der = &better_tls.root_der();
-    let roots = &[TrustAnchor::try_from_cert_der(root_der).expect("invalid trust anchor")];
+    let root_der = CertificateDer::from(root_der.as_slice());
+    let roots = &[extract_trust_anchor(&root_der).expect("invalid trust anchor")];
 
     let suite = "pathbuilding";
     run_testsuite(
@@ -30,7 +32,8 @@ fn better_tls() {
 fn name_constraints() {
     let better_tls = testdata();
     let root_der = &better_tls.root_der();
-    let roots = &[TrustAnchor::try_from_cert_der(root_der).expect("invalid trust anchor")];
+    let root_der = CertificateDer::from(root_der.as_slice());
+    let roots = &[extract_trust_anchor(&root_der).expect("invalid trust anchor")];
 
     let suite = "nameconstraints";
     run_testsuite(
@@ -48,14 +51,13 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
         println!("Testing {suite_name} test case {}", testcase.id);
 
         let certs_der = testcase.certs_der();
-        let ee_der = &certs_der[0];
+        let ee_der = CertificateDer::from(certs_der[0].as_slice());
         let intermediates = &certs_der[1..]
             .iter()
-            .map(|cert| cert.as_slice())
+            .map(|cert| CertificateDer::from(cert.as_slice()))
             .collect::<Vec<_>>();
 
-        let ee_cert =
-            webpki::EndEntityCert::try_from(ee_der.as_slice()).expect("invalid end entity cert");
+        let ee_cert = webpki::EndEntityCert::try_from(&ee_der).expect("invalid end entity cert");
 
         // Set the time to the time of test case generation. This ensures that the test case
         // certificates won't expire.

@@ -13,7 +13,8 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #![cfg(feature = "alloc")]
 
-use webpki::KeyUsage;
+use pki_types::CertificateDer;
+use webpki::{extract_trust_anchor, KeyUsage};
 
 static ALL_SIGALGS: &[&dyn webpki::SignatureVerificationAlgorithm] = &[
     webpki::ECDSA_P256_SHA256,
@@ -33,10 +34,12 @@ fn check_cert(
     valid_names: &[&str],
     invalid_names: &[&str],
 ) -> Result<(), webpki::Error> {
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let ca_cert_der = CertificateDer::from(ca);
+    let anchors = [extract_trust_anchor(&ca_cert_der).unwrap()];
 
+    let ee_der = CertificateDer::from(ee);
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
     cert.verify_for_usage(
         ALL_SIGALGS,
         &anchors,

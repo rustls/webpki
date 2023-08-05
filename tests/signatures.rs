@@ -14,7 +14,7 @@
 
 #![cfg(feature = "ring")]
 
-extern crate webpki;
+use pki_types::CertificateDer;
 
 #[cfg(feature = "alloc")]
 fn check_sig(
@@ -23,7 +23,8 @@ fn check_sig(
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), webpki::Error> {
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     cert.verify_signature(alg, message, signature)
 }
 
