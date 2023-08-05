@@ -14,7 +14,8 @@
 
 #![cfg(feature = "ring")]
 
-use webpki::KeyUsage;
+use pki_types::CertificateDer;
+use webpki::{extract_trust_anchor, KeyUsage};
 
 static ALL_SIGALGS: &[&dyn webpki::SignatureVerificationAlgorithm] = &[
     webpki::ECDSA_P256_SHA256,
@@ -38,14 +39,15 @@ static ALL_SIGALGS: &[&dyn webpki::SignatureVerificationAlgorithm] = &[
 #[test]
 pub fn netflix() {
     let ee: &[u8] = include_bytes!("netflix/ee.der");
-    let inter = include_bytes!("netflix/inter.der");
-    let ca = include_bytes!("netflix/ca.der");
+    let inter = CertificateDer::from(&include_bytes!("netflix/inter.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
 
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let anchors = [extract_trust_anchor(&ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_492_441_716); // 2017-04-17T15:08:36Z
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
@@ -64,14 +66,16 @@ pub fn netflix() {
 #[test]
 pub fn cloudflare_dns() {
     let ee: &[u8] = include_bytes!("cloudflare_dns/ee.der");
-    let inter = include_bytes!("cloudflare_dns/inter.der");
-    let ca = include_bytes!("cloudflare_dns/ca.der");
+    let inter = CertificateDer::from(&include_bytes!("cloudflare_dns/inter.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("cloudflare_dns/ca.der")[..]);
 
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let ca_cert = CertificateDer::from(&ca[..]);
+    let anchors = [extract_trust_anchor(&ca_cert).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_663_495_771);
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
@@ -118,14 +122,13 @@ pub fn cloudflare_dns() {
 #[cfg(feature = "alloc")]
 #[test]
 pub fn wpt() {
-    let ee: &[u8] = include_bytes!("wpt/ee.der");
-    let ca = include_bytes!("wpt/ca.der");
+    let ee = CertificateDer::from(&include_bytes!("wpt/ee.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("wpt/ca.der")[..]);
 
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let anchors = [extract_trust_anchor(&ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_619_256_684); // 2021-04-24T09:31:24Z
-
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
@@ -141,14 +144,14 @@ pub fn wpt() {
 
 #[test]
 pub fn ed25519() {
-    let ee: &[u8] = include_bytes!("ed25519/ee.der");
-    let ca = include_bytes!("ed25519/ca.der");
+    let ee = CertificateDer::from(&include_bytes!("ed25519/ee.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("ed25519/ca.der")[..]);
 
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let anchors = [extract_trust_anchor(&ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_547_363_522); // 2019-01-13T07:12:02Z
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
@@ -165,18 +168,20 @@ pub fn ed25519() {
 #[test]
 #[cfg(feature = "alloc")]
 fn critical_extensions() {
-    let root = include_bytes!("critical_extensions/root-cert.der");
-    let ca = include_bytes!("critical_extensions/ca-cert.der");
+    let root = CertificateDer::from(&include_bytes!("critical_extensions/root-cert.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("critical_extensions/ca-cert.der")[..]);
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_670_779_098);
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(root).unwrap()];
+    let anchors = [extract_trust_anchor(&root).unwrap()];
 
-    let ee = include_bytes!("critical_extensions/ee-cert-noncrit-unknown-ext.der");
-    let res = webpki::EndEntityCert::try_from(&ee[..]).and_then(|cert| {
+    let ee = CertificateDer::from(
+        &include_bytes!("critical_extensions/ee-cert-noncrit-unknown-ext.der")[..],
+    );
+    let res = webpki::EndEntityCert::try_from(&ee).and_then(|cert| {
         cert.verify_for_usage(
             ALL_SIGALGS,
             &anchors,
-            &[ca],
+            &[ca.clone()],
             time,
             KeyUsage::server_auth(),
             None,
@@ -184,8 +189,10 @@ fn critical_extensions() {
     });
     assert_eq!(res, Ok(()), "accept non-critical unknown extension");
 
-    let ee = include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der");
-    let res = webpki::EndEntityCert::try_from(&ee[..]).and_then(|cert| {
+    let ee = CertificateDer::from(
+        &include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der")[..],
+    );
+    let res = webpki::EndEntityCert::try_from(&ee).and_then(|cert| {
         cert.verify_for_usage(
             ALL_SIGALGS,
             &anchors,
@@ -204,28 +211,27 @@ fn critical_extensions() {
 
 #[test]
 fn read_root_with_zero_serial() {
-    let ca = include_bytes!("misc/serial_zero.der");
-    let _ =
-        webpki::TrustAnchor::try_from_cert_der(ca).expect("godaddy cert should parse as anchor");
+    let ca = CertificateDer::from(&include_bytes!("misc/serial_zero.der")[..]);
+    extract_trust_anchor(&ca).expect("godaddy cert should parse as anchor");
 }
 
 #[test]
 fn read_root_with_neg_serial() {
-    let ca = include_bytes!("misc/serial_neg.der");
-    let _ = webpki::TrustAnchor::try_from_cert_der(ca).expect("idcat cert should parse as anchor");
+    let ca = CertificateDer::from(&include_bytes!("misc/serial_neg.der")[..]);
+    extract_trust_anchor(&ca).expect("idcat cert should parse as anchor");
 }
 
 #[test]
 #[cfg(feature = "alloc")]
 fn read_ee_with_neg_serial() {
-    let ca: &[u8] = include_bytes!("misc/serial_neg_ca.der");
-    let ee: &[u8] = include_bytes!("misc/serial_neg_ee.der");
+    let ca = CertificateDer::from(&include_bytes!("misc/serial_neg_ca.der")[..]);
+    let ee = CertificateDer::from(&include_bytes!("misc/serial_neg_ee.der")[..]);
 
-    let anchors = [webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
+    let anchors = [extract_trust_anchor(&ca).unwrap()];
 
     let time = webpki::Time::from_seconds_since_unix_epoch(1_667_401_500); // 2022-11-02T15:05:00Z
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
@@ -242,9 +248,9 @@ fn read_ee_with_neg_serial() {
 #[test]
 #[cfg(feature = "alloc")]
 fn read_ee_with_large_pos_serial() {
-    let ee: &[u8] = include_bytes!("misc/serial_large_positive.der");
+    let ee = CertificateDer::from(&include_bytes!("misc/serial_large_positive.der")[..]);
 
-    webpki::EndEntityCert::try_from(ee).expect("should parse 20-octet positive serial number");
+    webpki::EndEntityCert::try_from(&ee).expect("should parse 20-octet positive serial number");
 }
 
 #[cfg(feature = "std")]
@@ -335,7 +341,8 @@ pub fn wildcard_subject_alternative_names() {
 fn expect_cert_dns_names(data: &[u8], expected_names: &[&str]) {
     use std::collections::HashSet;
 
-    let cert = webpki::EndEntityCert::try_from(data)
+    let der = CertificateDer::from(data);
+    let cert = webpki::EndEntityCert::try_from(&der)
         .expect("should parse end entity certificate correctly");
 
     let expected_names: HashSet<_> = expected_names.iter().cloned().collect();
@@ -358,9 +365,9 @@ fn expect_cert_dns_names(data: &[u8], expected_names: &[&str]) {
 #[cfg(feature = "alloc")]
 #[test]
 pub fn no_subject_alt_names() {
-    let data = include_bytes!("misc/no_subject_alternative_name.der");
+    let ee = CertificateDer::from(&include_bytes!("misc/no_subject_alternative_name.der")[..]);
 
-    let cert = webpki::EndEntityCert::try_from(&data[..])
+    let cert = webpki::EndEntityCert::try_from(&ee)
         .expect("should parse end entity certificate correctly");
 
     let names = cert

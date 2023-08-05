@@ -14,7 +14,11 @@
 
 #![cfg(feature = "ring")]
 
-use webpki::{KeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder};
+use pki_types::CertificateDer;
+use webpki::{
+    extract_trust_anchor, KeyUsage, RevocationCheckDepth, RevocationOptions,
+    RevocationOptionsBuilder,
+};
 
 fn check_cert(
     ee: &[u8],
@@ -22,14 +26,20 @@ fn check_cert(
     ca: &[u8],
     revocation: Option<RevocationOptions>,
 ) -> Result<(), webpki::Error> {
-    let anchors = &[webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
+    let ca = CertificateDer::from(ca);
+    let anchors = &[extract_trust_anchor(&ca).unwrap()];
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+    let intermediates = intermediates
+        .iter()
+        .map(|cert| CertificateDer::from(*cert))
+        .collect::<Vec<_>>();
 
     cert.verify_for_usage(
         &[webpki::ECDSA_P256_SHA256],
         anchors,
-        intermediates,
+        &intermediates,
         time,
         KeyUsage::client_auth(),
         revocation,

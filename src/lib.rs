@@ -71,13 +71,16 @@ pub use {
         SubjectNameRef,
     },
     time::Time,
-    trust_anchor::TrustAnchor,
+    trust_anchor::extract_trust_anchor,
     verify_cert::{
         KeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
         UnknownStatusPolicy,
     },
 };
 
+pub use pki_types as types;
+
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[cfg(feature = "alloc")]
 pub use {
     crl::{OwnedCertRevocationList, OwnedRevokedCert},

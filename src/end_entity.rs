@@ -12,11 +12,13 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use pki_types::{CertificateDer, TrustAnchor};
+
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
     cert, signed_data, subject_name, verify_cert, Error, KeyUsage, RevocationOptions,
-    SignatureVerificationAlgorithm, SubjectNameRef, Time, TrustAnchor,
+    SignatureVerificationAlgorithm, SubjectNameRef, Time,
 };
 
 /// An end-entity certificate.
@@ -54,15 +56,15 @@ pub struct EndEntityCert<'a> {
     inner: cert::Cert<'a>,
 }
 
-impl<'a> TryFrom<&'a [u8]> for EndEntityCert<'a> {
+impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
     type Error = Error;
 
     /// Parse the ASN.1 DER-encoded X.509 encoding of the certificate
     /// `cert_der`.
-    fn try_from(cert_der: &'a [u8]) -> Result<Self, Self::Error> {
+    fn try_from(cert: &'a CertificateDer<'a>) -> Result<Self, Self::Error> {
         Ok(Self {
             inner: cert::Cert::from_der(
-                untrusted::Input::from(cert_der),
+                untrusted::Input::from(cert.as_ref()),
                 cert::EndEntityOrCa::EndEntity,
             )?,
         })
@@ -93,7 +95,7 @@ impl<'a> EndEntityCert<'a> {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         trust_anchors: &[TrustAnchor],
-        intermediate_certs: &[&[u8]],
+        intermediate_certs: &[CertificateDer<'_>],
         time: Time,
         usage: KeyUsage,
         revocation: Option<RevocationOptions>,
