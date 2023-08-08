@@ -159,7 +159,6 @@ impl<'a> EndEntityCert<'a> {
     /// Verification functions are already provided as `verify_is_valid_for_dns_name`
     /// and `verify_is_valid_for_at_least_one_dns_name`.
     #[cfg(feature = "alloc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn dns_names(&'a self) -> Result<impl Iterator<Item = GeneralDnsNameRef<'a>>, Error> {
         subject_name::list_cert_dns_names(self)
     }

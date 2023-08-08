@@ -72,8 +72,6 @@ pub static ECDSA_P384_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorit
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-256 for keys of 2048-8192 bits.
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA256: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
@@ -82,8 +80,6 @@ pub static RSA_PKCS1_2048_8192_SHA256: &dyn SignatureVerificationAlgorithm = &Ri
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-384 for keys of 2048-8192 bits.
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
@@ -92,8 +88,6 @@ pub static RSA_PKCS1_2048_8192_SHA384: &dyn SignatureVerificationAlgorithm = &Ri
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-512 for keys of 2048-8192 bits.
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA512: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
@@ -102,8 +96,6 @@ pub static RSA_PKCS1_2048_8192_SHA512: &dyn SignatureVerificationAlgorithm = &Ri
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-384 for keys of 3072-8192 bits.
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_3072_8192_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
@@ -115,8 +107,6 @@ pub static RSA_PKCS1_3072_8192_SHA384: &dyn SignatureVerificationAlgorithm = &Ri
 /// type rsaEncryption; see [RFC 4055 Section 1.2].
 ///
 /// [RFC 4055 Section 1.2]: https://tools.ietf.org/html/rfc4055#section-1.2
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: &dyn SignatureVerificationAlgorithm =
     &RingAlgorithm {
@@ -129,8 +119,6 @@ pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: &dyn SignatureVerificationAlgori
 /// type rsaEncryption; see [RFC 4055 Section 1.2].
 ///
 /// [RFC 4055 Section 1.2]: https://tools.ietf.org/html/rfc4055#section-1.2
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: &dyn SignatureVerificationAlgorithm =
     &RingAlgorithm {
@@ -143,8 +131,6 @@ pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: &dyn SignatureVerificationAlgori
 /// type rsaEncryption; see [RFC 4055 Section 1.2].
 ///
 /// [RFC 4055 Section 1.2]: https://tools.ietf.org/html/rfc4055#section-1.2
-///
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub static RSA_PSS_2048_8192_SHA512_LEGACY_KEY: &dyn SignatureVerificationAlgorithm =
     &RingAlgorithm {

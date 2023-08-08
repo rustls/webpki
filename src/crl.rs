@@ -57,7 +57,6 @@ pub trait CertRevocationList: Sealed + Debug {
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[derive(Debug, Clone)]
 pub struct OwnedCertRevocationList {
     /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
@@ -144,7 +143,6 @@ impl<'a> BorrowedCertRevocationList<'a> {
     /// Convert the CRL to an [`OwnedCertRevocationList`]. This may error if any of the revoked
     /// certificates in the CRL are malformed or contain unsupported features.
     #[cfg(feature = "alloc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn to_owned(&self) -> Result<OwnedCertRevocationList, Error> {
         // Parse and collect the CRL's revoked cert entries, ensuring there are no errors. With
         // the full set in-hand, create a lookup map by serial number for fast revocation checking.
@@ -452,7 +450,6 @@ pub struct BorrowedRevokedCert<'a> {
 impl<'a> BorrowedRevokedCert<'a> {
     /// Construct an owned representation of the revoked certificate.
     #[cfg(feature = "alloc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn to_owned(&self) -> OwnedRevokedCert {
         OwnedRevokedCert {
             serial_number: self.serial_number.to_vec(),

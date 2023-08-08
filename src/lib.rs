@@ -37,7 +37,7 @@
     clippy::upper_case_acronyms
 )]
 // Enable documentation for all features on docs.rs
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 #[cfg(any(test, feature = "alloc"))]
 #[cfg_attr(test, macro_use)]
@@ -78,20 +78,17 @@ pub use {
     },
 };
 
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[cfg(feature = "alloc")]
 pub use {
     crl::{OwnedCertRevocationList, OwnedRevokedCert},
     subject_name::{DnsName, IpAddr},
 };
 
-#[cfg_attr(docsrs, doc(cfg(feature = "ring")))]
 #[cfg(feature = "ring")]
 pub use ring_algs::{
     ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
 };
 
-#[cfg_attr(docsrs, doc(cfg(all(feature = "ring", feature = "alloc"))))]
 #[cfg(all(feature = "ring", feature = "alloc"))]
 pub use ring_algs::{
     RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
