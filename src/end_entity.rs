@@ -143,7 +143,13 @@ impl<'a> EndEntityCert<'a> {
     /// `time` is the time for which the validation is effective (usually the
     /// current time).
     #[allow(deprecated)]
-    #[deprecated(since = "0.101.2", note = "Use `verify_for_usage` instead")]
+    #[deprecated(
+        since = "0.101.2",
+        note = "The per-usage trust anchor representations and verification functions are deprecated in \
+        favor of the general-purpose `TrustAnchor` type and `EndEntity::verify_for_usage` function. \
+        The new `verify_for_usage` function expresses trust anchor and end entity purpose with the \
+        key usage argument."
+    )]
     pub fn verify_is_valid_tls_server_cert(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
@@ -173,7 +179,13 @@ impl<'a> EndEntityCert<'a> {
     /// the time for which the validation is effective (usually the current
     /// time).
     #[allow(deprecated)]
-    #[deprecated(since = "0.101.2", note = "Use `verify_for_usage` instead")]
+    #[deprecated(
+        since = "0.101.2",
+        note = "The per-usage trust anchor representations and verification functions are deprecated in \
+        favor of the general-purpose `TrustAnchor` type and `EndEntity::verify_for_usage` function. \
+        The new `verify_for_usage` function expresses trust anchor and end entity purpose with the \
+        key usage argument."
+    )]
     pub fn verify_is_valid_tls_client_cert(
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
