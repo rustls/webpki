@@ -24,12 +24,24 @@ pub struct TrustAnchor<'a> {
 }
 
 /// Trust anchors which may be used for authenticating servers.
-#[deprecated(since = "0.101.2")]
+#[deprecated(
+    since = "0.101.2",
+    note = "The per-usage trust anchor representations and verification functions are deprecated in \
+        favor of the general-purpose `TrustAnchor` type and `EndEntity::verify_for_usage` function. \
+        The new `verify_for_usage` function expresses trust anchor and end entity purpose with the \
+        key usage argument."
+)]
 #[derive(Debug)]
 pub struct TlsServerTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
 
 /// Trust anchors which may be used for authenticating clients.
-#[deprecated(since = "0.101.2")]
+#[deprecated(
+    since = "0.101.2",
+    note = "The per-usage trust anchor representations and verification functions are deprecated in \
+        favor of the general-purpose `TrustAnchor` type and `EndEntity::verify_for_usage` function. \
+        The new `verify_for_usage` function expresses trust anchor and end entity purpose with the \
+        key usage argument."
+)]
 #[derive(Debug)]
 pub struct TlsClientTrustAnchors<'a>(pub &'a [TrustAnchor<'a>]);
 
