@@ -24,7 +24,6 @@ const VALID_IP_BY_CONSTRUCTION: &str = "IP address is a valid string by construc
 
 /// Either a IPv4 or IPv6 address, plus its owned string representation
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum IpAddr {
     /// An IPv4 address and its owned string representation
@@ -34,7 +33,6 @@ pub enum IpAddr {
 }
 
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl AsRef<str> for IpAddr {
     fn as_ref(&self) -> &str {
         match self {
@@ -53,7 +51,6 @@ pub enum IpAddrRef<'a> {
 }
 
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl<'a> From<IpAddrRef<'a>> for IpAddr {
     fn from(ip_address: IpAddrRef<'a>) -> IpAddr {
         match ip_address {
@@ -70,7 +67,6 @@ impl<'a> From<IpAddrRef<'a>> for IpAddr {
 }
 
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl<'a> From<&'a IpAddr> for IpAddrRef<'a> {
     fn from(ip_address: &'a IpAddr) -> IpAddrRef<'a> {
         match ip_address {
@@ -96,7 +92,6 @@ impl core::fmt::Display for AddrParseError {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl ::std::error::Error for AddrParseError {}
 
 impl<'a> IpAddrRef<'a> {
@@ -120,7 +115,6 @@ impl<'a> IpAddrRef<'a> {
 
     /// Constructs an `IpAddr` from this `IpAddrRef`
     #[cfg(feature = "alloc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn to_owned(&self) -> IpAddr {
         match self {
             IpAddrRef::V4(ip_address, ip_address_octets) => IpAddr::V4(
@@ -155,7 +149,6 @@ fn ipv6_to_uncompressed_string(octets: [u8; 16]) -> String {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl From<std::net::IpAddr> for IpAddr {
     fn from(ip_address: std::net::IpAddr) -> IpAddr {
         match ip_address {

@@ -21,7 +21,6 @@ use alloc::vec::Vec;
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
 /// captures this pattern as an owned data type.
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 pub(crate) struct OwnedSignedData {
@@ -132,7 +131,6 @@ impl<'a> SignedData<'a> {
 
     /// Convert the borrowed signed data to an [`OwnedSignedData`].
     #[cfg(feature = "alloc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub(crate) fn to_owned(&self) -> OwnedSignedData {
         OwnedSignedData {
             data: self.data.as_slice_less_safe().to_vec(),

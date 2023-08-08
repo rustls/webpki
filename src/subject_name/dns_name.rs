@@ -33,12 +33,10 @@ use crate::Error;
 ///
 /// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct DnsName(String);
 
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl DnsName {
     /// Returns a `DnsNameRef` that refers to this `DnsName`.
     pub fn as_ref(&self) -> DnsNameRef {
@@ -47,7 +45,6 @@ impl DnsName {
 }
 
 #[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 impl AsRef<str> for DnsName {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
@@ -87,7 +84,6 @@ impl core::fmt::Display for InvalidDnsNameError {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl ::std::error::Error for InvalidDnsNameError {}
 
 impl<'a> DnsNameRef<'a> {
@@ -113,7 +109,6 @@ impl<'a> DnsNameRef<'a> {
 
     /// Constructs a `DnsName` from this `DnsNameRef`
     #[cfg(feature = "alloc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn to_owned(&self) -> DnsName {
         // DnsNameRef is already guaranteed to be valid ASCII, which is a
         // subset of UTF-8.
