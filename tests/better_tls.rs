@@ -1,26 +1,51 @@
 #![cfg(feature = "ring")]
 
-use base64::{engine::general_purpose, Engine as _};
-use serde::Deserialize;
 use std::collections::HashMap;
-use webpki::{KeyUsage, TrustAnchor};
+use std::fs::File;
+
+use base64::{engine::general_purpose, Engine as _};
+use bzip2::read::BzDecoder;
+use serde::Deserialize;
+
+use webpki::{KeyUsage, SubjectNameRef, TrustAnchor};
 
 #[test]
-pub fn path_building() {
-    let raw_json = include_bytes!("../third-party/bettertls/pathbuilding.tests.json");
-    let better_tls: BetterTls = serde_json::from_slice(raw_json).expect("invalid test JSON");
-    println!("Testing BetterTLS revision {:?}", better_tls.revision);
-
+fn better_tls() {
+    let better_tls = testdata();
     let root_der = &better_tls.root_der();
     let roots = &[TrustAnchor::try_from_cert_der(root_der).expect("invalid trust anchor")];
 
-    let path_building_suite = better_tls
-        .suites
-        .get("pathbuilding")
-        .expect("missing pathbuilding suite");
+    let suite = "pathbuilding";
+    run_testsuite(
+        suite,
+        better_tls
+            .suites
+            .get(suite)
+            .expect(&format!("missing {suite} suite")),
+        roots,
+    );
+}
 
-    for testcase in &path_building_suite.test_cases {
-        println!("Testing path building test case {:?}", testcase.id);
+#[test]
+fn name_constraints() {
+    let better_tls = testdata();
+    let root_der = &better_tls.root_der();
+    let roots = &[TrustAnchor::try_from_cert_der(root_der).expect("invalid trust anchor")];
+
+    let suite = "nameconstraints";
+    run_testsuite(
+        suite,
+        better_tls
+            .suites
+            .get(suite)
+            .expect(&format!("missing {suite} suite")),
+        roots,
+    );
+}
+
+fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]) {
+    for testcase in &suite.test_cases {
+        println!("Testing {suite_name} test case {}", testcase.id);
 
         let certs_der = testcase.certs_der();
         let ee_der = &certs_der[0];
@@ -34,16 +59,23 @@ pub fn path_building() {
 
         // Set the time to the time of test case generation. This ensures that the test case
         // certificates won't expire.
-        let now = webpki::Time::from_seconds_since_unix_epoch(1_688_651_734);
+        let now = webpki::Time::from_seconds_since_unix_epoch(1_691_788_832);
 
-        let result = ee_cert.verify_for_usage(
-            &[webpki::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
-            roots,
-            intermediates,
-            now,
-            KeyUsage::server_auth(),
-            None,
-        );
+        let result = ee_cert
+            .verify_for_usage(
+                &[webpki::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
+                roots,
+                intermediates,
+                now,
+                KeyUsage::server_auth(),
+                None,
+            )
+            .and_then(|_| {
+                ee_cert.verify_is_valid_for_subject_name(
+                    SubjectNameRef::try_from_ascii_str(&testcase.hostname)
+                        .expect("invalid testcase hostname"),
+                )
+            });
 
         match testcase.expected {
             ExpectedResult::Accept => assert!(result.is_ok(), "expected success, got {:?}", result),
@@ -52,6 +84,17 @@ pub fn path_building() {
             }
         }
     }
+}
+
+fn testdata() -> BetterTls {
+    let mut data_file = File::open("third-party/bettertls/bettertls.tests.json.bz2")
+        .expect("failed to open data file");
+    let decompressor = BzDecoder::new(&mut data_file);
+
+    let better_tls: BetterTls = serde_json::from_reader(decompressor).expect("invalid test JSON");
+    println!("Testing BetterTLS revision {:?}", better_tls.revision);
+
+    better_tls
 }
 
 #[derive(Deserialize, Debug)]
@@ -81,6 +124,7 @@ struct BetterTlsSuite {
 struct BetterTlsTest {
     id: u32,
     certificates: Vec<String>,
+    hostname: String,
     expected: ExpectedResult,
 }
 
