@@ -92,11 +92,8 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          # MSRV: Rust 1.47 and later have bugs in rustc that prevent some
-          # projects from upgrading past 1.46 yet. So, maintain compatibility
-          # for 1.46 until those bugs are fixed.
           # Make sure to update rust-version in Cargo.toml when updating MSRV.
-          toolchain: 1.46.0
+          toolchain: "1.60"
 
       - run: |
           cargo check --lib --all-features
