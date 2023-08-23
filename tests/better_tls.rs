@@ -21,7 +21,7 @@ fn better_tls() {
         better_tls
             .suites
             .get(suite)
-            .expect(&format!("missing {suite} suite")),
+            .unwrap_or_else(|| panic!("missing {suite} suite")),
         roots,
     );
 }
@@ -38,7 +38,7 @@ fn name_constraints() {
         better_tls
             .suites
             .get(suite)
-            .expect(&format!("missing {suite} suite")),
+            .unwrap_or_else(|| panic!("missing {suite} suite")),
         roots,
     );
 }
