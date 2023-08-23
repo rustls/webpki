@@ -14,7 +14,7 @@ Therefore 0.100.x will be updated, while 0.17.x will not be.
 
 ## Reporting a Vulnerability
 
-Please report security bugs by email to rustls-security@googlegroups.com.
+Please report security bugs [via github](https://github.com/rustls/webpki/security/advisories/new).
 We'll then:
 
 - Prepare a fix and regression tests.
