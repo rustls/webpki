@@ -83,7 +83,7 @@ jobs:
           toolchain: ${{ matrix.rust_channel }}
 
       - name: cargo doc (all features)
-        run: cargo doc --all-features
+        run: cargo doc --all-features --document-private-items
         env:
           RUSTDOCFLAGS: ${{ matrix.rust_channel == 'nightly' && '-Dwarnings --cfg=docsrs' || '-Dwarnings' }}
 
