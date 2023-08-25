@@ -87,7 +87,7 @@ pub(crate) fn remember_extension(
 pub(crate) enum DistributionPointName<'a> {
     /// The distribution point name is a relative distinguished name, relative to the CRL issuer.
     NameRelativeToCrlIssuer(untrusted::Input<'a>),
-    /// The distribution point name is a sequence of [GeneralNames].
+    /// The distribution point name is a sequence of [GeneralName] items.
     FullName(DerIterator<'a, GeneralName<'a>>),
 }
 
