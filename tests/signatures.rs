@@ -16,11 +16,11 @@
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
 #[cfg(feature = "ring")]
-use webpki::{
+use webpki::ring::{
     ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
 };
 #[cfg(all(feature = "ring", feature = "alloc"))]
-use webpki::{
+use webpki::ring::{
     RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
     RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
     RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,

@@ -69,7 +69,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
 
         let result = ee_cert
             .verify_for_usage(
-                &[webpki::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
+                &[webpki::ring::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
                 roots,
                 intermediates,
                 now,
