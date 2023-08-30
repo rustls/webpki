@@ -90,43 +90,46 @@ pub use {
 };
 
 #[cfg(feature = "ring")]
-pub use ring_algs::{
-    ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
-};
+/// Signature verification algorithm implementations using the *ring* crypto library.
+pub mod ring {
+    pub use super::ring_algs::{
+        ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
+    };
 
-#[cfg(all(feature = "ring", feature = "alloc"))]
-pub use ring_algs::{
-    RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
-    RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-    RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-};
+    #[cfg(feature = "alloc")]
+    pub use super::ring_algs::{
+        RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
+        RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+    };
+}
 
 /// An array of all the verification algorithms exported by this crate.
 ///
 /// This will be empty if the crate is built without the `ring` feature.
 pub static ALL_VERIFICATION_ALGS: &[&dyn types::SignatureVerificationAlgorithm] = &[
     #[cfg(feature = "ring")]
-    ring_algs::ECDSA_P256_SHA256,
+    ring::ECDSA_P256_SHA256,
     #[cfg(feature = "ring")]
-    ring_algs::ECDSA_P256_SHA384,
+    ring::ECDSA_P256_SHA384,
     #[cfg(feature = "ring")]
-    ring_algs::ECDSA_P384_SHA256,
+    ring::ECDSA_P384_SHA256,
     #[cfg(feature = "ring")]
-    ring_algs::ECDSA_P384_SHA384,
+    ring::ECDSA_P384_SHA384,
     #[cfg(feature = "ring")]
-    ring_algs::ED25519,
+    ring::ED25519,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PKCS1_2048_8192_SHA256,
+    ring::RSA_PKCS1_2048_8192_SHA256,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PKCS1_2048_8192_SHA384,
+    ring::RSA_PKCS1_2048_8192_SHA384,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PKCS1_2048_8192_SHA512,
+    ring::RSA_PKCS1_2048_8192_SHA512,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PKCS1_3072_8192_SHA384,
+    ring::RSA_PKCS1_3072_8192_SHA384,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+    ring::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+    ring::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
     #[cfg(all(feature = "ring", feature = "alloc"))]
-    ring_algs::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+    ring::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
 ];

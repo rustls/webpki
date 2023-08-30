@@ -39,7 +39,7 @@ fn check_cert(
         .collect::<Vec<_>>();
 
     cert.verify_for_usage(
-        &[webpki::ECDSA_P256_SHA256],
+        &[webpki::ring::ECDSA_P256_SHA256],
         anchors,
         &intermediates,
         time,
