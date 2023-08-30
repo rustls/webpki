@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#![allow(clippy::duplicate_mod)]
+
 use base64::{engine::general_purpose, Engine as _};
 
 use crate::error::{DerTypeId, Error};
