@@ -15,20 +15,8 @@
 #![cfg(all(feature = "alloc", feature = "ring"))]
 
 use core::time::Duration;
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
+use pki_types::{CertificateDer, UnixTime};
 use webpki::{extract_trust_anchor, KeyUsage};
-
-static ALL_SIGALGS: &[&dyn SignatureVerificationAlgorithm] = &[
-    webpki::ECDSA_P256_SHA256,
-    webpki::ECDSA_P256_SHA384,
-    webpki::ECDSA_P384_SHA256,
-    webpki::ECDSA_P384_SHA384,
-    webpki::ED25519,
-    webpki::RSA_PKCS1_2048_8192_SHA256,
-    webpki::RSA_PKCS1_2048_8192_SHA384,
-    webpki::RSA_PKCS1_2048_8192_SHA512,
-    webpki::RSA_PKCS1_3072_8192_SHA384,
-];
 
 fn check_cert(ee: &[u8], ca: &[u8]) -> Result<(), webpki::Error> {
     let ca = CertificateDer::from(ca);
@@ -38,7 +26,7 @@ fn check_cert(ee: &[u8], ca: &[u8]) -> Result<(), webpki::Error> {
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     cert.verify_for_usage(
-        ALL_SIGALGS,
+        webpki::ALL_VERIFICATION_ALGS,
         anchors,
         &[],
         time,

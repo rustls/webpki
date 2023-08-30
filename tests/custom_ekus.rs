@@ -14,16 +14,19 @@ fn check_cert(
 ) {
     let ca = CertificateDer::from(ca);
     let anchors = [extract_trust_anchor(&ca).unwrap()];
-    let algs = &[
-        webpki::RSA_PKCS1_2048_8192_SHA256,
-        webpki::ECDSA_P256_SHA256,
-    ];
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
 
     assert_eq!(
-        cert.verify_for_usage(algs, &anchors, &[], time, eku, None),
+        cert.verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            &anchors,
+            &[],
+            time,
+            eku,
+            None
+        ),
         result
     );
 }
