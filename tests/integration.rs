@@ -16,24 +16,8 @@
 
 use core::time::Duration;
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
+use pki_types::{CertificateDer, UnixTime};
 use webpki::{extract_trust_anchor, KeyUsage};
-
-static ALL_SIGALGS: &[&dyn SignatureVerificationAlgorithm] = &[
-    webpki::ECDSA_P256_SHA256,
-    webpki::ECDSA_P256_SHA384,
-    webpki::ECDSA_P384_SHA256,
-    webpki::ECDSA_P384_SHA384,
-    webpki::ED25519,
-    #[cfg(feature = "alloc")]
-    webpki::RSA_PKCS1_2048_8192_SHA256,
-    #[cfg(feature = "alloc")]
-    webpki::RSA_PKCS1_2048_8192_SHA384,
-    #[cfg(feature = "alloc")]
-    webpki::RSA_PKCS1_2048_8192_SHA512,
-    #[cfg(feature = "alloc")]
-    webpki::RSA_PKCS1_3072_8192_SHA384,
-];
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -53,7 +37,7 @@ pub fn netflix() {
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
             time,
@@ -81,7 +65,7 @@ pub fn cloudflare_dns() {
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
             time,
@@ -134,7 +118,7 @@ pub fn wpt() {
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,
@@ -157,7 +141,7 @@ pub fn ed25519() {
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,
@@ -181,7 +165,7 @@ fn critical_extensions() {
     );
     let res = webpki::EndEntityCert::try_from(&ee).and_then(|cert| {
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[ca.clone()],
             time,
@@ -196,7 +180,7 @@ fn critical_extensions() {
     );
     let res = webpki::EndEntityCert::try_from(&ee).and_then(|cert| {
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[ca],
             time,
@@ -237,7 +221,7 @@ fn read_ee_with_neg_serial() {
     assert_eq!(
         Ok(()),
         cert.verify_for_usage(
-            ALL_SIGALGS,
+            webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,

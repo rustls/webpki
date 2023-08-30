@@ -687,7 +687,6 @@ mod tests {
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
         use crate::end_entity::EndEntityCert;
-        use crate::ring_algs::ECDSA_P256_SHA256;
         use crate::trust_anchor::extract_trust_anchor;
         use core::time::Duration;
 
@@ -701,7 +700,7 @@ mod tests {
 
         ChainOptions {
             eku: KeyUsage::server_auth(),
-            supported_sig_algs: &[ECDSA_P256_SHA256],
+            supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
             trust_anchors: anchors,
             intermediate_certs: &intermediates_der,
             revocation: None,
