@@ -364,3 +364,10 @@ fn invalid_dns_name_matching() {
     let ca = include_bytes!("tls_server_certs/invalid_dns_name_matching.ca.der");
     assert_eq!(check_cert(ee, ca, &["dns.example.com"], &[]), Ok(()));
 }
+
+#[test]
+fn name_constraints_abuse() {
+    let ee = include_bytes!("tls_server_certs/name_constraints_abuse.ee.der");
+    let ca = include_bytes!("tls_server_certs/name_constraints_abuse.ca.der");
+    assert_eq!(check_cert(ee, ca, &["a"], &[]), Ok(()));
+}

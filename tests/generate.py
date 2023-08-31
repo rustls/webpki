@@ -558,6 +558,13 @@ def tls_server_certs(force: bool) -> None:
             ],
         )
 
+        generate_tls_server_cert_test(
+            output,
+            "name_constraints_abuse",
+            valid_names=["a"],
+            sans=[x509.DNSName("a")] * 13000,
+            permitted_subtrees=[x509.DNSName("a")] * 6000,
+        )
 
 def signatures(force: bool) -> None:
     rsa_pub_exponent: int = 0x10001
