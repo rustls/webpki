@@ -86,11 +86,11 @@ pub(crate) fn verify_cert_subject_name(
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
 pub(crate) fn check_name_constraints(
-    input: Option<&mut untrusted::Reader>,
+    constraints: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
     subject_common_name_contents: SubjectCommonNameContents,
 ) -> Result<(), Error> {
-    let input = match input {
+    let constraints = match constraints {
         Some(input) => input,
         None => {
             return Ok(());
@@ -107,8 +107,8 @@ pub(crate) fn check_name_constraints(
         der::expect_tag_and_get_value(inner, subtrees_tag).map(Some)
     }
 
-    let permitted_subtrees = parse_subtrees(input, der::Tag::ContextSpecificConstructed0)?;
-    let excluded_subtrees = parse_subtrees(input, der::Tag::ContextSpecificConstructed1)?;
+    let permitted_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed0)?;
+    let excluded_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed1)?;
 
     let mut child = subordinate_certs;
     loop {
