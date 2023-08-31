@@ -664,7 +664,8 @@ where
     for v in values {
         match f(v) {
             Ok(()) => return Ok(()),
-            err @ Err(Error::MaximumSignatureChecksExceeded) => return err,
+            err @ Err(Error::MaximumSignatureChecksExceeded)
+            | err @ Err(Error::MaximumNameConstraintComparisonsExceeded) => return err,
             Err(new_error) => error = error.most_specific(new_error),
         }
     }

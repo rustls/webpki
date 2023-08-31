@@ -106,6 +106,8 @@ pub(crate) fn check_name_constraints(
         None => return Ok(()),
     };
 
+    let mut comparisons = 0_usize;
+
     fn parse_subtrees<'b>(
         inner: &mut untrusted::Reader<'b>,
         subtrees_tag: der::Tag,
@@ -132,7 +134,12 @@ pub(crate) fn check_name_constraints(
                 Err(err) => return Some(Err(err)),
             };
 
-            check_presented_id_conforms_to_constraints(name, permitted_subtrees, excluded_subtrees)
+            check_presented_id_conforms_to_constraints(
+                name,
+                permitted_subtrees,
+                excluded_subtrees,
+                &mut comparisons,
+            )
         });
 
         if let Some(Err(err)) = result {
@@ -154,6 +161,7 @@ fn check_presented_id_conforms_to_constraints(
     name: GeneralName,
     permitted_subtrees: Option<untrusted::Input>,
     excluded_subtrees: Option<untrusted::Input>,
+    comparisons: &mut usize,
 ) -> Option<Result<(), Error>> {
     let subtrees = [
         (Subtrees::PermittedSubtrees, permitted_subtrees),
@@ -173,6 +181,11 @@ fn check_presented_id_conforms_to_constraints(
         let mut has_permitted_subtrees_match = false;
         let mut has_permitted_subtrees_mismatch = false;
         while !constraints.at_end() {
+            *comparisons += 1;
+            if *comparisons > 250_000 {
+                return Some(Err(Error::MaximumNameConstraintComparisonsExceeded));
+            }
+
             // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
             // profile, the minimum and maximum fields are not used with any name
             // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
