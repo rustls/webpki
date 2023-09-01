@@ -104,7 +104,7 @@ fn build_chain_inner(
 
         let trust_anchor_spki = untrusted::Input::from(trust_anchor.spki);
 
-        check_signatures(supported_sig_algs, cert, trust_anchor_spki, budget)?;
+        check_signed_chain(supported_sig_algs, cert, trust_anchor_spki, budget)?;
 
         Ok(())
     });
@@ -166,7 +166,7 @@ fn build_chain_inner(
     })
 }
 
-fn check_signatures(
+fn check_signed_chain(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
     trust_anchor_key: untrusted::Input,
