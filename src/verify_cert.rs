@@ -89,7 +89,7 @@ fn build_chain_inner(
 
             // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-            check_signatures(
+            check_signed_chain(
                 opts.supported_sig_algs,
                 cert,
                 trust_anchor,
@@ -146,7 +146,7 @@ fn build_chain_inner(
     })
 }
 
-fn check_signatures(
+fn check_signed_chain(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
