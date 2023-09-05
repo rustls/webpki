@@ -63,6 +63,9 @@ pub enum Error {
     /// and as recommended by RFC6125.
     MalformedExtensions,
 
+    /// The maximum number of name constraint comparisons has been reached.
+    MaximumNameConstraintComparisonsExceeded,
+
     /// The maximum number of internal path building calls has been reached. Path complexity is too great.
     MaximumPathBuildCallsExceeded,
 
