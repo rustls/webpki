@@ -224,7 +224,7 @@ impl Default for Budget {
 
             // This limit is taken from NSS libmozpkix, see:
             // <https://github.com/nss-dev/nss/blob/bb4a1d38dd9e92923525ac6b5ed0288479f3f3fc/lib/mozpkix/lib/pkixbuild.cpp#L381-L393>
-            build_chain_calls: 200000,
+            build_chain_calls: 200_000,
         }
     }
 }
