@@ -158,8 +158,7 @@ fn check_signatures(
     let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
     let mut cert = cert_chain;
     loop {
-        budget.consume_signature()?;
-        signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
+        signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data, budget)?;
 
         if !crls.is_empty() {
             check_crls(
@@ -169,6 +168,7 @@ fn check_signatures(
                 spki_value,
                 issuer_key_usage,
                 crls,
+                budget,
             )?;
         }
 
@@ -188,14 +188,14 @@ fn check_signatures(
     Ok(())
 }
 
-struct Budget {
+pub struct Budget {
     signatures: usize,
     build_chain_calls: usize,
 }
 
 impl Budget {
     #[inline]
-    fn consume_signature(&mut self) -> Result<(), Error> {
+    pub(crate) fn consume_signature(&mut self) -> Result<(), Error> {
         self.signatures = self
             .signatures
             .checked_sub(1)
@@ -247,6 +247,7 @@ fn check_crls(
     issuer_spki: untrusted::Input,
     issuer_ku: Option<untrusted::Input>,
     crls: &[&dyn CertRevocationList],
+    budget: &mut Budget,
 ) -> Result<Option<CertNotRevoked>, Error> {
     assert_eq!(cert.issuer, issuer_subject);
 
@@ -262,7 +263,7 @@ fn check_crls(
     // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
     //            of per-lookup.
     //            https://github.com/rustls/webpki/issues/81
-    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe())
+    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe(), budget)
         .map_err(crl_signature_err)?;
 
     // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
