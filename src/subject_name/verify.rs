@@ -19,7 +19,9 @@ use super::{
 };
 use crate::{
     cert::{Cert, EndEntityOrCa},
-    der, Error,
+    der,
+    verify_cert::Budget,
+    Error,
 };
 #[cfg(feature = "alloc")]
 use {
@@ -86,11 +88,12 @@ pub(crate) fn verify_cert_subject_name(
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
 pub(crate) fn check_name_constraints(
-    constraints: Option<&mut untrusted::Reader>,
+    input: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
     subject_common_name_contents: SubjectCommonNameContents,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
-    let constraints = match constraints {
+    let input = match input {
         Some(input) => input,
         None => {
             return Ok(());
@@ -107,8 +110,8 @@ pub(crate) fn check_name_constraints(
         der::expect_tag_and_get_value(inner, subtrees_tag).map(Some)
     }
 
-    let permitted_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed0)?;
-    let excluded_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed1)?;
+    let permitted_subtrees = parse_subtrees(input, der::Tag::ContextSpecificConstructed0)?;
+    let excluded_subtrees = parse_subtrees(input, der::Tag::ContextSpecificConstructed1)?;
 
     let mut child = subordinate_certs;
     loop {
@@ -122,6 +125,7 @@ pub(crate) fn check_name_constraints(
                     name,
                     permitted_subtrees,
                     excluded_subtrees,
+                    budget,
                 )
             },
         )?;
@@ -141,11 +145,13 @@ fn check_presented_id_conforms_to_constraints(
     name: GeneralName,
     permitted_subtrees: Option<untrusted::Input>,
     excluded_subtrees: Option<untrusted::Input>,
+    budget: &mut Budget,
 ) -> NameIteration {
     match check_presented_id_conforms_to_constraints_in_subtree(
         name,
         Subtrees::PermittedSubtrees,
         permitted_subtrees,
+        budget,
     ) {
         stop @ NameIteration::Stop(..) => {
             return stop;
@@ -157,6 +163,7 @@ fn check_presented_id_conforms_to_constraints(
         name,
         Subtrees::ExcludedSubtrees,
         excluded_subtrees,
+        budget,
     )
 }
 
@@ -170,6 +177,7 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
     name: GeneralName,
     subtrees: Subtrees,
     constraints: Option<untrusted::Input>,
+    budget: &mut Budget,
 ) -> NameIteration {
     let mut constraints = match constraints {
         Some(constraints) => untrusted::Reader::new(constraints),
@@ -182,6 +190,10 @@ fn check_presented_id_conforms_to_constraints_in_subtree(
     let mut has_permitted_subtrees_mismatch = false;
 
     while !constraints.at_end() {
+        if let Err(e) = budget.consume_name_constraint_comparison() {
+            return NameIteration::Stop(Err(e));
+        }
+
         // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
         // profile, the minimum and maximum fields are not used with any name
         // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
