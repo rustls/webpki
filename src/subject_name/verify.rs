@@ -23,6 +23,7 @@ use super::name::SubjectNameRef;
 use crate::cert::{Cert, EndEntityOrCa};
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
+use crate::verify_cert::Budget;
 
 pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
@@ -100,6 +101,7 @@ pub(crate) fn check_name_constraints(
     constraints: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
     subject_common_name_contents: SubjectCommonNameContents,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
     let constraints = match constraints {
         Some(input) => input,
@@ -132,7 +134,12 @@ pub(crate) fn check_name_constraints(
                 Err(err) => return Some(Err(err)),
             };
 
-            check_presented_id_conforms_to_constraints(name, permitted_subtrees, excluded_subtrees)
+            check_presented_id_conforms_to_constraints(
+                name,
+                permitted_subtrees,
+                excluded_subtrees,
+                budget,
+            )
         });
 
         if let Some(Err(err)) = result {
@@ -154,6 +161,7 @@ fn check_presented_id_conforms_to_constraints(
     name: GeneralName,
     permitted_subtrees: Option<untrusted::Input>,
     excluded_subtrees: Option<untrusted::Input>,
+    budget: &mut Budget,
 ) -> Option<Result<(), Error>> {
     let subtrees = [
         (Subtrees::PermittedSubtrees, permitted_subtrees),
@@ -173,6 +181,10 @@ fn check_presented_id_conforms_to_constraints(
         let mut has_permitted_subtrees_match = false;
         let mut has_permitted_subtrees_mismatch = false;
         while !constraints.at_end() {
+            if let Err(e) = budget.consume_name_constraint_comparison() {
+                return Some(Err(e));
+            }
+
             // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
             // profile, the minimum and maximum fields are not used with any name
             // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
