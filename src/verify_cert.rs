@@ -175,8 +175,7 @@ fn check_signatures(
     let mut spki_value = trust_anchor_key;
     let mut cert = cert_chain;
     loop {
-        budget.consume_signature()?;
-        signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
+        signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data, budget)?;
 
         // TODO: check revocation
 
@@ -194,14 +193,14 @@ fn check_signatures(
     Ok(())
 }
 
-struct Budget {
+pub(crate) struct Budget {
     signatures: usize,
     build_chain_calls: usize,
 }
 
 impl Budget {
     #[inline]
-    fn consume_signature(&mut self) -> Result<(), Error> {
+    pub(crate) fn consume_signature(&mut self) -> Result<(), Error> {
         self.signatures = self
             .signatures
             .checked_sub(1)
