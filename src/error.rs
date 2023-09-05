@@ -93,14 +93,14 @@ pub enum Error {
     /// invalid labels.
     MalformedNameConstraint,
 
-    /// The maximum number of signature checks has been reached. Path complexity is too great.
-    MaximumSignatureChecksExceeded,
-
     /// The maximum number of internal path building calls has been reached. Path complexity is too great.
     MaximumPathBuildCallsExceeded,
 
     /// The path search was terminated because it became too deep.
     MaximumPathDepthExceeded,
+
+    /// The maximum number of signature checks has been reached. Path complexity is too great.
+    MaximumSignatureChecksExceeded,
 
     /// The certificate violates one or more name constraints.
     NameConstraintViolation,
