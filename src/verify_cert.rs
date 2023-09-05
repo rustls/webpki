@@ -25,8 +25,29 @@ pub(crate) fn build_chain(
     intermediate_certs: &[&[u8]],
     cert: &Cert,
     time: time::Time,
+) -> Result<(), Error> {
+    build_chain_inner(
+        required_eku_if_present,
+        supported_sig_algs,
+        trust_anchors,
+        intermediate_certs,
+        cert,
+        time,
+        0,
+        &mut Budget::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_chain_inner(
+    required_eku_if_present: KeyPurposeId,
+    supported_sig_algs: &[&SignatureAlgorithm],
+    trust_anchors: &[TrustAnchor],
+    intermediate_certs: &[&[u8]],
+    cert: &Cert,
+    time: time::Time,
     sub_ca_count: usize,
-    signatures: &mut usize,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
     let used_as_ca = used_as_ca(&cert.ee_or_ca);
 
@@ -77,11 +98,11 @@ pub(crate) fn build_chain(
             subject_name::check_name_constraints(value, cert, subject_common_name_contents)
         })?;
 
-        let trust_anchor_spki = untrusted::Input::from(trust_anchor.spki);
-
         // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-        check_signatures(supported_sig_algs, cert, trust_anchor_spki, signatures)?;
+        let trust_anchor_spki = untrusted::Input::from(trust_anchor.spki);
+
+        check_signatures(supported_sig_algs, cert, trust_anchor_spki, budget)?;
 
         Ok(())
     });
@@ -128,7 +149,7 @@ pub(crate) fn build_chain(
             UsedAsCa::Yes => sub_ca_count + 1,
         };
 
-        build_chain(
+        build_chain_inner(
             required_eku_if_present,
             supported_sig_algs,
             trust_anchors,
@@ -136,7 +157,7 @@ pub(crate) fn build_chain(
             &potential_issuer,
             time,
             next_sub_ca_count,
-            signatures,
+            budget,
         )
     })
 }
@@ -145,16 +166,12 @@ fn check_signatures(
     supported_sig_algs: &[&SignatureAlgorithm],
     cert_chain: &Cert,
     trust_anchor_key: untrusted::Input,
-    signatures: &mut usize,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
     let mut spki_value = trust_anchor_key;
     let mut cert = cert_chain;
     loop {
-        *signatures += 1;
-        if *signatures > 100 {
-            return Err(Error::MaximumSignatureChecksExceeded);
-        }
-
+        budget.consume_signature()?;
         signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
 
         // TODO: check revocation
@@ -171,6 +188,27 @@ fn check_signatures(
     }
 
     Ok(())
+}
+
+struct Budget {
+    signatures: usize,
+}
+
+impl Budget {
+    #[inline]
+    fn consume_signature(&mut self) -> Result<(), Error> {
+        self.signatures = self
+            .signatures
+            .checked_sub(1)
+            .ok_or(Error::MaximumSignatureChecksExceeded)?;
+        Ok(())
+    }
+}
+
+impl core::default::Default for Budget {
+    fn default() -> Self {
+        Self { signatures: 100 }
+    }
 }
 
 fn check_issuer_independent_properties(
@@ -427,8 +465,6 @@ mod tests {
             intermediate_certs,
             cert.inner(),
             time,
-            0,
-            &mut 0_usize,
         );
 
         assert!(matches!(result, Err(Error::MaximumSignatureChecksExceeded)));
