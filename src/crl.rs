@@ -17,6 +17,7 @@ use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC}
 use crate::error::{DerTypeId, Error};
 use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
+use crate::verify_cert::Budget;
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 use crate::{SignatureVerificationAlgorithm, Time};
 use core::fmt::Debug;
@@ -50,6 +51,7 @@ pub trait CertRevocationList: Sealed + Debug {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
+        budget: &mut Budget,
     ) -> Result<(), Error>;
 }
 
@@ -97,11 +99,13 @@ impl CertRevocationList for OwnedCertRevocationList {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
+        budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
             supported_sig_algs,
             untrusted::Input::from(issuer_spki),
             &self.signed_data.borrow(),
+            budget,
         )
     }
 }
@@ -239,11 +243,13 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
+        budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
             supported_sig_algs,
             untrusted::Input::from(issuer_spki),
             &self.signed_data,
+            budget,
         )
     }
 }

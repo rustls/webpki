@@ -151,6 +151,7 @@ mod tests {
     use base64::{engine::general_purpose, Engine as _};
 
     use crate::error::{DerTypeId, Error};
+    use crate::verify_cert::Budget;
     use crate::{der, signed_data};
     use alloc::{string::String, vec::Vec};
 
@@ -215,7 +216,8 @@ mod tests {
             signed_data::verify_signed_data(
                 SUPPORTED_ALGORITHMS_IN_TESTS,
                 spki_value,
-                &signed_data
+                &signed_data,
+                &mut Budget::default(),
             )
         );
     }
