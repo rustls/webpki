@@ -14,6 +14,7 @@
 
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
+use crate::verify_cert::Budget;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
@@ -153,7 +154,10 @@ pub(crate) fn verify_signed_data(
     supported_algorithms: &[&dyn SignatureVerificationAlgorithm],
     spki_value: untrusted::Input,
     signed_data: &SignedData,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
+    budget.consume_signature()?;
+
     // We need to verify the signature in `signed_data` using the public key
     // in `public_key`. In order to know which *ring* signature verification
     // algorithm to use, we need to know the public key algorithm (ECDSA,
