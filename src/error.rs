@@ -96,6 +96,9 @@ pub enum Error {
     /// The maximum number of signature checks has been reached. Path complexity is too great.
     MaximumSignatureChecksExceeded,
 
+    /// The maximum number of internal path building calls has been reached. Path complexity is too great.
+    MaximumPathBuildCallsExceeded,
+
     /// The certificate violates one or more name constraints.
     NameConstraintViolation,
 
@@ -238,8 +241,9 @@ impl Error {
             Error::BadDerTime => 2,
             Error::BadDer => 1,
 
-            // Special case error - not subject to ranking.
+            // Special case errors - not subject to ranking.
             Error::MaximumSignatureChecksExceeded => 0,
+            Error::MaximumPathBuildCallsExceeded => 0,
 
             // Default catch all error - should be renamed in the future.
             Error::UnknownIssuer => 0,
