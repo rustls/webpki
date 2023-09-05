@@ -93,6 +93,9 @@ pub enum Error {
     /// invalid labels.
     MalformedNameConstraint,
 
+    /// The maximum number of name constraint comparisons has been reached.
+    MaximumNameConstraintComparisonsExceeded,
+
     /// The maximum number of internal path building calls has been reached. Path complexity is too great.
     MaximumPathBuildCallsExceeded,
 
@@ -236,6 +239,7 @@ impl Error {
             // Special case errors - not subject to ranking.
             Error::MaximumSignatureChecksExceeded => 0,
             Error::MaximumPathBuildCallsExceeded => 0,
+            Error::MaximumNameConstraintComparisonsExceeded => 0,
 
             // Default catch all error - should be renamed in the future.
             Error::UnknownIssuer => 0,
