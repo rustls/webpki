@@ -27,7 +27,7 @@ pub(crate) struct ChainOptions<'a> {
 }
 
 pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) -> Result<(), Error> {
-    build_chain_inner(opts, cert, time, 0, &mut 0_usize)
+    build_chain_inner(opts, cert, time, 0, &mut Budget::default())
 }
 
 fn build_chain_inner(
@@ -35,7 +35,7 @@ fn build_chain_inner(
     cert: &Cert,
     time: time::Time,
     sub_ca_count: usize,
-    signatures: &mut usize,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
     let used_as_ca = used_as_ca(&cert.ee_or_ca);
 
@@ -93,7 +93,7 @@ fn build_chain_inner(
                 cert,
                 trust_anchor,
                 opts.crls,
-                signatures,
+                budget,
             )?;
 
             Ok(())
@@ -140,7 +140,7 @@ fn build_chain_inner(
             UsedAsCa::Yes => sub_ca_count + 1,
         };
 
-        build_chain_inner(opts, &potential_issuer, time, next_sub_ca_count, signatures)
+        build_chain_inner(opts, &potential_issuer, time, next_sub_ca_count, budget)
     })
 }
 
@@ -149,17 +149,14 @@ fn check_signatures(
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
     crls: &[&dyn CertRevocationList],
-    signatures: &mut usize,
+    budget: &mut Budget,
 ) -> Result<(), Error> {
     let mut spki_value = untrusted::Input::from(trust_anchor.spki);
     let mut issuer_subject = untrusted::Input::from(trust_anchor.subject);
     let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
     let mut cert = cert_chain;
     loop {
-        *signatures += 1;
-        if *signatures > 100 {
-            return Err(Error::MaximumSignatureChecksExceeded);
-        }
+        budget.consume_signature()?;
         signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data)?;
 
         if !crls.is_empty() {
@@ -187,6 +184,27 @@ fn check_signatures(
     }
 
     Ok(())
+}
+
+struct Budget {
+    signatures: usize,
+}
+
+impl Budget {
+    #[inline]
+    fn consume_signature(&mut self) -> Result<(), Error> {
+        self.signatures = self
+            .signatures
+            .checked_sub(1)
+            .ok_or(Error::MaximumSignatureChecksExceeded)?;
+        Ok(())
+    }
+}
+
+impl core::default::Default for Budget {
+    fn default() -> Self {
+        Self { signatures: 100 }
+    }
 }
 
 // Zero-sized marker type representing positive assertion that revocation status was checked
