@@ -95,9 +95,8 @@ fn build_chain_inner(
         }
 
         let name_constraints = trust_anchor.name_constraints.map(untrusted::Input::from);
-
         untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
-            subject_name::check_name_constraints(value, cert, subject_common_name_contents)
+            subject_name::check_name_constraints(value, cert, subject_common_name_contents, budget)
         })?;
 
         // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
@@ -144,7 +143,7 @@ fn build_chain_inner(
         }
 
         untrusted::read_all_optional(potential_issuer.name_constraints, Error::BadDer, |value| {
-            subject_name::check_name_constraints(value, cert, subject_common_name_contents)
+            subject_name::check_name_constraints(value, cert, subject_common_name_contents, budget)
         })?;
 
         let next_sub_ca_count = match used_as_ca {
@@ -196,6 +195,7 @@ fn check_signed_chain(
 pub(crate) struct Budget {
     signatures: usize,
     build_chain_calls: usize,
+    name_constraint_comparisons: usize,
 }
 
 impl Budget {
@@ -216,6 +216,15 @@ impl Budget {
             .ok_or(Error::MaximumPathBuildCallsExceeded)?;
         Ok(())
     }
+
+    #[inline]
+    pub(crate) fn consume_name_constraint_comparison(&mut self) -> Result<(), Error> {
+        self.name_constraint_comparisons = self
+            .name_constraint_comparisons
+            .checked_sub(1)
+            .ok_or(Error::MaximumNameConstraintComparisonsExceeded)?;
+        Ok(())
+    }
 }
 
 impl Default for Budget {
@@ -230,6 +239,10 @@ impl Default for Budget {
             // This limit is taken from NSS libmozpkix, see:
             // <https://github.com/nss-dev/nss/blob/bb4a1d38dd9e92923525ac6b5ed0288479f3f3fc/lib/mozpkix/lib/pkixbuild.cpp#L381-L393>
             build_chain_calls: 200_000,
+
+            // This limit is taken from golang crypto/x509's default, see:
+            // <https://github.com/golang/go/blob/ac17bb6f13979f2ab9fcd45f0758b43ed72d0973/src/crypto/x509/verify.go#L588-L592>
+            name_constraint_comparisons: 250_000,
         }
     }
 }
@@ -423,7 +436,8 @@ where
         match f(v) {
             Ok(()) => return Ok(()),
             err @ Err(Error::MaximumSignatureChecksExceeded)
-            | err @ Err(Error::MaximumPathBuildCallsExceeded) => return err,
+            | err @ Err(Error::MaximumPathBuildCallsExceeded)
+            | err @ Err(Error::MaximumNameConstraintComparisonsExceeded) => return err,
             _ => {}
         }
     }
