@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use core::default::Default;
+
 use crate::{
     cert::{Cert, EndEntityOrCa},
     der, signed_data, subject_name, time, CertRevocationList, Error, SignatureAlgorithm,
@@ -211,7 +213,7 @@ impl Budget {
     }
 }
 
-impl core::default::Default for Budget {
+impl Default for Budget {
     fn default() -> Self {
         Self {
             // This limit is taken from the remediation for golang CVE-2018-16875.  However,
