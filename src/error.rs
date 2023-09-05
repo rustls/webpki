@@ -99,6 +99,9 @@ pub enum Error {
     /// The maximum number of internal path building calls has been reached. Path complexity is too great.
     MaximumPathBuildCallsExceeded,
 
+    /// The path search was terminated because it became too deep.
+    MaximumPathDepthExceeded,
+
     /// The certificate violates one or more name constraints.
     NameConstraintViolation,
 
@@ -230,6 +233,7 @@ impl Error {
             Error::UnsupportedRevocationReason => 90,
             Error::UnsupportedRevocationReasonsPartitioning => 80,
             Error::UnsupportedCrlIssuingDistributionPoint => 70,
+            Error::MaximumPathDepthExceeded => 61,
 
             // Errors related to malformed data.
             Error::MalformedDnsIdentifier => 60,

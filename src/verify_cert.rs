@@ -151,8 +151,7 @@ fn build_chain_inner(
             const MAX_SUB_CA_COUNT: usize = 6;
 
             if sub_ca_count >= MAX_SUB_CA_COUNT {
-                // TODO(XXX): Candidate for a more specific error - Error::PathTooDeep?
-                return Err(Error::UnknownIssuer);
+                return Err(Error::MaximumPathDepthExceeded);
             }
         }
         UsedAsCa::No => {
@@ -922,5 +921,84 @@ mod tests {
             build_degenerate_chain(10, TrustAnchorIsActualIssuer::No),
             Error::MaximumPathBuildCallsExceeded
         );
+    }
+
+    #[cfg(feature = "alloc")]
+    fn build_linear_chain(chain_length: usize) -> Result<(), Error> {
+        use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
+        use crate::{EndEntityCert, Time};
+
+        let alg = &rcgen::PKCS_ECDSA_P256_SHA256;
+
+        let make_issuer = |index: usize| {
+            let mut ca_params = rcgen::CertificateParams::new(Vec::new());
+            ca_params.distinguished_name.push(
+                rcgen::DnType::OrganizationName,
+                format!("Bogus Subject {index}"),
+            );
+            ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+            ca_params.key_usages = vec![
+                rcgen::KeyUsagePurpose::KeyCertSign,
+                rcgen::KeyUsagePurpose::DigitalSignature,
+                rcgen::KeyUsagePurpose::CrlSign,
+            ];
+            ca_params.alg = alg;
+            rcgen::Certificate::from_params(ca_params).unwrap()
+        };
+
+        let ca_cert = make_issuer(chain_length);
+        let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
+
+        let mut intermediates = Vec::with_capacity(chain_length);
+        let mut issuer = ca_cert;
+        for i in 0..chain_length {
+            let intermediate = make_issuer(i);
+            let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
+            intermediates.push(intermediate_der);
+            issuer = intermediate;
+        }
+
+        let mut ee_params = rcgen::CertificateParams::new(vec!["example.com".to_string()]);
+        ee_params.is_ca = rcgen::IsCa::ExplicitNoCa;
+        ee_params.alg = alg;
+        let ee_cert = rcgen::Certificate::from_params(ee_params).unwrap();
+        let ee_cert_der = CertificateDer::from(ee_cert.serialize_der_with_signer(&issuer).unwrap());
+
+        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
+        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+        let cert = EndEntityCert::try_from(&ee_cert_der).unwrap();
+        let intermediates_der = intermediates
+            .iter()
+            .map(|x| CertificateDer::from(x.as_ref()))
+            .collect::<Vec<_>>();
+
+        build_chain(
+            &ChainOptions {
+                eku: KeyUsage::server_auth(),
+                supported_sig_algs: &[ECDSA_P256_SHA256],
+                trust_anchors: anchors,
+                intermediate_certs: &intermediates_der,
+                revocation: None,
+            },
+            cert.inner(),
+            time,
+        )
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn longest_allowed_path() {
+        assert_eq!(build_linear_chain(1), Ok(()));
+        assert_eq!(build_linear_chain(2), Ok(()));
+        assert_eq!(build_linear_chain(3), Ok(()));
+        assert_eq!(build_linear_chain(4), Ok(()));
+        assert_eq!(build_linear_chain(5), Ok(()));
+        assert_eq!(build_linear_chain(6), Ok(()));
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn path_too_long() {
+        assert_eq!(build_linear_chain(7), Err(Error::MaximumPathDepthExceeded));
     }
 }
