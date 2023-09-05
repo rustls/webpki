@@ -87,6 +87,9 @@ pub enum Error {
     /// The maximum number of internal path building calls has been reached. Path complexity is too great.
     MaximumPathBuildCallsExceeded,
 
+    /// The path search was terminated because it became too deep.
+    MaximumPathDepthExceeded,
+
     /// The certificate contains an unsupported critical extension.
     UnsupportedCriticalExtension,
 
