@@ -244,6 +244,7 @@ fn build_chain_inner(
             UsedAsCa::Yes => sub_ca_count + 1,
         };
 
+        budget.consume_build_chain_call()?;
         build_chain_inner(opts, &potential_issuer, time, next_sub_ca_count, budget)
     })
 }
@@ -292,6 +293,7 @@ fn check_signatures(
 
 struct Budget {
     signatures: usize,
+    build_chain_calls: usize,
 }
 
 impl Budget {
@@ -301,6 +303,15 @@ impl Budget {
             .signatures
             .checked_sub(1)
             .ok_or(Error::MaximumSignatureChecksExceeded)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn consume_build_chain_call(&mut self) -> Result<(), Error> {
+        self.build_chain_calls = self
+            .build_chain_calls
+            .checked_sub(1)
+            .ok_or(Error::MaximumPathBuildCallsExceeded)?;
         Ok(())
     }
 }
@@ -313,6 +324,10 @@ impl core::default::Default for Budget {
             // being hit in real applications (see <https://github.com/spiffe/spire/issues/1004>).
             // So this may actually be too aggressive.
             signatures: 100,
+
+            // This limit is taken from NSS libmozpkix, see:
+            // <https://github.com/nss-dev/nss/blob/bb4a1d38dd9e92923525ac6b5ed0288479f3f3fc/lib/mozpkix/lib/pkixbuild.cpp#L381-L393>
+            build_chain_calls: 200000,
         }
     }
 }
@@ -692,7 +707,8 @@ where
     for v in values {
         match f(v) {
             Ok(()) => return Ok(()),
-            err @ Err(Error::MaximumSignatureChecksExceeded) => return err,
+            err @ Err(Error::MaximumSignatureChecksExceeded)
+            | err @ Err(Error::MaximumPathBuildCallsExceeded) => return err,
             Err(new_error) => error = error.most_specific(new_error),
         }
     }
@@ -815,10 +831,17 @@ mod tests {
         assert!(crl_authoritative(&crl, &ee));
     }
 
-    #[test]
     #[cfg(feature = "alloc")]
-    fn test_too_many_signatures() {
-        use crate::types::CertificateDer;
+    enum TrustAnchorIsActualIssuer {
+        Yes,
+        No,
+    }
+
+    #[cfg(feature = "alloc")]
+    fn build_degenerate_chain(
+        intermediate_count: usize,
+        trust_anchor_is_actual_issuer: TrustAnchorIsActualIssuer,
+    ) -> Error {
         use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
         use crate::{EndEntityCert, Time};
 
@@ -842,9 +865,9 @@ mod tests {
         let ca_cert = make_issuer();
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
-        let mut intermediates = Vec::with_capacity(101);
+        let mut intermediates = Vec::with_capacity(intermediate_count);
         let mut issuer = ca_cert;
-        for _ in 0..101 {
+        for _ in 0..intermediate_count {
             let intermediate = make_issuer();
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
             intermediates.push(intermediate_der);
@@ -860,12 +883,16 @@ mod tests {
         let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
         let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
         let cert = EndEntityCert::try_from(&ee_cert_der).unwrap();
-        let intermediates_der = intermediates
+        let mut intermediates_der = intermediates
             .iter()
             .map(|x| CertificateDer::from(x.as_ref()))
             .collect::<Vec<_>>();
 
-        let result = build_chain(
+        if let TrustAnchorIsActualIssuer::No = trust_anchor_is_actual_issuer {
+            intermediates_der.pop();
+        }
+
+        build_chain(
             &ChainOptions {
                 eku: KeyUsage::server_auth(),
                 supported_sig_algs: &[ECDSA_P256_SHA256],
@@ -875,8 +902,25 @@ mod tests {
             },
             cert.inner(),
             time,
-        );
+        )
+        .unwrap_err()
+    }
 
-        assert!(matches!(result, Err(Error::MaximumSignatureChecksExceeded)));
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_too_many_signatures() {
+        assert_eq!(
+            build_degenerate_chain(5, TrustAnchorIsActualIssuer::Yes),
+            Error::MaximumSignatureChecksExceeded
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_too_many_path_calls() {
+        assert_eq!(
+            build_degenerate_chain(10, TrustAnchorIsActualIssuer::No),
+            Error::MaximumPathBuildCallsExceeded
+        );
     }
 }
