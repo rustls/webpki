@@ -201,45 +201,45 @@ impl Error {
     pub(crate) fn rank(&self) -> u32 {
         match &self {
             // Errors related to certificate validity
-            Error::CertNotValidYet | Error::CertExpired => 29,
-            Error::CertNotValidForName => 28,
-            Error::CertRevoked | Error::UnknownRevocationStatus => 27,
-            Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 26,
-            Error::SignatureAlgorithmMismatch => 25,
-            Error::RequiredEkuNotFound => 24,
-            Error::NameConstraintViolation => 23,
-            Error::PathLenConstraintViolated => 22,
-            Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 21,
-            Error::IssuerNotCrlSigner => 20,
+            Error::CertNotValidYet | Error::CertExpired => 290,
+            Error::CertNotValidForName => 280,
+            Error::CertRevoked | Error::UnknownRevocationStatus => 270,
+            Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 260,
+            Error::SignatureAlgorithmMismatch => 250,
+            Error::RequiredEkuNotFound => 240,
+            Error::NameConstraintViolation => 230,
+            Error::PathLenConstraintViolated => 220,
+            Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 210,
+            Error::IssuerNotCrlSigner => 200,
 
             // Errors related to supported features used in an invalid way.
-            Error::InvalidCertValidity => 19,
-            Error::InvalidNetworkMaskConstraint => 18,
-            Error::InvalidSerialNumber => 17,
-            Error::InvalidCrlNumber => 16,
+            Error::InvalidCertValidity => 190,
+            Error::InvalidNetworkMaskConstraint => 180,
+            Error::InvalidSerialNumber => 170,
+            Error::InvalidCrlNumber => 160,
 
             // Errors related to unsupported features.
             Error::UnsupportedCrlSignatureAlgorithmForPublicKey
-            | Error::UnsupportedSignatureAlgorithmForPublicKey => 15,
-            Error::UnsupportedCrlSignatureAlgorithm | Error::UnsupportedSignatureAlgorithm => 14,
-            Error::UnsupportedCriticalExtension => 13,
-            Error::UnsupportedCertVersion => 13,
-            Error::UnsupportedCrlVersion => 12,
-            Error::UnsupportedDeltaCrl => 11,
-            Error::UnsupportedIndirectCrl => 10,
-            Error::UnsupportedRevocationReason => 9,
-            Error::UnsupportedRevocationReasonsPartitioning => 8,
-            Error::UnsupportedCrlIssuingDistributionPoint => 7,
+            | Error::UnsupportedSignatureAlgorithmForPublicKey => 150,
+            Error::UnsupportedCrlSignatureAlgorithm | Error::UnsupportedSignatureAlgorithm => 140,
+            Error::UnsupportedCriticalExtension => 130,
+            Error::UnsupportedCertVersion => 130,
+            Error::UnsupportedCrlVersion => 120,
+            Error::UnsupportedDeltaCrl => 110,
+            Error::UnsupportedIndirectCrl => 100,
+            Error::UnsupportedRevocationReason => 90,
+            Error::UnsupportedRevocationReasonsPartitioning => 80,
+            Error::UnsupportedCrlIssuingDistributionPoint => 70,
 
             // Errors related to malformed data.
-            Error::MalformedDnsIdentifier => 6,
-            Error::MalformedNameConstraint => 5,
-            Error::MalformedExtensions | Error::TrailingData(_) => 4,
-            Error::ExtensionValueInvalid => 3,
+            Error::MalformedDnsIdentifier => 60,
+            Error::MalformedNameConstraint => 50,
+            Error::MalformedExtensions | Error::TrailingData(_) => 40,
+            Error::ExtensionValueInvalid => 30,
 
             // Generic DER errors.
-            Error::BadDerTime => 2,
-            Error::BadDer => 1,
+            Error::BadDerTime => 20,
+            Error::BadDer => 10,
 
             // Special case errors - not subject to ranking.
             Error::MaximumSignatureChecksExceeded => 0,
