@@ -15,6 +15,7 @@
 use crate::cert::lenient_certificate_serial_number;
 use crate::der::Tag;
 use crate::signed_data::{self, SignedData};
+use crate::verify_cert::Budget;
 use crate::x509::{remember_extension, set_extension_once, Extension};
 use crate::{der, Error, SignatureAlgorithm, Time};
 
@@ -42,6 +43,7 @@ pub trait CertRevocationList: Sealed {
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
         issuer_spki: &[u8],
+        budget: &mut Budget,
     ) -> Result<(), Error>;
 }
 
@@ -85,11 +87,13 @@ impl CertRevocationList for OwnedCertRevocationList {
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
         issuer_spki: &[u8],
+        budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
             supported_sig_algs,
             untrusted::Input::from(issuer_spki),
             &self.signed_data.borrow(),
+            budget,
         )
     }
 }
@@ -329,11 +333,13 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
         &self,
         supported_sig_algs: &[&SignatureAlgorithm],
         issuer_spki: &[u8],
+        budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
             supported_sig_algs,
             untrusted::Input::from(issuer_spki),
             &self.signed_data,
+            budget,
         )
     }
 }
