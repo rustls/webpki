@@ -84,6 +84,9 @@ pub enum Error {
     /// The maximum number of signature checks has been reached. Path complexity is too great.
     MaximumSignatureChecksExceeded,
 
+    /// The maximum number of internal path building calls has been reached. Path complexity is too great.
+    MaximumPathBuildCallsExceeded,
+
     /// The certificate contains an unsupported critical extension.
     UnsupportedCriticalExtension,
 
