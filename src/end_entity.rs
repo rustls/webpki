@@ -97,8 +97,6 @@ impl<'a> EndEntityCert<'a> {
             intermediate_certs,
             &self.inner,
             time,
-            0,
-            &mut 0_usize,
         )
     }
 
@@ -130,8 +128,6 @@ impl<'a> EndEntityCert<'a> {
             intermediate_certs,
             &self.inner,
             time,
-            0,
-            &mut 0_usize,
         )
     }
 
