@@ -14,12 +14,12 @@
 
 #![cfg(feature = "ring")]
 
-use pki_types::CertificateDer;
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
 
 #[cfg(feature = "alloc")]
 fn check_sig(
     ee: &[u8],
-    alg: &dyn webpki::SignatureVerificationAlgorithm,
+    alg: &dyn SignatureVerificationAlgorithm,
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), webpki::Error> {

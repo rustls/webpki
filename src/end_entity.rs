@@ -12,13 +12,13 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use pki_types::{CertificateDer, TrustAnchor};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::{
     cert, signed_data, subject_name, verify_cert, Error, KeyUsage, RevocationOptions,
-    SignatureVerificationAlgorithm, SubjectNameRef, Time,
+    SubjectNameRef, Time,
 };
 
 /// An end-entity certificate.

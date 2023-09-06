@@ -13,12 +13,12 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 #[cfg(feature = "alloc")]
-use pki_types::CertificateDer;
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
 #[cfg(feature = "alloc")]
 use webpki::{extract_trust_anchor, KeyUsage};
 
 #[cfg(feature = "alloc")]
-static ALL_SIGALGS: &[&dyn webpki::SignatureVerificationAlgorithm] = &[
+static ALL_SIGALGS: &[&dyn SignatureVerificationAlgorithm] = &[
     webpki::ECDSA_P256_SHA256,
     webpki::ECDSA_P256_SHA384,
     webpki::ECDSA_P384_SHA256,

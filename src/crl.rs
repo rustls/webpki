@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use pki_types::SignatureVerificationAlgorithm;
+
 use crate::cert::{lenient_certificate_serial_number, Cert, EndEntityOrCa};
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
@@ -19,7 +21,7 @@ use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
 use crate::verify_cert::Budget;
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::{SignatureVerificationAlgorithm, Time};
+use crate::Time;
 use core::fmt::Debug;
 
 #[cfg(feature = "alloc")]
