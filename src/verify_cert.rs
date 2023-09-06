@@ -451,28 +451,13 @@ mod tests {
 
         let alg = &rcgen::PKCS_ECDSA_P256_SHA256;
 
-        let make_issuer = || {
-            let mut ca_params = rcgen::CertificateParams::new(Vec::new());
-            ca_params
-                .distinguished_name
-                .push(rcgen::DnType::OrganizationName, "Bogus Subject");
-            ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-            ca_params.key_usages = vec![
-                rcgen::KeyUsagePurpose::KeyCertSign,
-                rcgen::KeyUsagePurpose::DigitalSignature,
-                rcgen::KeyUsagePurpose::CrlSign,
-            ];
-            ca_params.alg = alg;
-            rcgen::Certificate::from_params(ca_params).unwrap()
-        };
-
-        let ca_cert = make_issuer();
+        let ca_cert = make_issuer("Bogus Subject");
         let ca_cert_der = ca_cert.serialize_der().unwrap();
 
         let mut intermediates = Vec::with_capacity(intermediate_count);
         let mut issuer = ca_cert;
         for _ in 0..intermediate_count {
-            let intermediate = make_issuer();
+            let intermediate = make_issuer("Bogus Subject");
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
             intermediates.push(intermediate_der);
             issuer = intermediate;
@@ -529,29 +514,13 @@ mod tests {
 
         let alg = &rcgen::PKCS_ECDSA_P256_SHA256;
 
-        let make_issuer = |index: usize| {
-            let mut ca_params = rcgen::CertificateParams::new(Vec::new());
-            ca_params.distinguished_name.push(
-                rcgen::DnType::OrganizationName,
-                format!("Bogus Subject {index}"),
-            );
-            ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-            ca_params.key_usages = vec![
-                rcgen::KeyUsagePurpose::KeyCertSign,
-                rcgen::KeyUsagePurpose::DigitalSignature,
-                rcgen::KeyUsagePurpose::CrlSign,
-            ];
-            ca_params.alg = alg;
-            rcgen::Certificate::from_params(ca_params).unwrap()
-        };
-
-        let ca_cert = make_issuer(chain_length);
+        let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = ca_cert.serialize_der().unwrap();
 
         let mut intermediates = Vec::with_capacity(chain_length);
         let mut issuer = ca_cert;
         for i in 0..chain_length {
-            let intermediate = make_issuer(i);
+            let intermediate = make_issuer(format!("Bogus Subject {i}"));
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
             intermediates.push(intermediate_der);
             issuer = intermediate;
@@ -595,5 +564,21 @@ mod tests {
         // Note: webpki 0.101.x and earlier surface all non-fatal errors as UnknownIssuer,
         //       eating the more specific MaximumPathDepthExceeded error.
         assert_eq!(build_linear_chain(7), Err(Error::UnknownIssuer));
+    }
+
+    #[cfg(feature = "alloc")]
+    fn make_issuer(org_name: impl Into<String>) -> rcgen::Certificate {
+        let mut ca_params = rcgen::CertificateParams::new(Vec::new());
+        ca_params
+            .distinguished_name
+            .push(rcgen::DnType::OrganizationName, org_name);
+        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        ca_params.key_usages = vec![
+            rcgen::KeyUsagePurpose::KeyCertSign,
+            rcgen::KeyUsagePurpose::DigitalSignature,
+            rcgen::KeyUsagePurpose::CrlSign,
+        ];
+        ca_params.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
+        rcgen::Certificate::from_params(ca_params).unwrap()
     }
 }
