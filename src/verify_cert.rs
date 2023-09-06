@@ -758,6 +758,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "alloc")]
+    use crate::test_utils::{make_end_entity, make_issuer};
     use crate::BorrowedCertRevocationList;
 
     #[test]
@@ -1078,39 +1080,6 @@ mod tests {
             },
             cert.inner(),
             time,
-        )
-    }
-
-    #[cfg(feature = "alloc")]
-    fn make_issuer(
-        org_name: impl Into<String>,
-        name_constraints: Option<rcgen::NameConstraints>,
-    ) -> rcgen::Certificate {
-        let mut ca_params = rcgen::CertificateParams::new(Vec::new());
-        ca_params
-            .distinguished_name
-            .push(rcgen::DnType::OrganizationName, org_name);
-        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-        ca_params.key_usages = vec![
-            rcgen::KeyUsagePurpose::KeyCertSign,
-            rcgen::KeyUsagePurpose::DigitalSignature,
-            rcgen::KeyUsagePurpose::CrlSign,
-        ];
-        ca_params.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
-        ca_params.name_constraints = name_constraints;
-        rcgen::Certificate::from_params(ca_params).unwrap()
-    }
-
-    #[cfg(feature = "alloc")]
-    fn make_end_entity(issuer: &rcgen::Certificate) -> CertificateDer<'static> {
-        let mut ee_params = rcgen::CertificateParams::new(vec!["example.com".to_string()]);
-        ee_params.is_ca = rcgen::IsCa::ExplicitNoCa;
-        ee_params.alg = &rcgen::PKCS_ECDSA_P256_SHA256;
-        CertificateDer::from(
-            rcgen::Certificate::from_params(ee_params)
-                .unwrap()
-                .serialize_der_with_signer(issuer)
-                .unwrap(),
         )
     }
 }

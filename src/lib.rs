@@ -60,6 +60,9 @@ mod crl;
 mod verify_cert;
 mod x509;
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 pub use {
     cert::{Cert, EndEntityOrCa},
     crl::{BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason},
