@@ -578,9 +578,6 @@ mod tests {
         intermediate_count: usize,
         trust_anchor_is_actual_issuer: TrustAnchorIsActualIssuer,
     ) -> Error {
-        use crate::ECDSA_P256_SHA256;
-        use crate::{EndEntityCert, Time};
-
         let ca_cert = make_issuer("Bogus Subject");
         let ca_cert_der = ca_cert.serialize_der().unwrap();
 
@@ -593,28 +590,11 @@ mod tests {
             issuer = intermediate;
         }
 
-        let ee_cert_der = make_end_entity(&issuer);
-        let cert = EndEntityCert::try_from(&ee_cert_der[..]).unwrap();
-        let anchors = &[TrustAnchor::try_from_cert_der(&ca_cert_der).unwrap()];
-        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-        let mut intermediate_certs = intermediates.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
-
         if let TrustAnchorIsActualIssuer::No = trust_anchor_is_actual_issuer {
-            intermediate_certs.pop();
+            intermediates.pop();
         }
 
-        build_chain(
-            &ChainOptions {
-                eku: KeyUsage::server_auth(),
-                supported_sig_algs: &[&ECDSA_P256_SHA256],
-                trust_anchors: anchors,
-                intermediate_certs: &intermediate_certs,
-                crls: &[],
-            },
-            cert.inner(),
-            time,
-        )
-        .unwrap_err()
+        verify_chain(ca_cert_der, intermediates, make_end_entity(&issuer)).unwrap_err()
     }
 
     #[test]
@@ -637,9 +617,6 @@ mod tests {
 
     #[cfg(feature = "alloc")]
     fn build_linear_chain(chain_length: usize) -> Result<(), Error> {
-        use crate::ECDSA_P256_SHA256;
-        use crate::{EndEntityCert, Time};
-
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = ca_cert.serialize_der().unwrap();
 
@@ -652,23 +629,7 @@ mod tests {
             issuer = intermediate;
         }
 
-        let ee_cert_der = make_end_entity(&issuer);
-        let cert = EndEntityCert::try_from(&ee_cert_der[..]).unwrap();
-        let anchors = &[TrustAnchor::try_from_cert_der(&ca_cert_der).unwrap()];
-        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-        let intermediates_der = intermediates.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
-
-        build_chain(
-            &ChainOptions {
-                eku: KeyUsage::server_auth(),
-                supported_sig_algs: &[&ECDSA_P256_SHA256],
-                trust_anchors: anchors,
-                intermediate_certs: &intermediates_der,
-                crls: &[],
-            },
-            cert.inner(),
-            time,
-        )
+        verify_chain(ca_cert_der, intermediates, make_end_entity(&issuer))
     }
 
     #[test]
@@ -686,6 +647,36 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn path_too_long() {
         assert_eq!(build_linear_chain(7), Err(Error::MaximumPathDepthExceeded));
+    }
+
+    #[cfg(feature = "alloc")]
+    fn verify_chain(
+        trust_anchor_der: Vec<u8>,
+        intermediates_der: Vec<Vec<u8>>,
+        ee_cert_der: Vec<u8>,
+    ) -> Result<(), Error> {
+        use crate::ECDSA_P256_SHA256;
+        use crate::{EndEntityCert, Time};
+
+        let anchors = &[TrustAnchor::try_from_cert_der(&trust_anchor_der).unwrap()];
+        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+        let cert = EndEntityCert::try_from(ee_cert_der).unwrap();
+        let intermediates_der = intermediates_der
+            .iter()
+            .map(|x| x.as_ref())
+            .collect::<Vec<_>>();
+
+        build_chain(
+            &ChainOptions {
+                eku: KeyUsage::server_auth(),
+                supported_sig_algs: &[&ECDSA_P256_SHA256],
+                trust_anchors: anchors,
+                intermediate_certs: &intermediates_der,
+                crls: &[],
+            },
+            cert.inner(),
+            time,
+        )
     }
 
     #[cfg(feature = "alloc")]
