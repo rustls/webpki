@@ -14,10 +14,10 @@
 
 #![cfg(feature = "ring")]
 
-use pki_types::CertificateDer;
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
 use webpki::{extract_trust_anchor, KeyUsage};
 
-static ALL_SIGALGS: &[&dyn webpki::SignatureVerificationAlgorithm] = &[
+static ALL_SIGALGS: &[&dyn SignatureVerificationAlgorithm] = &[
     webpki::ECDSA_P256_SHA256,
     webpki::ECDSA_P256_SHA384,
     webpki::ECDSA_P384_SHA256,

@@ -12,22 +12,23 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::signed_data::{alg_id, InvalidSignature, SignatureVerificationAlgorithm};
+use crate::signed_data::alg_id;
+use pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use ring::signature;
 
 /// A `SignatureVerificationAlgorithm` implemented using *ring*.
 struct RingAlgorithm {
-    public_key_alg_id: alg_id::AlgorithmIdentifier,
-    signature_alg_id: alg_id::AlgorithmIdentifier,
+    public_key_alg_id: AlgorithmIdentifier,
+    signature_alg_id: AlgorithmIdentifier,
     verification_alg: &'static dyn signature::VerificationAlgorithm,
 }
 
 impl SignatureVerificationAlgorithm for RingAlgorithm {
-    fn public_key_alg_id(&self) -> alg_id::AlgorithmIdentifier {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         self.public_key_alg_id
     }
 
-    fn signature_alg_id(&self) -> alg_id::AlgorithmIdentifier {
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
         self.signature_alg_id
     }
 
@@ -540,7 +541,7 @@ mod tests {
         general_purpose::STANDARD.decode(&base64).unwrap()
     }
 
-    static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn signed_data::SignatureVerificationAlgorithm] = &[
+    static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
         super::ECDSA_P256_SHA256,
         super::ECDSA_P384_SHA384,

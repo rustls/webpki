@@ -16,6 +16,8 @@ use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::Budget;
 
+use pki_types::{AlgorithmIdentifier, SignatureVerificationAlgorithm};
+
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
@@ -178,10 +180,10 @@ pub(crate) fn verify_signed_data(
     // Parse the signature.
     //
     let mut found_signature_alg_match = false;
-    for supported_alg in supported_algorithms.iter().filter(|alg| {
-        alg.signature_alg_id()
-            .matches_algorithm_id_value(signed_data.algorithm)
-    }) {
+    for supported_alg in supported_algorithms
+        .iter()
+        .filter(|alg| alg.signature_alg_id().as_ref() == signed_data.algorithm.as_slice_less_safe())
+    {
         match verify_signature(
             *supported_alg,
             spki_value,
@@ -212,10 +214,7 @@ pub(crate) fn verify_signature(
     signature: untrusted::Input,
 ) -> Result<(), Error> {
     let spki = der::read_all::<SubjectPublicKeyInfo>(spki_value)?;
-    if !signature_alg
-        .public_key_alg_id()
-        .matches_algorithm_id_value(spki.algorithm_id_value)
-    {
+    if signature_alg.public_key_alg_id().as_ref() != spki.algorithm_id_value.as_slice_less_safe() {
         return Err(Error::UnsupportedSignatureAlgorithmForPublicKey);
     }
 
@@ -250,123 +249,46 @@ impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
     const TYPE_ID: DerTypeId = DerTypeId::SubjectPublicKeyInfo;
 }
 
-/// An abstract signature verification algorithm.
-///
-/// One of these is needed per supported pair of public key type (identified
-/// with `public_key_alg_id()`) and `signatureAlgorithm` (identified with
-/// `signature_alg_id()`).  Note that both of these `AlgorithmIdentifier`s include
-/// the parameters encoding, so separate `SignatureVerificationAlgorithm`s are needed
-/// for each possible public key or signature parameters.
-pub trait SignatureVerificationAlgorithm: Send + Sync {
-    /// Return the `AlgorithmIdentifier` that must be present on a `subjectPublicKeyInfo`
-    /// for this `SignatureVerificationAlgorithm` to be considered for verification.
-    fn public_key_alg_id(&self) -> alg_id::AlgorithmIdentifier;
-
-    /// Return the `AlgorithmIdentifier` that must be present as the `signatureAlgorithm`
-    /// on the data to be verified for this `SignatureVerificationAlgorithm` to be considered
-    /// for this `SignatureVerificationAlgorithm` to be considered.
-    fn signature_alg_id(&self) -> alg_id::AlgorithmIdentifier;
-
-    /// Verify a signature.
-    ///
-    /// `public_key` is the `subjectPublicKey` value from a `SubjectPublicKeyInfo` encoding
-    ///  and is untrusted.
-    ///
-    ///  `message` is the data over which the signature was allegedly computed.
-    ///  It is not hashed; implementations of this trait function must do hashing
-    ///  if that is required by the algorithm they implement.
-    ///
-    ///  `signature` is the signature allegedly over `message`.
-    ///
-    /// Return `Ok(())` only if `signature` is a valid signature on `message`.
-    ///
-    /// Return `Err(InvalidSignature)` if the signature is invalid, including if the `public_key`
-    /// encoding is invalid.  There is no need or opportunity to produce errors
-    /// that are more specific than this.
-    fn verify_signature(
-        &self,
-        public_key: &[u8],
-        message: &[u8],
-        signature: &[u8],
-    ) -> Result<(), InvalidSignature>;
-}
-
-/// A detail-less error when a signature is not valid.
-#[derive(Debug, Copy, Clone)]
-pub struct InvalidSignature;
-
-/// Encodings of the PKIX AlgorithmIdentifier type:
-///
-/// ```ASN.1
-/// AlgorithmIdentifier  ::=  SEQUENCE  {
-///     algorithm               OBJECT IDENTIFIER,
-///     parameters              ANY DEFINED BY algorithm OPTIONAL  }
-///                                -- contains a value of the type
-///                                -- registered for use with the
-///                                -- algorithm object identifier value
-/// ```
-/// (from <https://www.rfc-editor.org/rfc/rfc5280#section-4.1.1.2>)
-///
-/// The outer sequence encoding is not included, so this is an OID encoding
-/// for `algorithm` plus the `parameters` value.
+/// Encodings of the PKIX AlgorithmIdentifier type.
 ///
 /// This module contains a set of common values, and exists to keep the
 /// names of these separate from the actual algorithm implementations.
 pub mod alg_id {
-    /// A `AlgorithmIdentifier` encoding.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct AlgorithmIdentifier {
-        asn1_id_value: untrusted::Input<'static>,
-    }
-
-    impl AlgorithmIdentifier {
-        /// Makes a new `AlgorithmIdentifier` from a static octet string.
-        ///
-        /// This does not validate the contents of the string.
-        pub const fn new(bytes: &'static [u8]) -> Self {
-            Self {
-                asn1_id_value: untrusted::Input::from(bytes),
-            }
-        }
-
-        pub(crate) fn matches_algorithm_id_value(&self, encoded: untrusted::Input) -> bool {
-            encoded == self.asn1_id_value
-        }
-    }
+    use super::AlgorithmIdentifier;
 
     // See src/data/README.md.
 
     /// AlgorithmIdentifier for `id-ecPublicKey` with named curve `secp256r1`.
     pub const ECDSA_P256: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-p256.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-p256.der"));
 
     /// AlgorithmIdentifier for `id-ecPublicKey` with named curve `secp384r1`.
     pub const ECDSA_P384: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-p384.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-p384.der"));
 
     /// AlgorithmIdentifier for `ecdsa-with-SHA256`.
     pub const ECDSA_SHA256: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-sha256.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-sha256.der"));
 
     /// AlgorithmIdentifier for `ecdsa-with-SHA384`.
     pub const ECDSA_SHA384: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-ecdsa-sha384.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-sha384.der"));
 
     /// AlgorithmIdentifier for `rsaEncryption`.
     pub const RSA_ENCRYPTION: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-encryption.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-encryption.der"));
 
     /// AlgorithmIdentifier for `sha256WithRSAEncryption`.
     pub const RSA_PKCS1_SHA256: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pkcs1-sha256.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-pkcs1-sha256.der"));
 
     /// AlgorithmIdentifier for `sha384WithRSAEncryption`.
     pub const RSA_PKCS1_SHA384: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pkcs1-sha384.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-pkcs1-sha384.der"));
 
     /// AlgorithmIdentifier for `sha512WithRSAEncryption`.
     pub const RSA_PKCS1_SHA512: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pkcs1-sha512.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-pkcs1-sha512.der"));
 
     /// AlgorithmIdentifier for `rsassaPss` with:
     ///
@@ -374,7 +296,7 @@ pub mod alg_id {
     /// - maskGenAlgorithm: mgf1 with sha256
     /// - saltLength: 32
     pub const RSA_PSS_SHA256: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pss-sha256.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-pss-sha256.der"));
 
     /// AlgorithmIdentifier for `rsassaPss` with:
     ///
@@ -382,7 +304,7 @@ pub mod alg_id {
     /// - maskGenAlgorithm: mgf1 with sha384
     /// - saltLength: 48
     pub const RSA_PSS_SHA384: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pss-sha384.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-pss-sha384.der"));
 
     /// AlgorithmIdentifier for `rsassaPss` with:
     ///
@@ -390,18 +312,9 @@ pub mod alg_id {
     /// - maskGenAlgorithm: mgf1 with sha512
     /// - saltLength: 64
     pub const RSA_PSS_SHA512: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-rsa-pss-sha512.der"));
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-rsa-pss-sha512.der"));
 
     /// AlgorithmIdentifier for `ED25519`.
     pub const ED25519: AlgorithmIdentifier =
-        AlgorithmIdentifier::new(include_bytes!("data/alg-ed25519.der"));
-
-    #[test]
-    fn test_algorithm_identifer() {
-        let id = AlgorithmIdentifier::new(&[1, 2, 3]);
-        #[allow(clippy::clone_on_copy)]
-        let _ = id.clone();
-        let _ = id;
-        assert!(format!("{:?}", id).starts_with("AlgorithmIdentifier "));
-    }
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ed25519.der"));
 }

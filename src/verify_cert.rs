@@ -14,14 +14,12 @@
 
 use core::default::Default;
 
-use pki_types::{CertificateDer, TrustAnchor};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 
 use crate::cert::{Cert, EndEntityOrCa};
 use crate::crl::IssuingDistributionPoint;
 use crate::der::{self, FromDer};
-use crate::{
-    signed_data, subject_name, time, CertRevocationList, Error, SignatureVerificationAlgorithm,
-};
+use crate::{signed_data, subject_name, time, CertRevocationList, Error};
 
 /// Builds a RevocationOptions instance to control how revocation checking is performed.
 #[derive(Debug, Copy, Clone)]

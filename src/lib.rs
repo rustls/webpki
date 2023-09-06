@@ -65,7 +65,7 @@ pub use {
     crl::{BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason},
     end_entity::EndEntityCert,
     error::{DerTypeId, Error},
-    signed_data::{alg_id, InvalidSignature, SignatureVerificationAlgorithm},
+    signed_data::alg_id,
     subject_name::{
         AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,
         SubjectNameRef,
