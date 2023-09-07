@@ -505,7 +505,13 @@ mod tests {
             intermediates.pop();
         }
 
-        verify_chain(&ca_cert_der, &intermediates, &make_end_entity(&issuer)).unwrap_err()
+        verify_chain(
+            &ca_cert_der,
+            &intermediates,
+            &make_end_entity(&issuer),
+            None,
+        )
+        .unwrap_err()
     }
 
     #[test]
@@ -540,7 +546,12 @@ mod tests {
             issuer = intermediate;
         }
 
-        verify_chain(&ca_cert_der, &intermediates, &make_end_entity(&issuer))
+        verify_chain(
+            &ca_cert_der,
+            &intermediates,
+            &make_end_entity(&issuer),
+            None,
+        )
     }
 
     #[test]
@@ -565,9 +576,6 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn name_constraint_budget() {
-        use crate::ECDSA_P256_SHA256;
-        use crate::{EndEntityCert, Time};
-
         // Issue a trust anchor that imposes name constraints. The constraint should match
         // the end entity certificate SAN.
         let ca_cert = make_issuer(
@@ -597,18 +605,10 @@ mod tests {
         // Create an end-entity cert that is issued by the last of the intermediates.
         let ee_cert = make_end_entity(intermediates.last().unwrap());
 
-        let anchors = &[TrustAnchor::try_from_cert_der(&ca_cert_der).unwrap()];
-        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-        let cert = EndEntityCert::try_from(&ee_cert[..]).unwrap();
-        let intermediates_der = intermediates_der
-            .iter()
-            .map(|x| x.as_ref())
-            .collect::<Vec<_>>();
-
         // We use a custom budget to make it easier to write a test, otherwise it is tricky to
         // stuff enough names/constraints into the potential chains while staying within the path
         // depth limit and the build chain call limit.
-        let mut passing_budget = Budget {
+        let passing_budget = Budget {
             // One comparison against the intermediate's distinguished name.
             // One comparison against the EE's distinguished name.
             // One comparison against the EE's SAN.
@@ -620,19 +620,15 @@ mod tests {
         // Validation should succeed with the name constraint comparison budget allocated above.
         // This shows that we're not consuming budget on unused intermediates: we didn't budget
         // enough comparisons for that to pass the overall chain building.
-        build_chain_inner(
-            EKU_SERVER_AUTH,
-            &[&ECDSA_P256_SHA256],
-            anchors,
+        verify_chain(
+            &ca_cert_der,
             &intermediates_der,
-            cert.inner(),
-            time,
-            0,
-            &mut passing_budget,
+            &ee_cert,
+            Some(passing_budget),
         )
         .unwrap();
 
-        let mut failing_budget = Budget {
+        let failing_budget = Budget {
             // See passing_budget: 2 comparisons is not sufficient.
             name_constraint_comparisons: 2,
             ..Budget::default()
@@ -640,15 +636,11 @@ mod tests {
         // Validation should fail when the budget is smaller than the number of comparisons performed
         // on the validated path. This demonstrates we properly fail path building when too many
         // name constraint comparisons occur.
-        let result = build_chain_inner(
-            EKU_SERVER_AUTH,
-            &[&ECDSA_P256_SHA256],
-            anchors,
+        let result = verify_chain(
+            &ca_cert_der,
             &intermediates_der,
-            cert.inner(),
-            time,
-            0,
-            &mut failing_budget,
+            &ee_cert,
+            Some(failing_budget),
         );
 
         assert_eq!(result, Err(Error::MaximumNameConstraintComparisonsExceeded));
@@ -659,6 +651,7 @@ mod tests {
         trust_anchor_der: &[u8],
         intermediates_der: &[Vec<u8>],
         ee_cert_der: &[u8],
+        budget: Option<Budget>,
     ) -> Result<(), Error> {
         use crate::ECDSA_P256_SHA256;
         use crate::{EndEntityCert, Time};
@@ -671,13 +664,15 @@ mod tests {
             .map(|x| x.as_ref())
             .collect::<Vec<_>>();
 
-        build_chain(
+        build_chain_inner(
             EKU_SERVER_AUTH,
             &[&ECDSA_P256_SHA256],
             anchors,
             &intermediates_der,
             cert.inner(),
             time,
+            0,
+            &mut budget.unwrap_or_default(),
         )
     }
 
