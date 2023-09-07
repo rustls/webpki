@@ -245,6 +245,18 @@ impl Error {
             Error::UnknownIssuer => 0,
         }
     }
+
+    /// Returns true for errors that should be considered fatal during path building. Errors of
+    /// this class should halt any further path building and be returned immediately.
+    #[inline]
+    pub(crate) fn is_fatal(&self) -> bool {
+        matches!(
+            self,
+            Error::MaximumSignatureChecksExceeded
+                | Error::MaximumPathBuildCallsExceeded
+                | Error::MaximumNameConstraintComparisonsExceeded
+        )
+    }
 }
 
 impl fmt::Display for Error {
