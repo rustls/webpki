@@ -112,9 +112,9 @@ fn build_chain_inner(
     // If the error is not fatal, then keep going.
     match result {
         Ok(()) => return Ok(()),
-        err @ Err(Error::MaximumSignatureChecksExceeded)
-        | err @ Err(Error::MaximumPathBuildCallsExceeded)
-        | err @ Err(Error::MaximumNameConstraintComparisonsExceeded) => return err,
+        // Fatal errors should halt further path building.
+        res @ Err(err) if err.is_fatal() => return res,
+        // Non-fatal errors should allow path building to continue.
         _ => {}
     };
 
@@ -488,6 +488,7 @@ mod tests {
     fn build_degenerate_chain(
         intermediate_count: usize,
         trust_anchor_is_actual_issuer: TrustAnchorIsActualIssuer,
+        budget: Option<Budget>,
     ) -> Error {
         let ca_cert = make_issuer("Bogus Subject", None);
         let ca_cert_der = ca_cert.serialize_der().unwrap();
@@ -509,7 +510,7 @@ mod tests {
             &ca_cert_der,
             &intermediates,
             &make_end_entity(&issuer),
-            None,
+            budget,
         )
         .unwrap_err()
     }
@@ -518,7 +519,7 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_too_many_signatures() {
         assert_eq!(
-            build_degenerate_chain(5, TrustAnchorIsActualIssuer::Yes),
+            build_degenerate_chain(5, TrustAnchorIsActualIssuer::Yes, None),
             Error::MaximumSignatureChecksExceeded
         );
     }
@@ -527,7 +528,17 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_too_many_path_calls() {
         assert_eq!(
-            build_degenerate_chain(10, TrustAnchorIsActualIssuer::No),
+            build_degenerate_chain(
+                10,
+                TrustAnchorIsActualIssuer::No,
+                Some(Budget {
+                    // Crafting a chain that will expend the build chain calls budget without
+                    // first expending the signature checks budget is tricky, so we artificially
+                    // inflate the signature limit to make this test easier to write.
+                    signatures: usize::MAX,
+                    ..Budget::default()
+                })
+            ),
             Error::MaximumPathBuildCallsExceeded
         );
     }
