@@ -31,29 +31,25 @@ pub(crate) fn verify_cert_dns_name(
 ) -> Result<(), Error> {
     let cert = cert.inner();
     let dns_name = untrusted::Input::from(dns_name.as_ref().as_bytes());
-    NameIterator::new(
-        Some(cert.subject),
-        cert.subject_alt_name,
-        SubjectCommonNameContents::Ignore,
-    )
-    .find_map(|result| {
-        let name = match result {
-            Ok(name) => name,
-            Err(err) => return Some(Err(err)),
-        };
+    NameIterator::new(Some(cert.subject), cert.subject_alt_name)
+        .find_map(|result| {
+            let name = match result {
+                Ok(name) => name,
+                Err(err) => return Some(Err(err)),
+            };
 
-        let presented_id = match name {
-            GeneralName::DnsName(presented) => presented,
-            _ => return None,
-        };
+            let presented_id = match name {
+                GeneralName::DnsName(presented) => presented,
+                _ => return None,
+            };
 
-        match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-            Ok(true) => Some(Ok(())),
-            Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
-            Err(e) => Some(Err(e)),
-        }
-    })
-    .unwrap_or(Err(Error::CertNotValidForName))
+            match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
+                Ok(true) => Some(Ok(())),
+                Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
+                Err(e) => Some(Err(e)),
+            }
+        })
+        .unwrap_or(Err(Error::CertNotValidForName))
 }
 
 pub(crate) fn verify_cert_subject_name(
@@ -75,7 +71,6 @@ pub(crate) fn verify_cert_subject_name(
         // only against Subject Alternative Names.
         None,
         cert.inner().subject_alt_name,
-        SubjectCommonNameContents::Ignore,
     )
     .find_map(|result| {
         let name = match result {
@@ -100,7 +95,6 @@ pub(crate) fn verify_cert_subject_name(
 pub(crate) fn check_name_constraints(
     constraints: Option<&mut untrusted::Reader>,
     subordinate_certs: &Cert,
-    subject_common_name_contents: SubjectCommonNameContents,
     budget: &mut Budget,
 ) -> Result<(), Error> {
     let constraints = match constraints {
@@ -123,24 +117,20 @@ pub(crate) fn check_name_constraints(
 
     let mut child = subordinate_certs;
     loop {
-        let result = NameIterator::new(
-            Some(child.subject),
-            child.subject_alt_name,
-            subject_common_name_contents,
-        )
-        .find_map(|result| {
-            let name = match result {
-                Ok(name) => name,
-                Err(err) => return Some(Err(err)),
-            };
+        let result =
+            NameIterator::new(Some(child.subject), child.subject_alt_name).find_map(|result| {
+                let name = match result {
+                    Ok(name) => name,
+                    Err(err) => return Some(Err(err)),
+                };
 
-            check_presented_id_conforms_to_constraints(
-                name,
-                permitted_subtrees,
-                excluded_subtrees,
-                budget,
-            )
-        });
+                check_presented_id_conforms_to_constraints(
+                    name,
+                    permitted_subtrees,
+                    excluded_subtrees,
+                    budget,
+                )
+            });
 
         if let Some(Err(err)) = result {
             return Err(err);
@@ -282,37 +272,21 @@ enum Subtrees {
     ExcludedSubtrees,
 }
 
-#[derive(Clone, Copy)]
-pub(crate) enum SubjectCommonNameContents {
-    DnsName,
-    Ignore,
-}
-
 struct NameIterator<'a> {
     subject_alt_name: Option<untrusted::Reader<'a>>,
     subject_directory_name: Option<untrusted::Input<'a>>,
-    subject_common_name: Option<untrusted::Input<'a>>,
 }
 
 impl<'a> NameIterator<'a> {
     fn new(
         subject: Option<untrusted::Input<'a>>,
         subject_alt_name: Option<untrusted::Input<'a>>,
-        subject_common_name_contents: SubjectCommonNameContents,
     ) -> Self {
-        // If `subject` is present, we always consider it as a `DirectoryName`.
-        // We yield its common name only if the policy in `subject_common_name_contents` allows it.
-        let (subject_directory_name, subject_common_name) =
-            match (subject, subject_common_name_contents) {
-                (Some(input), SubjectCommonNameContents::DnsName) => (Some(input), Some(input)),
-                (Some(input), SubjectCommonNameContents::Ignore) => (Some(input), None),
-                (None, _) => (None, None),
-            };
-
         NameIterator {
             subject_alt_name: subject_alt_name.map(untrusted::Reader::new),
-            subject_directory_name,
-            subject_common_name,
+
+            // If `subject` is present, we always consider it as a `DirectoryName`.
+            subject_directory_name: subject,
         }
     }
 }
@@ -338,7 +312,6 @@ impl<'a> Iterator for NameIterator<'a> {
                 // Make sure we don't yield any items after this error.
                 self.subject_alt_name = None;
                 self.subject_directory_name = None;
-                self.subject_common_name = None;
                 return Some(Err(err));
             } else {
                 self.subject_alt_name = None;
@@ -347,15 +320,6 @@ impl<'a> Iterator for NameIterator<'a> {
 
         if let Some(subject_directory_name) = self.subject_directory_name.take() {
             return Some(Ok(GeneralName::DirectoryName(subject_directory_name)));
-        }
-
-        if let Some(subject_common_name) = self.subject_common_name.take() {
-            return match common_name(subject_common_name) {
-                Ok(Some(cn)) => Some(Ok(GeneralName::DnsName(cn))),
-                Ok(None) => None,
-                // All the iterator fields should be `None` at this point
-                Err(err) => Some(Err(err)),
-            };
         }
 
         None
@@ -369,37 +333,33 @@ pub(crate) fn list_cert_dns_names<'names>(
     let cert = &cert.inner();
     let mut names = Vec::new();
 
-    let result = NameIterator::new(
-        Some(cert.subject),
-        cert.subject_alt_name,
-        SubjectCommonNameContents::DnsName,
-    )
-    .find_map(&mut |result| {
-        let name = match result {
-            Ok(name) => name,
-            Err(err) => return Some(err),
-        };
+    let result =
+        NameIterator::new(Some(cert.subject), cert.subject_alt_name).find_map(&mut |result| {
+            let name = match result {
+                Ok(name) => name,
+                Err(err) => return Some(err),
+            };
 
-        let presented_id = match name {
-            GeneralName::DnsName(presented) => presented,
-            _ => return None,
-        };
+            let presented_id = match name {
+                GeneralName::DnsName(presented) => presented,
+                _ => return None,
+            };
 
-        let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-            .map(GeneralDnsNameRef::DnsName)
-            .or_else(|_| {
-                WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                    .map(GeneralDnsNameRef::Wildcard)
-            });
+            let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                .map(GeneralDnsNameRef::DnsName)
+                .or_else(|_| {
+                    WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                        .map(GeneralDnsNameRef::Wildcard)
+                });
 
-        // if the name could be converted to a DNS name, add it; otherwise,
-        // keep going.
-        if let Ok(name) = dns_name {
-            names.push(name)
-        }
+            // if the name could be converted to a DNS name, add it; otherwise,
+            // keep going.
+            if let Ok(name) = dns_name {
+                names.push(name)
+            }
 
-        None
-    });
+            None
+        });
 
     match result {
         Some(err) => Err(err),
@@ -456,34 +416,4 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
     }
 
     const TYPE_ID: DerTypeId = DerTypeId::GeneralName;
-}
-
-static COMMON_NAME: untrusted::Input = untrusted::Input::from(&[85, 4, 3]);
-
-fn common_name(input: untrusted::Input) -> Result<Option<untrusted::Input>, Error> {
-    let inner = &mut untrusted::Reader::new(input);
-    der::nested(
-        inner,
-        der::Tag::Set,
-        Error::TrailingData(DerTypeId::CommonNameOuter),
-        |tagged| {
-            der::nested(
-                tagged,
-                der::Tag::Sequence,
-                Error::TrailingData(DerTypeId::CommonNameInner),
-                |tagged| {
-                    while !tagged.at_end() {
-                        let name_oid = der::expect_tag(tagged, der::Tag::OID)?;
-                        if name_oid == COMMON_NAME {
-                            return der::expect_tag(tagged, der::Tag::UTF8String).map(Some);
-                        } else {
-                            // discard unused name value
-                            der::read_tag_and_get_value(tagged)?;
-                        }
-                    }
-                    Ok(None)
-                },
-            )
-        },
-    )
 }

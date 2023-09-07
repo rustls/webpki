@@ -159,20 +159,6 @@ fn build_chain_inner(
         }
     }
 
-    // for the purpose of name constraints checking, only end-entity server certificates
-    // could plausibly have a DNS name as a subject commonName that could contribute to
-    // path validity
-    let subject_common_name_contents = if opts
-        .eku
-        .inner
-        .key_purpose_id_equals(EKU_SERVER_AUTH.oid_value)
-        && used_as_ca == UsedAsCa::No
-    {
-        subject_name::SubjectCommonNameContents::DnsName
-    } else {
-        subject_name::SubjectCommonNameContents::Ignore
-    };
-
     let result = loop_while_non_fatal_error(
         Error::UnknownIssuer,
         opts.trust_anchors,
@@ -192,12 +178,7 @@ fn build_chain_inner(
                 budget,
             )?;
 
-            check_signed_chain_name_constraints(
-                cert,
-                trust_anchor,
-                subject_common_name_contents,
-                budget,
-            )?;
+            check_signed_chain_name_constraints(cert, trust_anchor, budget)?;
 
             Ok(())
         },
@@ -287,7 +268,6 @@ fn check_signed_chain(
 fn check_signed_chain_name_constraints(
     cert_chain: &Cert,
     trust_anchor: &TrustAnchor,
-    subject_common_name_contents: subject_name::SubjectCommonNameContents,
     budget: &mut Budget,
 ) -> Result<(), Error> {
     let mut cert = cert_chain;
@@ -298,7 +278,7 @@ fn check_signed_chain_name_constraints(
 
     loop {
         untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
-            subject_name::check_name_constraints(value, cert, subject_common_name_contents, budget)
+            subject_name::check_name_constraints(value, cert, budget)
         })?;
 
         match &cert.ee_or_ca {

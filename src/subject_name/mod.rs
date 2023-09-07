@@ -35,6 +35,4 @@ mod verify;
 pub(super) use verify::list_cert_dns_names;
 #[allow(unused_imports)] // TODO(@cpu): remove once used by cert module.
 pub(crate) use verify::GeneralName;
-pub(super) use verify::{
-    check_name_constraints, verify_cert_subject_name, SubjectCommonNameContents,
-};
+pub(super) use verify::{check_name_constraints, verify_cert_subject_name};
