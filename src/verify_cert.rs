@@ -898,7 +898,7 @@ mod tests {
             intermediates.pop();
         }
 
-        verify_chain(ca_cert_der, intermediates, make_end_entity(&issuer)).unwrap_err()
+        verify_chain(&ca_cert_der, &intermediates, &make_end_entity(&issuer)).unwrap_err()
     }
 
     #[test]
@@ -933,7 +933,7 @@ mod tests {
             issuer = intermediate;
         }
 
-        verify_chain(ca_cert_der, intermediates, make_end_entity(&issuer))
+        verify_chain(&ca_cert_der, &intermediates, &make_end_entity(&issuer))
     }
 
     #[test]
@@ -1053,16 +1053,16 @@ mod tests {
 
     #[cfg(feature = "alloc")]
     fn verify_chain(
-        trust_anchor: CertificateDer<'_>,
-        intermediates_der: Vec<Vec<u8>>,
-        ee_cert: CertificateDer<'_>,
+        trust_anchor: &CertificateDer<'_>,
+        intermediates_der: &[Vec<u8>],
+        ee_cert: &CertificateDer<'_>,
     ) -> Result<(), Error> {
         use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
         use crate::{EndEntityCert, Time};
 
-        let anchors = &[extract_trust_anchor(&trust_anchor).unwrap()];
+        let anchors = &[extract_trust_anchor(trust_anchor).unwrap()];
         let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-        let cert = EndEntityCert::try_from(&ee_cert).unwrap();
+        let cert = EndEntityCert::try_from(ee_cert).unwrap();
         let intermediates_der = intermediates_der
             .iter()
             .map(|x| CertificateDer::from(x.as_ref()))
