@@ -13,6 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use core::fmt;
+use core::ops::ControlFlow;
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,6 +127,17 @@ impl Error {
                 | Error::MaximumPathBuildCallsExceeded
                 | Error::MaximumNameConstraintComparisonsExceeded
         )
+    }
+}
+
+impl From<Error> for ControlFlow<Error, Error> {
+    fn from(value: Error) -> Self {
+        match value {
+            // If an error is fatal, we've exhausted the potential for continued search.
+            err if err.is_fatal() => Self::Break(err),
+            // Otherwise we've rejected one candidate chain, but may continue to search for others.
+            err => Self::Continue(err),
+        }
     }
 }
 
