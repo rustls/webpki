@@ -571,9 +571,10 @@ where
     for v in values {
         match f(v) {
             Ok(()) => return Ok(()),
-            err @ Err(Error::MaximumSignatureChecksExceeded)
-            | err @ Err(Error::MaximumPathBuildCallsExceeded)
-            | err @ Err(Error::MaximumNameConstraintComparisonsExceeded) => return err,
+            // Fatal errors should halt further looping.
+            res @ Err(err) if err.is_fatal() => return res,
+            // Non-fatal errors should be ranked by specificity and only returned
+            // once all other path-building options have been exhausted.
             Err(new_error) => error = error.most_specific(new_error),
         }
     }
