@@ -880,7 +880,13 @@ mod tests {
             intermediates.pop();
         }
 
-        verify_chain(&ca_cert_der, &intermediates, &make_end_entity(&issuer)).unwrap_err()
+        verify_chain(
+            &ca_cert_der,
+            &intermediates,
+            &make_end_entity(&issuer),
+            None,
+        )
+        .unwrap_err()
     }
 
     #[test]
@@ -915,7 +921,12 @@ mod tests {
             issuer = intermediate;
         }
 
-        verify_chain(&ca_cert_der, &intermediates, &make_end_entity(&issuer))
+        verify_chain(
+            &ca_cert_der,
+            &intermediates,
+            &make_end_entity(&issuer),
+            None,
+        )
     }
 
     #[test]
@@ -938,9 +949,6 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn name_constraint_budget() {
-        use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
-        use crate::{EndEntityCert, Time};
-
         // Issue a trust anchor that imposes name constraints. The constraint should match
         // the end entity certificate SAN.
         let ca_cert = make_issuer(
@@ -970,18 +978,10 @@ mod tests {
         // Create an end-entity cert that is issued by the last of the intermediates.
         let ee_cert = make_end_entity(intermediates.last().unwrap());
 
-        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
-        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
-        let cert = EndEntityCert::try_from(&ee_cert).unwrap();
-        let intermediates_der = intermediates_der
-            .iter()
-            .map(|x| CertificateDer::from(x.as_ref()))
-            .collect::<Vec<_>>();
-
         // We use a custom budget to make it easier to write a test, otherwise it is tricky to
         // stuff enough names/constraints into the potential chains while staying within the path
         // depth limit and the build chain call limit.
-        let mut passing_budget = Budget {
+        let passing_budget = Budget {
             // One comparison against the intermediate's distinguished name.
             // One comparison against the EE's distinguished name.
             // One comparison against the EE's SAN.
@@ -993,22 +993,15 @@ mod tests {
         // Validation should succeed with the name constraint comparison budget allocated above.
         // This shows that we're not consuming budget on unused intermediates: we didn't budget
         // enough comparisons for that to pass the overall chain building.
-        build_chain_inner(
-            &ChainOptions {
-                eku: KeyUsage::server_auth(),
-                supported_sig_algs: &[ECDSA_P256_SHA256],
-                trust_anchors: anchors,
-                intermediate_certs: &intermediates_der,
-                revocation: None,
-            },
-            cert.inner(),
-            time,
-            0,
-            &mut passing_budget,
+        verify_chain(
+            &ca_cert_der,
+            &intermediates_der,
+            &ee_cert,
+            Some(passing_budget),
         )
         .unwrap();
 
-        let mut failing_budget = Budget {
+        let failing_budget = Budget {
             // See passing_budget: 2 comparisons is not sufficient.
             name_constraint_comparisons: 2,
             ..Budget::default()
@@ -1016,18 +1009,11 @@ mod tests {
         // Validation should fail when the budget is smaller than the number of comparisons performed
         // on the validated path. This demonstrates we properly fail path building when too many
         // name constraint comparisons occur.
-        let result = build_chain_inner(
-            &ChainOptions {
-                eku: KeyUsage::server_auth(),
-                supported_sig_algs: &[ECDSA_P256_SHA256],
-                trust_anchors: anchors,
-                intermediate_certs: &intermediates_der,
-                revocation: None,
-            },
-            cert.inner(),
-            time,
-            0,
-            &mut failing_budget,
+        let result = verify_chain(
+            &ca_cert_der,
+            &intermediates_der,
+            &ee_cert,
+            Some(failing_budget),
         );
 
         assert_eq!(result, Err(Error::MaximumNameConstraintComparisonsExceeded));
@@ -1038,6 +1024,7 @@ mod tests {
         trust_anchor: &CertificateDer<'_>,
         intermediates_der: &[Vec<u8>],
         ee_cert: &CertificateDer<'_>,
+        budget: Option<Budget>,
     ) -> Result<(), Error> {
         use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
         use crate::{EndEntityCert, Time};
@@ -1050,7 +1037,7 @@ mod tests {
             .map(|x| CertificateDer::from(x.as_ref()))
             .collect::<Vec<_>>();
 
-        build_chain(
+        build_chain_inner(
             &ChainOptions {
                 eku: KeyUsage::server_auth(),
                 supported_sig_algs: &[ECDSA_P256_SHA256],
@@ -1060,6 +1047,8 @@ mod tests {
             },
             cert.inner(),
             time,
+            0,
+            &mut budget.unwrap_or_default(),
         )
     }
 }
