@@ -464,9 +464,9 @@ where
         // If the error is not fatal, then keep going.
         match f(v) {
             Ok(()) => return Ok(()),
-            err @ Err(Error::MaximumSignatureChecksExceeded)
-            | err @ Err(Error::MaximumPathBuildCallsExceeded)
-            | err @ Err(Error::MaximumNameConstraintComparisonsExceeded) => return err,
+            // Fatal errors should halt further looping.
+            res @ Err(err) if err.is_fatal() => return res,
+            // Non-fatal errors should allow looping to continue.
             _ => {}
         }
     }
