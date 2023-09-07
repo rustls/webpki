@@ -13,6 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use core::default::Default;
+use core::ops::ControlFlow;
 
 use crate::{
     cert::{self, Cert, EndEntityOrCa},
@@ -38,6 +39,10 @@ pub(crate) fn build_chain(
         0,
         &mut Budget::default(),
     )
+    .map_err(|e| match e {
+        ControlFlow::Break(err) => err,
+        ControlFlow::Continue(err) => err,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -50,7 +55,7 @@ fn build_chain_inner(
     time: time::Time,
     sub_ca_count: usize,
     budget: &mut Budget,
-) -> Result<(), Error> {
+) -> Result<(), ControlFlow<Error, Error>> {
     let used_as_ca = used_as_ca(&cert.ee_or_ca);
 
     check_issuer_independent_properties(
@@ -68,7 +73,7 @@ fn build_chain_inner(
             const MAX_SUB_CA_COUNT: usize = 6;
 
             if sub_ca_count >= MAX_SUB_CA_COUNT {
-                return Err(Error::MaximumPathDepthExceeded);
+                return Err(Error::MaximumPathDepthExceeded.into());
             }
         }
         UsedAsCa::No => {
@@ -91,7 +96,7 @@ fn build_chain_inner(
     let result = loop_while_non_fatal_error(trust_anchors, |trust_anchor: &TrustAnchor| {
         let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject);
         if cert.issuer != trust_anchor_subject {
-            return Err(Error::UnknownIssuer);
+            return Err(Error::UnknownIssuer.into());
         }
 
         // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
@@ -113,9 +118,9 @@ fn build_chain_inner(
     match result {
         Ok(()) => return Ok(()),
         // Fatal errors should halt further path building.
-        res @ Err(err) if err.is_fatal() => return res,
+        res @ Err(ControlFlow::Break(_)) => return res,
         // Non-fatal errors should allow path building to continue.
-        _ => {}
+        Err(ControlFlow::Continue(_)) => {}
     };
 
     loop_while_non_fatal_error(intermediate_certs, |cert_der| {
@@ -123,7 +128,7 @@ fn build_chain_inner(
             cert::parse_cert(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
 
         if potential_issuer.subject != cert.issuer {
-            return Err(Error::UnknownIssuer);
+            return Err(Error::UnknownIssuer.into());
         }
 
         // Prevent loops; see RFC 4158 section 5.2.
@@ -132,7 +137,7 @@ fn build_chain_inner(
             if potential_issuer.spki.value() == prev.spki.value()
                 && potential_issuer.subject == prev.subject
             {
-                return Err(Error::UnknownIssuer);
+                return Err(Error::UnknownIssuer.into());
             }
             match &prev.ee_or_ca {
                 EndEntityOrCa::EndEntity => {
@@ -168,7 +173,7 @@ fn check_signed_chain(
     cert_chain: &Cert,
     trust_anchor_key: untrusted::Input,
     budget: &mut Budget,
-) -> Result<(), Error> {
+) -> Result<(), ControlFlow<Error, Error>> {
     let mut spki_value = trust_anchor_key;
     let mut cert = cert_chain;
     loop {
@@ -195,7 +200,7 @@ fn check_signed_chain_name_constraints(
     trust_anchor: &TrustAnchor,
     subject_common_name_contents: subject_name::SubjectCommonNameContents,
     budget: &mut Budget,
-) -> Result<(), Error> {
+) -> Result<(), ControlFlow<Error, Error>> {
     let mut cert = cert_chain;
     let mut name_constraints = trust_anchor
         .name_constraints
@@ -455,8 +460,8 @@ fn check_eku(
 
 fn loop_while_non_fatal_error<V>(
     values: V,
-    mut f: impl FnMut(V::Item) -> Result<(), Error>,
-) -> Result<(), Error>
+    mut f: impl FnMut(V::Item) -> Result<(), ControlFlow<Error, Error>>,
+) -> Result<(), ControlFlow<Error, Error>>
 where
     V: IntoIterator,
 {
@@ -465,12 +470,12 @@ where
         match f(v) {
             Ok(()) => return Ok(()),
             // Fatal errors should halt further looping.
-            res @ Err(err) if err.is_fatal() => return res,
+            res @ Err(ControlFlow::Break(_)) => return res,
             // Non-fatal errors should allow looping to continue.
-            _ => {}
+            Err(ControlFlow::Continue(_)) => {}
         }
     }
-    Err(Error::UnknownIssuer)
+    Err(Error::UnknownIssuer.into())
 }
 
 #[cfg(test)]
@@ -489,7 +494,7 @@ mod tests {
         intermediate_count: usize,
         trust_anchor_is_actual_issuer: TrustAnchorIsActualIssuer,
         budget: Option<Budget>,
-    ) -> Error {
+    ) -> ControlFlow<Error, Error> {
         let ca_cert = make_issuer("Bogus Subject", None);
         let ca_cert_der = ca_cert.serialize_der().unwrap();
 
@@ -518,16 +523,16 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn test_too_many_signatures() {
-        assert_eq!(
+        assert!(matches!(
             build_degenerate_chain(5, TrustAnchorIsActualIssuer::Yes, None),
-            Error::MaximumSignatureChecksExceeded
-        );
+            ControlFlow::Break(Error::MaximumSignatureChecksExceeded)
+        ));
     }
 
     #[test]
     #[cfg(feature = "alloc")]
     fn test_too_many_path_calls() {
-        assert_eq!(
+        assert!(matches!(
             build_degenerate_chain(
                 10,
                 TrustAnchorIsActualIssuer::No,
@@ -539,12 +544,12 @@ mod tests {
                     ..Budget::default()
                 })
             ),
-            Error::MaximumPathBuildCallsExceeded
-        );
+            ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
+        ));
     }
 
     #[cfg(feature = "alloc")]
-    fn build_linear_chain(chain_length: usize) -> Result<(), Error> {
+    fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"), None);
         let ca_cert_der = ca_cert.serialize_der().unwrap();
 
@@ -568,12 +573,12 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn longest_allowed_path() {
-        assert_eq!(build_linear_chain(1), Ok(()));
-        assert_eq!(build_linear_chain(2), Ok(()));
-        assert_eq!(build_linear_chain(3), Ok(()));
-        assert_eq!(build_linear_chain(4), Ok(()));
-        assert_eq!(build_linear_chain(5), Ok(()));
-        assert_eq!(build_linear_chain(6), Ok(()));
+        assert!(build_linear_chain(1).is_ok());
+        assert!(build_linear_chain(2).is_ok());
+        assert!(build_linear_chain(3).is_ok());
+        assert!(build_linear_chain(4).is_ok());
+        assert!(build_linear_chain(5).is_ok());
+        assert!(build_linear_chain(6).is_ok());
     }
 
     #[test]
@@ -581,7 +586,10 @@ mod tests {
     fn path_too_long() {
         // Note: webpki 0.101.x and earlier surface all non-fatal errors as UnknownIssuer,
         //       eating the more specific MaximumPathDepthExceeded error.
-        assert_eq!(build_linear_chain(7), Err(Error::UnknownIssuer));
+        assert!(matches!(
+            build_linear_chain(7),
+            Err(ControlFlow::Continue(Error::UnknownIssuer))
+        ));
     }
 
     #[test]
@@ -631,13 +639,13 @@ mod tests {
         // Validation should succeed with the name constraint comparison budget allocated above.
         // This shows that we're not consuming budget on unused intermediates: we didn't budget
         // enough comparisons for that to pass the overall chain building.
-        verify_chain(
+        assert!(verify_chain(
             &ca_cert_der,
             &intermediates_der,
             &ee_cert,
             Some(passing_budget),
         )
-        .unwrap();
+        .is_ok());
 
         let failing_budget = Budget {
             // See passing_budget: 2 comparisons is not sufficient.
@@ -654,7 +662,12 @@ mod tests {
             Some(failing_budget),
         );
 
-        assert_eq!(result, Err(Error::MaximumNameConstraintComparisonsExceeded));
+        assert!(matches!(
+            result,
+            Err(ControlFlow::Break(
+                Error::MaximumNameConstraintComparisonsExceeded
+            ))
+        ));
     }
 
     #[cfg(feature = "alloc")]
@@ -663,7 +676,7 @@ mod tests {
         intermediates_der: &[Vec<u8>],
         ee_cert_der: &[u8],
         budget: Option<Budget>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ControlFlow<Error, Error>> {
         use crate::ECDSA_P256_SHA256;
         use crate::{EndEntityCert, Time};
 
