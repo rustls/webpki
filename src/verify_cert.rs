@@ -18,7 +18,7 @@ use core::ops::ControlFlow;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 
 use crate::cert::Cert;
-use crate::crl::{check_crls, RevocationOptions};
+use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
 use crate::{signed_data, subject_name, time, Error};
 
@@ -149,13 +149,12 @@ fn check_signed_chain(
         )?;
 
         if let Some(revocation_opts) = &revocation {
-            check_crls(
-                supported_sig_algs,
+            revocation_opts.check(
                 path,
                 issuer_subject,
                 spki_value,
                 issuer_key_usage,
-                revocation_opts,
+                supported_sig_algs,
                 budget,
             )?;
         }
