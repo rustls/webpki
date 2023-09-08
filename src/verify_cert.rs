@@ -286,12 +286,6 @@ fn check_validity(input: &mut untrusted::Reader, time: time::Time) -> Result<(),
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Role {
-    Issuer,
-    EndEntity,
-}
-
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.9
 fn check_basic_constraints(
     input: Option<&mut untrusted::Reader>,
@@ -493,6 +487,12 @@ impl<'a> Iterator for PathNodeIter<'a> {
         self.next = next.issued;
         Some(next)
     }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Role {
+    Issuer,
+    EndEntity,
 }
 
 #[cfg(test)]
