@@ -1,6 +1,6 @@
 use pki_types::{CertificateDer, TrustAnchor};
 
-use crate::cert::{lenient_certificate_serial_number, Cert, EndEntityOrCa};
+use crate::cert::{lenient_certificate_serial_number, Cert};
 use crate::der;
 use crate::error::{DerTypeId, Error};
 
@@ -20,7 +20,7 @@ pub fn extract_trust_anchor<'a>(cert: &'a CertificateDer<'a>) -> Result<TrustAnc
     // certificate using a special parser for v1 certificates. Notably, that
     // parser doesn't allow extensions, so there's no need to worry about
     // embedded name constraints in a v1 certificate.
-    match Cert::from_der(cert_der, EndEntityOrCa::EndEntity) {
+    match Cert::from_der(cert_der) {
         Ok(cert) => Ok(TrustAnchor::from(cert)),
         Err(Error::UnsupportedCertVersion) => {
             extract_trust_anchor_from_v1_cert_der(cert_der).or(Err(Error::BadDer))

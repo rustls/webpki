@@ -14,12 +14,12 @@
 
 use pki_types::SignatureVerificationAlgorithm;
 
-use crate::cert::{lenient_certificate_serial_number, Cert, EndEntityOrCa};
+use crate::cert::lenient_certificate_serial_number;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
-use crate::verify_cert::Budget;
+use crate::verify_cert::{Budget, PathNode};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 use crate::Time;
 use core::fmt::Debug;
@@ -771,17 +771,17 @@ impl<'a> IssuingDistributionPoint<'a> {
     /// * Distribution point names relative to an issuer.
     /// * General names of a type other than URI.
     /// * Malformed names or invalid IDP or CRL DP extensions.
-    pub(crate) fn authoritative_for(&self, cert: &Cert<'a>) -> bool {
+    pub(crate) fn authoritative_for(&self, node: &PathNode<'a>) -> bool {
         assert!(!self.only_contains_attribute_certs); // We check this at time of parse.
 
         // Check that the scope of the CRL issuing distribution point could include the cert.
-        if self.only_contains_ca_certs && matches!(cert.ee_or_ca, EndEntityOrCa::EndEntity)
-            || self.only_contains_user_certs && matches!(cert.ee_or_ca, EndEntityOrCa::Ca(_))
+        if self.only_contains_ca_certs && node.issued.is_none()
+            || self.only_contains_user_certs && node.issued.is_some()
         {
             return false;
         }
 
-        let cert_dps = match cert.crl_distribution_points() {
+        let cert_dps = match node.cert.crl_distribution_points() {
             // If the certificate has no distribution points, then the CRL can be authoritative
             // based on the issuer matching and the scope including the cert.
             None => return true,
@@ -856,8 +856,8 @@ mod tests {
     use alloc::vec::Vec;
 
     use crate::{
-        crl::IssuingDistributionPoint, subject_name::GeneralName, x509::DistributionPointName,
-        BorrowedCertRevocationList, Cert, CertRevocationList, EndEntityOrCa, Error,
+        crl::IssuingDistributionPoint, subject_name::GeneralName, verify_cert::PathNode,
+        x509::DistributionPointName, BorrowedCertRevocationList, Cert, CertRevocationList, Error,
         RevocationReason,
     };
 
@@ -999,10 +999,16 @@ mod tests {
 
         // The IDP shouldn't be considered authoritative for a CA Cert.
         let ee = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..]), EndEntityOrCa::EndEntity).unwrap();
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
         let ca = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.int.a.ca.der");
-        let ca = Cert::from_der(untrusted::Input::from(&ca[..]), EndEntityOrCa::Ca(&ee)).unwrap();
-        assert!(!crl_issuing_dp.authoritative_for(&ca))
+        let ca = Cert::from_der(untrusted::Input::from(&ca[..])).unwrap();
+        assert!(!crl_issuing_dp.authoritative_for(&PathNode {
+            cert: &ca,
+            issued: Some(&PathNode {
+                cert: &ee,
+                issued: None
+            }),
+        }))
     }
 
     #[test]
@@ -1023,8 +1029,11 @@ mod tests {
 
         // The IDP shouldn't be considered authoritative for an EE Cert.
         let ee = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..]), EndEntityOrCa::EndEntity).unwrap();
-        assert!(!crl_issuing_dp.authoritative_for(&ee))
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
+        assert!(!crl_issuing_dp.authoritative_for(&PathNode {
+            cert: &ee,
+            issued: None
+        }))
     }
 
     #[test]
