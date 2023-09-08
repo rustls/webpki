@@ -47,27 +47,21 @@ impl<'a> ChainOptions<'a> {
         sub_ca_count: usize,
         budget: &mut Budget,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        let used_as_ca = used_as_ca(path);
+        let role = role(path);
 
-        check_issuer_independent_properties(
-            path.cert,
-            time,
-            used_as_ca,
-            sub_ca_count,
-            self.eku.inner,
-        )?;
+        check_issuer_independent_properties(path.cert, time, role, sub_ca_count, self.eku.inner)?;
 
         // TODO: HPKP checks.
 
-        match used_as_ca {
-            UsedAsCa::Yes => {
+        match role {
+            Role::Issuer => {
                 const MAX_SUB_CA_COUNT: usize = 6;
 
                 if sub_ca_count >= MAX_SUB_CA_COUNT {
                     return Err(Error::MaximumPathDepthExceeded.into());
                 }
             }
-            UsedAsCa::No => {
+            Role::EndEntity => {
                 assert_eq!(0, sub_ca_count);
             }
         }
@@ -115,9 +109,9 @@ impl<'a> ChainOptions<'a> {
                 return Err(Error::UnknownIssuer.into());
             }
 
-            let next_sub_ca_count = match used_as_ca {
-                UsedAsCa::No => sub_ca_count,
-                UsedAsCa::Yes => sub_ca_count + 1,
+            let next_sub_ca_count = match role {
+                Role::EndEntity => sub_ca_count,
+                Role::Issuer => sub_ca_count + 1,
             };
 
             budget.consume_build_chain_call()?;
@@ -245,7 +239,7 @@ impl Default for Budget {
 fn check_issuer_independent_properties(
     cert: &Cert,
     time: time::Time,
-    used_as_ca: UsedAsCa,
+    role: Role,
     sub_ca_count: usize,
     eku: ExtendedKeyUsage,
 ) -> Result<(), Error> {
@@ -263,7 +257,7 @@ fn check_issuer_independent_properties(
     cert.validity
         .read_all(Error::BadDer, |value| check_validity(value, time))?;
     untrusted::read_all_optional(cert.basic_constraints, Error::BadDer, |value| {
-        check_basic_constraints(value, used_as_ca, sub_ca_count)
+        check_basic_constraints(value, role, sub_ca_count)
     })?;
     untrusted::read_all_optional(cert.eku, Error::BadDer, |value| eku.check(value))?;
 
@@ -293,22 +287,22 @@ fn check_validity(input: &mut untrusted::Reader, time: time::Time) -> Result<(),
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum UsedAsCa {
-    Yes,
-    No,
+enum Role {
+    Issuer,
+    EndEntity,
 }
 
-fn used_as_ca(node: &PathNode<'_>) -> UsedAsCa {
+fn role(node: &PathNode<'_>) -> Role {
     match node.issued {
-        None => UsedAsCa::No,
-        Some(..) => UsedAsCa::Yes,
+        None => Role::EndEntity,
+        Some(..) => Role::Issuer,
     }
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.9
 fn check_basic_constraints(
     input: Option<&mut untrusted::Reader>,
-    used_as_ca: UsedAsCa,
+    role: Role,
     sub_ca_count: usize,
 ) -> Result<(), Error> {
     let (is_ca, path_len_constraint) = match input {
@@ -330,10 +324,10 @@ fn check_basic_constraints(
         None => (false, None),
     };
 
-    match (used_as_ca, is_ca, path_len_constraint) {
-        (UsedAsCa::No, true, _) => Err(Error::CaUsedAsEndEntity),
-        (UsedAsCa::Yes, false, _) => Err(Error::EndEntityUsedAsCa),
-        (UsedAsCa::Yes, true, Some(len)) if sub_ca_count > len => {
+    match (role, is_ca, path_len_constraint) {
+        (Role::EndEntity, true, _) => Err(Error::CaUsedAsEndEntity),
+        (Role::Issuer, false, _) => Err(Error::EndEntityUsedAsCa),
+        (Role::Issuer, true, Some(len)) if sub_ca_count > len => {
             Err(Error::PathLenConstraintViolated)
         }
         _ => Ok(()),
