@@ -31,6 +31,106 @@ use alloc::vec::Vec;
 
 use private::Sealed;
 
+/// Builds a RevocationOptions instance to control how revocation checking is performed.
+#[derive(Debug, Copy, Clone)]
+pub struct RevocationOptionsBuilder<'a> {
+    crls: &'a [&'a dyn CertRevocationList],
+
+    depth: RevocationCheckDepth,
+
+    status_requirement: UnknownStatusPolicy,
+}
+
+impl<'a> RevocationOptionsBuilder<'a> {
+    /// Create a builder that will perform revocation checking using the provided certificate
+    /// revocation lists (CRLs). At least one CRL must be provided.
+    ///
+    /// Use [RevocationOptionsBuilder::build] to create a [RevocationOptions] instance.
+    ///
+    /// By default revocation checking will be performed on both the end-entity (leaf) certificate
+    /// and intermediate certificates. This can be customized using the
+    /// [RevocationOptionsBuilder::with_depth] method.
+    ///
+    /// By default revocation checking will fail if the revocation status of a certificate cannot
+    /// be determined. This can be customized using the
+    /// [RevocationOptionsBuilder::allow_unknown_status] method.
+    pub fn new(crls: &'a [&'a dyn CertRevocationList]) -> Result<Self, CrlsRequired> {
+        if crls.is_empty() {
+            return Err(CrlsRequired(()));
+        }
+
+        Ok(Self {
+            crls,
+            depth: RevocationCheckDepth::Chain,
+            status_requirement: UnknownStatusPolicy::Deny,
+        })
+    }
+
+    /// Customize the depth at which revocation checking will be performed, controlling
+    /// whether only the end-entity (leaf) certificate in the chain to a trust anchor will
+    /// have its revocation status checked, or whether the intermediate certificates will as well.
+    pub fn with_depth(mut self, depth: RevocationCheckDepth) -> Self {
+        self.depth = depth;
+        self
+    }
+
+    /// Treat unknown revocation status permissively, acting as if the certificate were not
+    /// revoked.
+    pub fn allow_unknown_status(mut self) -> Self {
+        self.status_requirement = UnknownStatusPolicy::Allow;
+        self
+    }
+
+    /// Treat unknown revocation status strictly, considering it an error condition.
+    pub fn forbid_unknown_status(mut self) -> Self {
+        self.status_requirement = UnknownStatusPolicy::Deny;
+        self
+    }
+
+    /// Construct a [RevocationOptions] instance based on the builder's configuration.
+    pub fn build(self) -> RevocationOptions<'a> {
+        RevocationOptions {
+            crls: self.crls,
+            depth: self.depth,
+            status_requirement: self.status_requirement,
+        }
+    }
+}
+
+/// Describes how revocation checking is performed, if at all. Can be constructed with a
+/// [RevocationOptionsBuilder] instance.
+#[derive(Debug, Copy, Clone)]
+pub struct RevocationOptions<'a> {
+    pub(crate) crls: &'a [&'a dyn CertRevocationList],
+    pub(crate) depth: RevocationCheckDepth,
+    pub(crate) status_requirement: UnknownStatusPolicy,
+}
+
+/// Describes how much of a certificate chain is checked for revocation status.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum RevocationCheckDepth {
+    /// Only check the end entity (leaf) certificate's revocation status.
+    EndEntity,
+    /// Check the revocation status of the end entity (leaf) and all intermediates.
+    Chain,
+}
+
+/// Describes how to handle the case where a certificate's revocation status is unknown.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum UnknownStatusPolicy {
+    /// Treat unknown revocation status permissively, acting as if the certificate were
+    /// not revoked.
+    Allow,
+    /// Treat unknown revocation status as an error condition, yielding
+    /// [Error::UnknownRevocationStatus].
+    Deny,
+}
+
+#[derive(Debug, Copy, Clone)]
+/// An opaque error indicating the caller must provide at least one CRL when building a
+/// [RevocationOptions] instance.
+pub struct CrlsRequired(pub(crate) ());
+
 /// Operations over a RFC 5280[^1] profile Certificate Revocation List (CRL) required
 /// for revocation checking. Implemented by [`OwnedCertRevocationList`] and
 /// [`BorrowedCertRevocationList`].
@@ -855,11 +955,90 @@ mod private {
 mod tests {
     use alloc::vec::Vec;
 
+    use super::*;
     use crate::{
-        crl::IssuingDistributionPoint, subject_name::GeneralName, verify_cert::PathNode,
-        x509::DistributionPointName, BorrowedCertRevocationList, Cert, CertRevocationList, Error,
-        RevocationReason,
+        subject_name::GeneralName, verify_cert::PathNode, x509::DistributionPointName, Cert,
+        Error,
     };
+
+    #[test]
+    // safe to convert BorrowedCertRevocationList to CertRevocationList.
+    // redundant clone, clone_on_copy allowed to verify derived traits.
+    #[allow(clippy::as_conversions, clippy::redundant_clone, clippy::clone_on_copy)]
+    fn test_revocation_opts_builder() {
+        // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
+        let result = RevocationOptionsBuilder::new(&[]);
+        assert!(matches!(result, Err(CrlsRequired(_))));
+
+        // The CrlsRequired error should be debug and clone when alloc is enabled.
+        #[cfg(feature = "alloc")]
+        {
+            let err = result.unwrap_err();
+            println!("{:?}", err.clone());
+        }
+
+        // It should be possible to build a revocation options builder with defaults.
+        let crl = include_bytes!("../tests/crls/crl.valid.der");
+        let crl =
+            &BorrowedCertRevocationList::from_der(&crl[..]).unwrap() as &dyn CertRevocationList;
+        let crls = [crl];
+        let builder = RevocationOptionsBuilder::new(&crls[..]).unwrap();
+        #[cfg(feature = "alloc")]
+        {
+            // The builder should be debug, and clone when alloc is enabled
+            println!("{:?}", builder);
+            _ = builder.clone();
+        }
+        let opts = builder.build();
+        assert_eq!(opts.depth, RevocationCheckDepth::Chain);
+        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.crls.len(), 1);
+
+        // It should be possible to build a revocation options builder with custom depth.
+        let opts = RevocationOptionsBuilder::new(&crls[..])
+            .unwrap()
+            .with_depth(RevocationCheckDepth::EndEntity)
+            .build();
+        assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
+        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.crls.len(), 1);
+
+        // It should be possible to build a revocation options builder that allows unknown
+        // revocation status.
+        let opts = RevocationOptionsBuilder::new(&crls[..])
+            .unwrap()
+            .allow_unknown_status()
+            .build();
+        assert_eq!(opts.depth, RevocationCheckDepth::Chain);
+        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Allow);
+        assert_eq!(opts.crls.len(), 1);
+
+        // It should be possible to specify both depth and unknown status requirements together.
+        let opts = RevocationOptionsBuilder::new(&crls[..])
+            .unwrap()
+            .allow_unknown_status()
+            .with_depth(RevocationCheckDepth::EndEntity)
+            .build();
+        assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
+        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Allow);
+        assert_eq!(opts.crls.len(), 1);
+
+        // The same should be true for explicitly forbidding unknown status.
+        let opts = RevocationOptionsBuilder::new(&crls[..])
+            .unwrap()
+            .forbid_unknown_status()
+            .with_depth(RevocationCheckDepth::EndEntity)
+            .build();
+        assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
+        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.crls.len(), 1);
+
+        // Built revocation options should be debug and clone when alloc is enabled.
+        #[cfg(feature = "alloc")]
+        {
+            println!("{:?}", opts.clone());
+        }
+    }
 
     #[test]
     fn revocation_reasons() {
