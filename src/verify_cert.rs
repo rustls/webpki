@@ -83,13 +83,7 @@ impl<'a> ChainOptions<'a> {
 
                 // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-                check_signed_chain(
-                    self.supported_sig_algs,
-                    path,
-                    trust_anchor,
-                    self.revocation,
-                    budget,
-                )?;
+                self.check_signed_chain(path, trust_anchor, budget)?;
 
                 check_signed_chain_name_constraints(path, trust_anchor, budget)?;
 
@@ -134,43 +128,42 @@ impl<'a> ChainOptions<'a> {
             self.build_chain_inner(&potential_path, time, next_sub_ca_count, budget)
         })
     }
-}
 
-fn check_signed_chain(
-    supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-    path: &PathNode<'_>,
-    trust_anchor: &TrustAnchor,
-    revocation: Option<RevocationOptions>,
-    budget: &mut Budget,
-) -> Result<(), ControlFlow<Error, Error>> {
-    let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
-    let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
-    let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
-    for path in path.iter() {
-        signed_data::verify_signed_data(
-            supported_sig_algs,
-            spki_value,
-            &path.cert.signed_data,
-            budget,
-        )?;
-
-        if let Some(revocation_opts) = &revocation {
-            revocation_opts.check(
-                path,
-                issuer_subject,
+    fn check_signed_chain(
+        &self,
+        path: &PathNode<'_>,
+        trust_anchor: &TrustAnchor,
+        budget: &mut Budget,
+    ) -> Result<(), ControlFlow<Error, Error>> {
+        let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
+        let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
+        let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
+        for path in path.iter() {
+            signed_data::verify_signed_data(
+                self.supported_sig_algs,
                 spki_value,
-                issuer_key_usage,
-                supported_sig_algs,
+                &path.cert.signed_data,
                 budget,
             )?;
+
+            if let Some(revocation_opts) = &self.revocation {
+                revocation_opts.check(
+                    path,
+                    issuer_subject,
+                    spki_value,
+                    issuer_key_usage,
+                    self.supported_sig_algs,
+                    budget,
+                )?;
+            }
+
+            spki_value = path.cert.spki;
+            issuer_subject = path.cert.subject;
+            issuer_key_usage = path.cert.key_usage;
         }
 
-        spki_value = path.cert.spki;
-        issuer_subject = path.cert.subject;
-        issuer_key_usage = path.cert.key_usage;
+        Ok(())
     }
-
-    Ok(())
 }
 
 fn check_signed_chain_name_constraints(
