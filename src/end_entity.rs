@@ -14,12 +14,10 @@
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 
+use crate::crl::RevocationOptions;
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
-use crate::{
-    cert, signed_data, subject_name, verify_cert, Error, KeyUsage, RevocationOptions,
-    SubjectNameRef, Time,
-};
+use crate::{cert, signed_data, subject_name, verify_cert, Error, KeyUsage, SubjectNameRef, Time};
 
 /// An end-entity certificate.
 ///

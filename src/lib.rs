@@ -65,7 +65,10 @@ pub(crate) mod test_utils;
 
 pub use {
     cert::Cert,
-    crl::{BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason},
+    crl::{
+        BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationCheckDepth,
+        RevocationOptions, RevocationOptionsBuilder, RevocationReason, UnknownStatusPolicy,
+    },
     end_entity::EndEntityCert,
     error::{DerTypeId, Error},
     signed_data::alg_id,
@@ -75,10 +78,7 @@ pub use {
     },
     time::Time,
     trust_anchor::extract_trust_anchor,
-    verify_cert::{
-        KeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
-        UnknownStatusPolicy,
-    },
+    verify_cert::KeyUsage,
 };
 
 pub use pki_types as types;
