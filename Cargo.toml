@@ -32,6 +32,7 @@ include = [
     "src/calendar.rs",
     "src/cert.rs",
     "src/crl/mod.rs",
+    "src/crl/types.rs",
     "src/der.rs",
     "src/end_entity.rs",
     "src/error.rs",
