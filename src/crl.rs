@@ -106,53 +106,55 @@ pub struct RevocationOptions<'a> {
     pub(crate) status_requirement: UnknownStatusPolicy,
 }
 
-pub(crate) fn check_crls(
-    supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-    path: &PathNode<'_>,
-    issuer_subject: untrusted::Input,
-    issuer_spki: untrusted::Input,
-    issuer_ku: Option<untrusted::Input>,
-    revocation: &RevocationOptions,
-    budget: &mut Budget,
-) -> Result<Option<CertNotRevoked>, Error> {
-    assert_eq!(path.cert.issuer, issuer_subject);
+impl<'a> RevocationOptions<'a> {
+    pub(crate) fn check(
+        &self,
+        path: &PathNode<'_>,
+        issuer_subject: untrusted::Input,
+        issuer_spki: untrusted::Input,
+        issuer_ku: Option<untrusted::Input>,
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
+        budget: &mut Budget,
+    ) -> Result<Option<CertNotRevoked>, Error> {
+        assert_eq!(path.cert.issuer, issuer_subject);
 
-    // If the policy only specifies checking EndEntity revocation state and we're looking at an
-    // issuer certificate, return early without considering the certificate's revocation state.
-    if let (RevocationCheckDepth::EndEntity, Some(_)) = (revocation.depth, &path.issued) {
-        return Ok(None);
-    }
+        // If the policy only specifies checking EndEntity revocation state and we're looking at an
+        // issuer certificate, return early without considering the certificate's revocation state.
+        if let (RevocationCheckDepth::EndEntity, Some(_)) = (self.depth, &path.issued) {
+            return Ok(None);
+        }
 
-    let crl = revocation
-        .crls
-        .iter()
-        .find(|candidate_crl| crl_authoritative(**candidate_crl, path));
+        let crl = self
+            .crls
+            .iter()
+            .find(|candidate_crl| crl_authoritative(**candidate_crl, path));
 
-    use UnknownStatusPolicy::*;
-    let crl = match (crl, revocation.status_requirement) {
-        (Some(crl), _) => crl,
-        // If the policy allows unknown, return Ok(None) to indicate that the certificate
-        // was not confirmed as CertNotRevoked, but that this isn't an error condition.
-        (None, Allow) => return Ok(None),
-        // Otherwise, this is an error condition based on the provided policy.
-        (None, _) => return Err(Error::UnknownRevocationStatus),
-    };
+        use UnknownStatusPolicy::*;
+        let crl = match (crl, self.status_requirement) {
+            (Some(crl), _) => crl,
+            // If the policy allows unknown, return Ok(None) to indicate that the certificate
+            // was not confirmed as CertNotRevoked, but that this isn't an error condition.
+            (None, Allow) => return Ok(None),
+            // Otherwise, this is an error condition based on the provided policy.
+            (None, _) => return Err(Error::UnknownRevocationStatus),
+        };
 
-    // Verify the CRL signature with the issuer SPKI.
-    // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
-    //            of per-lookup.
-    //            https://github.com/rustls/webpki/issues/81
-    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe(), budget)
-        .map_err(crl_signature_err)?;
+        // Verify the CRL signature with the issuer SPKI.
+        // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
+        //            of per-lookup.
+        //            https://github.com/rustls/webpki/issues/81
+        crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe(), budget)
+            .map_err(crl_signature_err)?;
 
-    // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
-    KeyUsageMode::CrlSign.check(issuer_ku)?;
+        // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
+        KeyUsageMode::CrlSign.check(issuer_ku)?;
 
-    // Try to find the cert serial in the verified CRL contents.
-    let cert_serial = path.cert.serial.as_slice_less_safe();
-    match crl.find_serial(cert_serial)? {
-        None => Ok(Some(CertNotRevoked::assertion())),
-        Some(_) => Err(Error::CertRevoked),
+        // Try to find the cert serial in the verified CRL contents.
+        let cert_serial = path.cert.serial.as_slice_less_safe();
+        match crl.find_serial(cert_serial)? {
+            None => Ok(Some(CertNotRevoked::assertion())),
+            Some(_) => Err(Error::CertRevoked),
+        }
     }
 }
 
