@@ -93,7 +93,7 @@ pub(crate) fn verify_cert_subject_name(
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
 pub(crate) fn check_name_constraints(
     constraints: Option<&mut untrusted::Reader>,
-    mut path: &PathNode<'_>,
+    path: &PathNode<'_>,
     budget: &mut Budget,
 ) -> Result<(), Error> {
     let constraints = match constraints {
@@ -114,7 +114,7 @@ pub(crate) fn check_name_constraints(
     let permitted_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed0)?;
     let excluded_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed1)?;
 
-    loop {
+    for path in path.iter() {
         let result = NameIterator::new(Some(path.cert.subject), path.cert.subject_alt_name)
             .find_map(|result| {
                 let name = match result {
@@ -133,11 +133,6 @@ pub(crate) fn check_name_constraints(
         if let Some(Err(err)) = result {
             return Err(err);
         }
-
-        path = match path.issued {
-            Some(issued) => issued,
-            None => break,
-        };
     }
 
     Ok(())
