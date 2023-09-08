@@ -95,17 +95,14 @@ impl<'a> EndEntityCert<'a> {
         usage: KeyUsage,
         revocation: Option<RevocationOptions>,
     ) -> Result<(), Error> {
-        verify_cert::build_chain(
-            &verify_cert::ChainOptions {
-                eku: usage,
-                supported_sig_algs,
-                trust_anchors,
-                intermediate_certs,
-                revocation,
-            },
-            &self.inner,
-            time,
-        )
+        verify_cert::ChainOptions {
+            eku: usage,
+            supported_sig_algs,
+            trust_anchors,
+            intermediate_certs,
+            revocation,
+        }
+        .build_chain(&self.inner, time)
     }
 
     /// Verifies that the certificate is valid for the given Subject Name.
