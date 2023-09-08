@@ -47,7 +47,7 @@ impl<'a> ChainOptions<'a> {
         sub_ca_count: usize,
         budget: &mut Budget,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        let role = role(path);
+        let role = path.role();
 
         check_issuer_independent_properties(path.cert, time, role, sub_ca_count, self.eku.inner)?;
 
@@ -292,13 +292,6 @@ enum Role {
     EndEntity,
 }
 
-fn role(node: &PathNode<'_>) -> Role {
-    match node.issued {
-        None => Role::EndEntity,
-        Some(..) => Role::Issuer,
-    }
-}
-
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.9
 fn check_basic_constraints(
     input: Option<&mut untrusted::Reader>,
@@ -478,6 +471,13 @@ pub(crate) struct PathNode<'a> {
 impl<'a> PathNode<'a> {
     pub(crate) fn iter(&'a self) -> PathNodeIter<'a> {
         PathNodeIter { next: Some(self) }
+    }
+
+    fn role(&self) -> Role {
+        match self.issued {
+            Some(_) => Role::Issuer,
+            None => Role::EndEntity,
+        }
     }
 }
 
