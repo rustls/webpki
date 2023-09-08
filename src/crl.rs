@@ -106,6 +106,149 @@ pub struct RevocationOptions<'a> {
     pub(crate) status_requirement: UnknownStatusPolicy,
 }
 
+pub(crate) fn check_crls(
+    supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
+    path: &PathNode<'_>,
+    issuer_subject: untrusted::Input,
+    issuer_spki: untrusted::Input,
+    issuer_ku: Option<untrusted::Input>,
+    revocation: &RevocationOptions,
+    budget: &mut Budget,
+) -> Result<Option<CertNotRevoked>, Error> {
+    assert_eq!(path.cert.issuer, issuer_subject);
+
+    // If the policy only specifies checking EndEntity revocation state and we're looking at an
+    // issuer certificate, return early without considering the certificate's revocation state.
+    if let (RevocationCheckDepth::EndEntity, Some(_)) = (revocation.depth, &path.issued) {
+        return Ok(None);
+    }
+
+    let crl = revocation
+        .crls
+        .iter()
+        .find(|candidate_crl| crl_authoritative(**candidate_crl, path));
+
+    use UnknownStatusPolicy::*;
+    let crl = match (crl, revocation.status_requirement) {
+        (Some(crl), _) => crl,
+        // If the policy allows unknown, return Ok(None) to indicate that the certificate
+        // was not confirmed as CertNotRevoked, but that this isn't an error condition.
+        (None, Allow) => return Ok(None),
+        // Otherwise, this is an error condition based on the provided policy.
+        (None, _) => return Err(Error::UnknownRevocationStatus),
+    };
+
+    // Verify the CRL signature with the issuer SPKI.
+    // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
+    //            of per-lookup.
+    //            https://github.com/rustls/webpki/issues/81
+    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe(), budget)
+        .map_err(crl_signature_err)?;
+
+    // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
+    KeyUsageMode::CrlSign.check(issuer_ku)?;
+
+    // Try to find the cert serial in the verified CRL contents.
+    let cert_serial = path.cert.serial.as_slice_less_safe();
+    match crl.find_serial(cert_serial)? {
+        None => Ok(Some(CertNotRevoked::assertion())),
+        Some(_) => Err(Error::CertRevoked),
+    }
+}
+
+// https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum KeyUsageMode {
+    // DigitalSignature = 0,
+    // ContentCommitment = 1,
+    // KeyEncipherment = 2,
+    // DataEncipherment = 3,
+    // KeyAgreement = 4,
+    // CertSign = 5,
+    CrlSign = 6,
+    // EncipherOnly = 7,
+    // DecipherOnly = 8,
+}
+
+impl KeyUsageMode {
+    // https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
+    fn check(self, input: Option<untrusted::Input>) -> Result<(), Error> {
+        let bit_string = match input {
+            Some(input) => {
+                der::expect_tag(&mut untrusted::Reader::new(input), der::Tag::BitString)?
+            }
+            // While RFC 5280 requires KeyUsage be present, historically the absence of a KeyUsage
+            // has been treated as "Any Usage". We follow that convention here and assume the absence
+            // of KeyUsage implies the required_ku_bit_if_present we're checking for.
+            None => return Ok(()),
+        };
+
+        let flags = der::bit_string_flags(bit_string)?;
+        #[allow(clippy::as_conversions)] // u8 always fits in usize.
+        match flags.bit_set(self as usize) {
+            true => Ok(()),
+            false => Err(Error::IssuerNotCrlSigner),
+        }
+    }
+}
+
+/// Returns true if the CRL can be considered authoritative for the given certificate.
+///
+/// A CRL is considered authoritative for a certificate when:
+///   * The certificate issuer matches the CRL issuer and,
+///     * The certificate has no CRL distribution points, and the CRL has no issuing distribution
+///       point extension.
+///     * Or, the certificate has no CRL distribution points, but the the CRL has an issuing
+///       distribution point extension with a scope that includes the certificate.
+///     * Or, the certificate has CRL distribution points, and the CRL has an issuing
+///       distribution point extension with a scope that includes the certificate, and at least
+///       one distribution point full name is a URI type general name that can also be found in
+///       the CRL issuing distribution point full name general name sequence.
+///
+/// In all other circumstances the CRL is not considered authoritative.
+fn crl_authoritative(crl: &dyn CertRevocationList, path: &PathNode<'_>) -> bool {
+    // In all cases we require that the authoritative CRL have the same issuer
+    // as the certificate. Recall we do not support indirect CRLs.
+    if crl.issuer() != path.cert.issuer() {
+        return false;
+    }
+
+    let crl_idp = match (
+        path.cert.crl_distribution_points(),
+        crl.issuing_distribution_point(),
+    ) {
+        // If the certificate has no CRL distribution points, and the CRL has no issuing distribution point,
+        // then we can consider this CRL authoritative based on the issuer matching.
+        (cert_dps, None) => return cert_dps.is_none(),
+
+        // If the CRL has an issuing distribution point, parse it so we can consider its scope
+        // and compare against the cert CRL distribution points, if present.
+        (_, Some(crl_idp)) => {
+            match IssuingDistributionPoint::from_der(untrusted::Input::from(crl_idp)) {
+                Ok(crl_idp) => crl_idp,
+                Err(_) => return false, // Note: shouldn't happen - we verify IDP at CRL-load.
+            }
+        }
+    };
+
+    crl_idp.authoritative_for(path)
+}
+
+// When verifying CRL signed data we want to disambiguate the context of possible errors by mapping
+// them to CRL specific variants that a consumer can use to tell the issue was with the CRL's
+// signature, not a certificate.
+fn crl_signature_err(err: Error) -> Error {
+    match err {
+        Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
+        Error::UnsupportedSignatureAlgorithmForPublicKey => {
+            Error::UnsupportedCrlSignatureAlgorithmForPublicKey
+        }
+        Error::InvalidSignatureForPublicKey => Error::InvalidCrlSignatureForPublicKey,
+        _ => err,
+    }
+}
+
 /// Describes how much of a certificate chain is checked for revocation status.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RevocationCheckDepth {
@@ -124,6 +267,17 @@ pub enum UnknownStatusPolicy {
     /// Treat unknown revocation status as an error condition, yielding
     /// [Error::UnknownRevocationStatus].
     Deny,
+}
+
+// Zero-sized marker type representing positive assertion that revocation status was checked
+// for a certificate and the result was that the certificate is not revoked.
+pub(crate) struct CertNotRevoked(());
+
+impl CertNotRevoked {
+    // Construct a CertNotRevoked marker.
+    fn assertion() -> Self {
+        Self(())
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -957,8 +1111,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        subject_name::GeneralName, verify_cert::PathNode, x509::DistributionPointName, Cert,
-        Error,
+        subject_name::GeneralName, verify_cert::PathNode, x509::DistributionPointName, Cert, Error,
     };
 
     #[test]
@@ -1038,6 +1191,44 @@ mod tests {
         {
             println!("{:?}", opts.clone());
         }
+    }
+
+    #[test]
+    fn test_crl_authoritative_issuer_mismatch() {
+        let crl = include_bytes!("../tests/crls/crl.valid.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+        let ee = include_bytes!("../tests/client_auth_revocation/no_ku_chain.ee.der");
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
+
+        // The CRL should not be authoritative for an EE issued by a different issuer.
+        assert!(!crl_authoritative(
+            &crl,
+            &PathNode {
+                cert: &ee,
+                issued: None
+            }
+        ));
+    }
+
+    #[test]
+    fn test_crl_authoritative_no_idp_no_cert_dp() {
+        let crl =
+            include_bytes!("../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+
+        let ee = include_bytes!("../tests/client_auth_revocation/ku_chain.ee.der");
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
+
+        // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
+        // cert has no CRL DPs.
+        assert!(crl_authoritative(
+            &crl,
+            &PathNode {
+                cert: &ee,
+                issued: None
+            }
+        ));
     }
 
     #[test]
