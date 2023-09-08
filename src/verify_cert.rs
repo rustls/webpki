@@ -210,18 +210,10 @@ fn build_chain_inner(
         }
 
         // Prevent loops; see RFC 4158 section 5.2.
-        let mut prev = path;
-        loop {
-            if potential_issuer.spki == prev.cert.spki
-                && potential_issuer.subject == prev.cert.subject
-            {
-                return Err(Error::UnknownIssuer.into());
-            }
-
-            match prev.issued {
-                Some(issued) => prev = issued,
-                None => break,
-            }
+        if path.iter().any(|prev| {
+            potential_issuer.spki == prev.cert.spki && potential_issuer.subject == prev.cert.subject
+        }) {
+            return Err(Error::UnknownIssuer.into());
         }
 
         let next_sub_ca_count = match used_as_ca {
@@ -240,7 +232,7 @@ fn build_chain_inner(
 
 fn check_signed_chain(
     supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-    mut path: &PathNode<'_>,
+    path: &PathNode<'_>,
     trust_anchor: &TrustAnchor,
     revocation: Option<RevocationOptions>,
     budget: &mut Budget,
@@ -248,7 +240,7 @@ fn check_signed_chain(
     let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
     let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
     let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
-    loop {
+    for path in path.iter() {
         signed_data::verify_signed_data(
             supported_sig_algs,
             spki_value,
@@ -268,22 +260,16 @@ fn check_signed_chain(
             )?;
         }
 
-        let issued = match path.issued {
-            Some(issued) => issued,
-            None => break,
-        };
-
         spki_value = path.cert.spki;
         issuer_subject = path.cert.subject;
         issuer_key_usage = path.cert.key_usage;
-        path = issued;
     }
 
     Ok(())
 }
 
 fn check_signed_chain_name_constraints(
-    mut path: &PathNode<'_>,
+    path: &PathNode<'_>,
     trust_anchor: &TrustAnchor,
     budget: &mut Budget,
 ) -> Result<(), ControlFlow<Error, Error>> {
@@ -292,18 +278,12 @@ fn check_signed_chain_name_constraints(
         .as_ref()
         .map(|der| untrusted::Input::from(der.as_ref()));
 
-    loop {
+    for path in path.iter() {
         untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
             subject_name::check_name_constraints(value, path, budget)
         })?;
 
-        match path.issued {
-            Some(issued) => {
-                name_constraints = path.cert.name_constraints;
-                path = issued;
-            }
-            None => break,
-        }
+        name_constraints = path.cert.name_constraints;
     }
 
     Ok(())
@@ -755,6 +735,26 @@ pub(crate) struct PathNode<'a> {
     /// As such, the next node, `issued`, was issued by this node; and `issued` is `None` for the
     /// last node, which thus represents the end-entity certificate.
     pub(crate) issued: Option<&'a PathNode<'a>>,
+}
+
+impl<'a> PathNode<'a> {
+    pub(crate) fn iter(&'a self) -> PathNodeIter<'a> {
+        PathNodeIter { next: Some(self) }
+    }
+}
+
+pub(crate) struct PathNodeIter<'a> {
+    next: Option<&'a PathNode<'a>>,
+}
+
+impl<'a> Iterator for PathNodeIter<'a> {
+    type Item = &'a PathNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.next?;
+        self.next = next.issued;
+        Some(next)
+    }
 }
 
 #[cfg(test)]
