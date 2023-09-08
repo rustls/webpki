@@ -30,104 +30,110 @@ pub(crate) struct ChainOptions<'a> {
     pub(crate) revocation: Option<RevocationOptions<'a>>,
 }
 
-pub(crate) fn build_chain(
-    opts: &ChainOptions,
-    cert: &Cert<'_>,
-    time: time::Time,
-) -> Result<(), Error> {
-    let path = PathNode { cert, issued: None };
-    build_chain_inner(opts, &path, time, 0, &mut Budget::default()).map_err(|e| match e {
-        ControlFlow::Break(err) => err,
-        ControlFlow::Continue(err) => err,
-    })
-}
-
-fn build_chain_inner(
-    opts: &ChainOptions,
-    path: &PathNode<'_>,
-    time: time::Time,
-    sub_ca_count: usize,
-    budget: &mut Budget,
-) -> Result<(), ControlFlow<Error, Error>> {
-    let used_as_ca = used_as_ca(path);
-
-    check_issuer_independent_properties(path.cert, time, used_as_ca, sub_ca_count, opts.eku.inner)?;
-
-    // TODO: HPKP checks.
-
-    match used_as_ca {
-        UsedAsCa::Yes => {
-            const MAX_SUB_CA_COUNT: usize = 6;
-
-            if sub_ca_count >= MAX_SUB_CA_COUNT {
-                return Err(Error::MaximumPathDepthExceeded.into());
-            }
-        }
-        UsedAsCa::No => {
-            assert_eq!(0, sub_ca_count);
-        }
+impl<'a> ChainOptions<'a> {
+    pub(crate) fn build_chain(&self, cert: &Cert<'_>, time: time::Time) -> Result<(), Error> {
+        let path = PathNode { cert, issued: None };
+        self.build_chain_inner(&path, time, 0, &mut Budget::default())
+            .map_err(|e| match e {
+                ControlFlow::Break(err) => err,
+                ControlFlow::Continue(err) => err,
+            })
     }
 
-    let result = loop_while_non_fatal_error(
-        Error::UnknownIssuer,
-        opts.trust_anchors,
-        |trust_anchor: &TrustAnchor| {
-            let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
-            if path.cert.issuer != trust_anchor_subject {
+    fn build_chain_inner(
+        &self,
+        path: &PathNode<'_>,
+        time: time::Time,
+        sub_ca_count: usize,
+        budget: &mut Budget,
+    ) -> Result<(), ControlFlow<Error, Error>> {
+        let used_as_ca = used_as_ca(path);
+
+        check_issuer_independent_properties(
+            path.cert,
+            time,
+            used_as_ca,
+            sub_ca_count,
+            self.eku.inner,
+        )?;
+
+        // TODO: HPKP checks.
+
+        match used_as_ca {
+            UsedAsCa::Yes => {
+                const MAX_SUB_CA_COUNT: usize = 6;
+
+                if sub_ca_count >= MAX_SUB_CA_COUNT {
+                    return Err(Error::MaximumPathDepthExceeded.into());
+                }
+            }
+            UsedAsCa::No => {
+                assert_eq!(0, sub_ca_count);
+            }
+        }
+
+        let result = loop_while_non_fatal_error(
+            Error::UnknownIssuer,
+            self.trust_anchors,
+            |trust_anchor: &TrustAnchor| {
+                let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
+                if path.cert.issuer != trust_anchor_subject {
+                    return Err(Error::UnknownIssuer.into());
+                }
+
+                // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
+
+                check_signed_chain(
+                    self.supported_sig_algs,
+                    path,
+                    trust_anchor,
+                    self.revocation,
+                    budget,
+                )?;
+
+                check_signed_chain_name_constraints(path, trust_anchor, budget)?;
+
+                Ok(())
+            },
+        );
+
+        let err = match result {
+            Ok(()) => return Ok(()),
+            // Fatal errors should halt further path building.
+            res @ Err(ControlFlow::Break(_)) => return res,
+            // Non-fatal errors should be carried forward as the default_error for subsequent
+            // loop_while_non_fatal_error processing and only returned once all other path-building
+            // options have been exhausted.
+            Err(ControlFlow::Continue(err)) => err,
+        };
+
+        loop_while_non_fatal_error(err, self.intermediate_certs, |cert_der| {
+            let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
+            if potential_issuer.subject != path.cert.issuer {
                 return Err(Error::UnknownIssuer.into());
             }
 
-            // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
+            // Prevent loops; see RFC 4158 section 5.2.
+            if path.iter().any(|prev| {
+                potential_issuer.spki == prev.cert.spki
+                    && potential_issuer.subject == prev.cert.subject
+            }) {
+                return Err(Error::UnknownIssuer.into());
+            }
 
-            check_signed_chain(
-                opts.supported_sig_algs,
-                path,
-                trust_anchor,
-                opts.revocation,
-                budget,
-            )?;
+            let next_sub_ca_count = match used_as_ca {
+                UsedAsCa::No => sub_ca_count,
+                UsedAsCa::Yes => sub_ca_count + 1,
+            };
 
-            check_signed_chain_name_constraints(path, trust_anchor, budget)?;
-
-            Ok(())
-        },
-    );
-
-    let err = match result {
-        Ok(()) => return Ok(()),
-        // Fatal errors should halt further path building.
-        res @ Err(ControlFlow::Break(_)) => return res,
-        // Non-fatal errors should be carried forward as the default_error for subsequent
-        // loop_while_non_fatal_error processing and only returned once all other path-building
-        // options have been exhausted.
-        Err(ControlFlow::Continue(err)) => err,
-    };
-
-    loop_while_non_fatal_error(err, opts.intermediate_certs, |cert_der| {
-        let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
-        if potential_issuer.subject != path.cert.issuer {
-            return Err(Error::UnknownIssuer.into());
-        }
-
-        // Prevent loops; see RFC 4158 section 5.2.
-        if path.iter().any(|prev| {
-            potential_issuer.spki == prev.cert.spki && potential_issuer.subject == prev.cert.subject
-        }) {
-            return Err(Error::UnknownIssuer.into());
-        }
-
-        let next_sub_ca_count = match used_as_ca {
-            UsedAsCa::No => sub_ca_count,
-            UsedAsCa::Yes => sub_ca_count + 1,
-        };
-
-        budget.consume_build_chain_call()?;
-        let potential_path = PathNode {
-            cert: &potential_issuer,
-            issued: Some(path),
-        };
-        build_chain_inner(opts, &potential_path, time, next_sub_ca_count, budget)
-    })
+            budget.consume_build_chain_call()?;
+            let potential_path = PathNode {
+                cert: &potential_issuer,
+                issued: Some(path),
+            };
+            self.build_chain_inner(&potential_path, time, next_sub_ca_count, budget)
+        })
+    }
 }
 
 fn check_signed_chain(
@@ -717,14 +723,14 @@ mod tests {
             .map(|x| CertificateDer::from(x.as_ref()))
             .collect::<Vec<_>>();
 
-        build_chain_inner(
-            &ChainOptions {
-                eku: KeyUsage::server_auth(),
-                supported_sig_algs: &[ECDSA_P256_SHA256],
-                trust_anchors: anchors,
-                intermediate_certs: &intermediates_der,
-                revocation: None,
-            },
+        ChainOptions {
+            eku: KeyUsage::server_auth(),
+            supported_sig_algs: &[ECDSA_P256_SHA256],
+            trust_anchors: anchors,
+            intermediate_certs: &intermediates_der,
+            revocation: None,
+        }
+        .build_chain_inner(
             &PathNode {
                 cert: cert.inner(),
                 issued: None,
