@@ -17,20 +17,8 @@ use crate::error::{DerTypeId, Error};
 use crate::signed_data::SignedData;
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 
-/// An enumeration indicating whether a [`Cert`] is a leaf end-entity cert, or a linked
-/// list node from the CA `Cert` to a child `Cert` it issued.
-pub enum EndEntityOrCa<'a> {
-    /// The [`Cert`] is a leaf end-entity certificate.
-    EndEntity,
-
-    /// The [`Cert`] is an issuer certificate, and issued the referenced child `Cert`.
-    Ca(&'a Cert<'a>),
-}
-
 /// A parsed X509 certificate.
 pub struct Cert<'a> {
-    pub(crate) ee_or_ca: EndEntityOrCa<'a>,
-
     pub(crate) serial: untrusted::Input<'a>,
     pub(crate) signed_data: SignedData<'a>,
     pub(crate) issuer: untrusted::Input<'a>,
@@ -51,10 +39,7 @@ pub struct Cert<'a> {
 }
 
 impl<'a> Cert<'a> {
-    pub(crate) fn from_der(
-        cert_der: untrusted::Input<'a>,
-        ee_or_ca: EndEntityOrCa<'a>,
-    ) -> Result<Self, Error> {
+    pub(crate) fn from_der(cert_der: untrusted::Input<'a>) -> Result<Self, Error> {
         let (tbs, signed_data) =
             cert_der.read_all(Error::TrailingData(DerTypeId::Certificate), |cert_der| {
                 der::nested(
@@ -94,8 +79,6 @@ impl<'a> Cert<'a> {
                 // contain them.
 
                 let mut cert = Cert {
-                    ee_or_ca,
-
                     signed_data,
                     serial,
                     issuer,
@@ -151,12 +134,6 @@ impl<'a> Cert<'a> {
     /// Raw DER encoded certificate subject.
     pub fn subject(&self) -> &[u8] {
         self.subject.as_slice_less_safe()
-    }
-
-    /// Returns an indication of whether the certificate is an end-entity (leaf) certificate,
-    /// or a certificate authority.
-    pub fn end_entity_or_ca(&self) -> &EndEntityOrCa {
-        &self.ee_or_ca
     }
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
@@ -321,7 +298,7 @@ impl<'a> FromDer<'a> for CrlDistributionPoint<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::cert::{Cert, EndEntityOrCa};
+    use crate::cert::Cert;
     #[cfg(feature = "alloc")]
     use crate::{
         cert::{CrlDistributionPoint, DistributionPointName},
@@ -335,13 +312,11 @@ mod tests {
     //       is read correctly here instead of in tests/integration.rs.
     fn test_serial_read() {
         let ee = include_bytes!("../tests/misc/serial_neg_ee.der");
-        let cert = Cert::from_der(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert = Cert::from_der(untrusted::Input::from(ee)).expect("failed to parse certificate");
         assert_eq!(cert.serial.as_slice_less_safe(), &[255, 33, 82, 65, 17]);
 
         let ee = include_bytes!("../tests/misc/serial_large_positive.der");
-        let cert = Cert::from_der(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert = Cert::from_der(untrusted::Input::from(ee)).expect("failed to parse certificate");
         assert_eq!(
             cert.serial.as_slice_less_safe(),
             &[
@@ -356,10 +331,9 @@ mod tests {
     fn test_crl_distribution_point_netflix() {
         let ee = include_bytes!("../tests/netflix/ee.der");
         let inter = include_bytes!("../tests/netflix/inter.der");
-        let ee_cert = Cert::from_der(untrusted::Input::from(ee), EndEntityOrCa::EndEntity)
-            .expect("failed to parse EE cert");
-        let cert = Cert::from_der(untrusted::Input::from(inter), EndEntityOrCa::Ca(&ee_cert))
-            .expect("failed to parse certificate");
+        let ee_cert = Cert::from_der(untrusted::Input::from(ee)).expect("failed to parse EE cert");
+        let cert =
+            Cert::from_der(untrusted::Input::from(inter)).expect("failed to parse certificate");
 
         // The end entity certificate shouldn't have a distribution point.
         assert!(ee_cert.crl_distribution_points.is_none());
@@ -423,8 +397,8 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_crl_distribution_point_with_reasons() {
         let der = include_bytes!("../tests/crl_distrib_point/with_reasons.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect to be able to parse the intermediate certificate's CRL distribution points.
         let crl_distribution_points = cert
@@ -462,8 +436,8 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_crl_distribution_point_with_crl_issuer() {
         let der = include_bytes!("../tests/crl_distrib_point/with_crl_issuer.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect to be able to parse the intermediate certificate's CRL distribution points.
         let crl_distribution_points = cert
@@ -490,8 +464,8 @@ mod tests {
         // Created w/
         //   ascii2der -i tests/crl_distrib_point/unknown_tag.der.txt -o tests/crl_distrib_point/unknown_tag.der
         let der = include_bytes!("../tests/crl_distrib_point/unknown_tag.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect there to be a distribution point extension, but parsing it should fail
         // due to the unknown tag in the SEQUENCE.
@@ -508,8 +482,8 @@ mod tests {
         // Created w/
         //   ascii2der -i tests/crl_distrib_point/only_reasons.der.txt -o tests/crl_distrib_point/only_reasons.der
         let der = include_bytes!("../tests/crl_distrib_point/only_reasons.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect there to be a distribution point extension, but parsing it should fail
         // because no distribution points or cRLIssuer are set in the SEQUENCE, just reason codes.
@@ -524,8 +498,8 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_crl_distribution_point_name_relative_to_issuer() {
         let der = include_bytes!("../tests/crl_distrib_point/dp_name_relative_to_issuer.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect to be able to parse the intermediate certificate's CRL distribution points.
         let crl_distribution_points = cert
@@ -564,8 +538,8 @@ mod tests {
         // Created w/
         //   ascii2der -i tests/crl_distrib_point/unknown_dp_name_tag.der.txt > tests/crl_distrib_point/unknown_dp_name_tag.der
         let der = include_bytes!("../tests/crl_distrib_point/unknown_dp_name_tag.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect to be able to parse the intermediate certificate's CRL distribution points.
         let crl_distribution_points = cert
@@ -589,8 +563,8 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_crl_distribution_point_multiple() {
         let der = include_bytes!("../tests/crl_distrib_point/multiple_distribution_points.der");
-        let cert = Cert::from_der(untrusted::Input::from(der), EndEntityOrCa::EndEntity)
-            .expect("failed to parse certificate");
+        let cert =
+            Cert::from_der(untrusted::Input::from(der)).expect("failed to parse certificate");
 
         // We expect to be able to parse the intermediate certificate's CRL distribution points.
         let crl_distribution_points = cert

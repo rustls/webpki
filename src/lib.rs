@@ -64,7 +64,7 @@ mod x509;
 pub(crate) mod test_utils;
 
 pub use {
-    cert::{Cert, EndEntityOrCa},
+    cert::Cert,
     crl::{BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason},
     end_entity::EndEntityCert,
     error::{DerTypeId, Error},

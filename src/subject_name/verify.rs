@@ -20,10 +20,9 @@ use super::dns_name::{self, DnsNameRef};
 use super::dns_name::{GeneralDnsNameRef, WildcardDnsNameRef};
 use super::ip_address::{self, IpAddrRef};
 use super::name::SubjectNameRef;
-use crate::cert::{Cert, EndEntityOrCa};
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
-use crate::verify_cert::Budget;
+use crate::verify_cert::{Budget, PathNode};
 
 pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
@@ -94,7 +93,7 @@ pub(crate) fn verify_cert_subject_name(
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
 pub(crate) fn check_name_constraints(
     constraints: Option<&mut untrusted::Reader>,
-    subordinate_certs: &Cert,
+    mut path: &PathNode<'_>,
     budget: &mut Budget,
 ) -> Result<(), Error> {
     let constraints = match constraints {
@@ -115,10 +114,9 @@ pub(crate) fn check_name_constraints(
     let permitted_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed0)?;
     let excluded_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed1)?;
 
-    let mut child = subordinate_certs;
     loop {
-        let result =
-            NameIterator::new(Some(child.subject), child.subject_alt_name).find_map(|result| {
+        let result = NameIterator::new(Some(path.cert.subject), path.cert.subject_alt_name)
+            .find_map(|result| {
                 let name = match result {
                     Ok(name) => name,
                     Err(err) => return Some(Err(err)),
@@ -136,11 +134,9 @@ pub(crate) fn check_name_constraints(
             return Err(err);
         }
 
-        child = match child.ee_or_ca {
-            EndEntityOrCa::Ca(child_cert) => child_cert,
-            EndEntityOrCa::EndEntity => {
-                break;
-            }
+        path = match path.issued {
+            Some(issued) => issued,
+            None => break,
         };
     }
 

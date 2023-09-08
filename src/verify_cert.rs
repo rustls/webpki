@@ -17,7 +17,7 @@ use core::ops::ControlFlow;
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 
-use crate::cert::{Cert, EndEntityOrCa};
+use crate::cert::Cert;
 use crate::crl::IssuingDistributionPoint;
 use crate::der::{self, FromDer};
 use crate::{signed_data, subject_name, time, CertRevocationList, Error};
@@ -130,8 +130,13 @@ pub(crate) struct ChainOptions<'a> {
     pub(crate) revocation: Option<RevocationOptions<'a>>,
 }
 
-pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) -> Result<(), Error> {
-    build_chain_inner(opts, cert, time, 0, &mut Budget::default()).map_err(|e| match e {
+pub(crate) fn build_chain(
+    opts: &ChainOptions,
+    cert: &Cert<'_>,
+    time: time::Time,
+) -> Result<(), Error> {
+    let path = PathNode { cert, issued: None };
+    build_chain_inner(opts, &path, time, 0, &mut Budget::default()).map_err(|e| match e {
         ControlFlow::Break(err) => err,
         ControlFlow::Continue(err) => err,
     })
@@ -139,14 +144,14 @@ pub(crate) fn build_chain(opts: &ChainOptions, cert: &Cert, time: time::Time) ->
 
 fn build_chain_inner(
     opts: &ChainOptions,
-    cert: &Cert,
+    path: &PathNode<'_>,
     time: time::Time,
     sub_ca_count: usize,
     budget: &mut Budget,
 ) -> Result<(), ControlFlow<Error, Error>> {
-    let used_as_ca = used_as_ca(&cert.ee_or_ca);
+    let used_as_ca = used_as_ca(path);
 
-    check_issuer_independent_properties(cert, time, used_as_ca, sub_ca_count, opts.eku.inner)?;
+    check_issuer_independent_properties(path.cert, time, used_as_ca, sub_ca_count, opts.eku.inner)?;
 
     // TODO: HPKP checks.
 
@@ -168,7 +173,7 @@ fn build_chain_inner(
         opts.trust_anchors,
         |trust_anchor: &TrustAnchor| {
             let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
-            if cert.issuer != trust_anchor_subject {
+            if path.cert.issuer != trust_anchor_subject {
                 return Err(Error::UnknownIssuer.into());
             }
 
@@ -176,13 +181,13 @@ fn build_chain_inner(
 
             check_signed_chain(
                 opts.supported_sig_algs,
-                cert,
+                path,
                 trust_anchor,
                 opts.revocation,
                 budget,
             )?;
 
-            check_signed_chain_name_constraints(cert, trust_anchor, budget)?;
+            check_signed_chain_name_constraints(path, trust_anchor, budget)?;
 
             Ok(())
         },
@@ -199,26 +204,23 @@ fn build_chain_inner(
     };
 
     loop_while_non_fatal_error(err, opts.intermediate_certs, |cert_der| {
-        let potential_issuer =
-            Cert::from_der(untrusted::Input::from(cert_der), EndEntityOrCa::Ca(cert))?;
-
-        if potential_issuer.subject != cert.issuer {
+        let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
+        if potential_issuer.subject != path.cert.issuer {
             return Err(Error::UnknownIssuer.into());
         }
 
         // Prevent loops; see RFC 4158 section 5.2.
-        let mut prev = cert;
+        let mut prev = path;
         loop {
-            if potential_issuer.spki == prev.spki && potential_issuer.subject == prev.subject {
+            if potential_issuer.spki == prev.cert.spki
+                && potential_issuer.subject == prev.cert.subject
+            {
                 return Err(Error::UnknownIssuer.into());
             }
-            match &prev.ee_or_ca {
-                EndEntityOrCa::EndEntity => {
-                    break;
-                }
-                EndEntityOrCa::Ca(child_cert) => {
-                    prev = child_cert;
-                }
+
+            match prev.issued {
+                Some(issued) => prev = issued,
+                None => break,
             }
         }
 
@@ -228,13 +230,17 @@ fn build_chain_inner(
         };
 
         budget.consume_build_chain_call()?;
-        build_chain_inner(opts, &potential_issuer, time, next_sub_ca_count, budget)
+        let potential_path = PathNode {
+            cert: &potential_issuer,
+            issued: Some(path),
+        };
+        build_chain_inner(opts, &potential_path, time, next_sub_ca_count, budget)
     })
 }
 
 fn check_signed_chain(
     supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-    cert_chain: &Cert,
+    mut path: &PathNode<'_>,
     trust_anchor: &TrustAnchor,
     revocation: Option<RevocationOptions>,
     budget: &mut Budget,
@@ -242,14 +248,18 @@ fn check_signed_chain(
     let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
     let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
     let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
-    let mut cert = cert_chain;
     loop {
-        signed_data::verify_signed_data(supported_sig_algs, spki_value, &cert.signed_data, budget)?;
+        signed_data::verify_signed_data(
+            supported_sig_algs,
+            spki_value,
+            &path.cert.signed_data,
+            budget,
+        )?;
 
         if let Some(revocation_opts) = &revocation {
             check_crls(
                 supported_sig_algs,
-                cert,
+                path,
                 issuer_subject,
                 spki_value,
                 issuer_key_usage,
@@ -258,28 +268,25 @@ fn check_signed_chain(
             )?;
         }
 
-        match &cert.ee_or_ca {
-            EndEntityOrCa::Ca(child_cert) => {
-                spki_value = cert.spki;
-                issuer_subject = cert.subject;
-                issuer_key_usage = cert.key_usage;
-                cert = child_cert;
-            }
-            EndEntityOrCa::EndEntity => {
-                break;
-            }
-        }
+        let issued = match path.issued {
+            Some(issued) => issued,
+            None => break,
+        };
+
+        spki_value = path.cert.spki;
+        issuer_subject = path.cert.subject;
+        issuer_key_usage = path.cert.key_usage;
+        path = issued;
     }
 
     Ok(())
 }
 
 fn check_signed_chain_name_constraints(
-    cert_chain: &Cert,
+    mut path: &PathNode<'_>,
     trust_anchor: &TrustAnchor,
     budget: &mut Budget,
 ) -> Result<(), ControlFlow<Error, Error>> {
-    let mut cert = cert_chain;
     let mut name_constraints = trust_anchor
         .name_constraints
         .as_ref()
@@ -287,17 +294,15 @@ fn check_signed_chain_name_constraints(
 
     loop {
         untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
-            subject_name::check_name_constraints(value, cert, budget)
+            subject_name::check_name_constraints(value, path, budget)
         })?;
 
-        match &cert.ee_or_ca {
-            EndEntityOrCa::Ca(child_cert) => {
-                name_constraints = cert.name_constraints;
-                cert = child_cert;
+        match path.issued {
+            Some(issued) => {
+                name_constraints = path.cert.name_constraints;
+                path = issued;
             }
-            EndEntityOrCa::EndEntity => {
-                break;
-            }
+            None => break,
         }
     }
 
@@ -372,27 +377,25 @@ impl CertNotRevoked {
 
 fn check_crls(
     supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-    cert: &Cert,
+    path: &PathNode<'_>,
     issuer_subject: untrusted::Input,
     issuer_spki: untrusted::Input,
     issuer_ku: Option<untrusted::Input>,
     revocation: &RevocationOptions,
     budget: &mut Budget,
 ) -> Result<Option<CertNotRevoked>, Error> {
-    assert_eq!(cert.issuer, issuer_subject);
+    assert_eq!(path.cert.issuer, issuer_subject);
 
     // If the policy only specifies checking EndEntity revocation state and we're looking at an
     // issuer certificate, return early without considering the certificate's revocation state.
-    if let (RevocationCheckDepth::EndEntity, EndEntityOrCa::Ca(_)) =
-        (revocation.depth, &cert.ee_or_ca)
-    {
+    if let (RevocationCheckDepth::EndEntity, Some(_)) = (revocation.depth, &path.issued) {
         return Ok(None);
     }
 
     let crl = revocation
         .crls
         .iter()
-        .find(|candidate_crl| crl_authoritative(**candidate_crl, cert));
+        .find(|candidate_crl| crl_authoritative(**candidate_crl, path));
 
     use UnknownStatusPolicy::*;
     let crl = match (crl, revocation.status_requirement) {
@@ -415,7 +418,7 @@ fn check_crls(
     KeyUsageMode::CrlSign.check(issuer_ku)?;
 
     // Try to find the cert serial in the verified CRL contents.
-    let cert_serial = cert.serial.as_slice_less_safe();
+    let cert_serial = path.cert.serial.as_slice_less_safe();
     match crl.find_serial(cert_serial)? {
         None => Ok(Some(CertNotRevoked::assertion())),
         Some(_) => Err(Error::CertRevoked),
@@ -436,15 +439,15 @@ fn check_crls(
 ///       the CRL issuing distribution point full name general name sequence.
 ///
 /// In all other circumstances the CRL is not considered authoritative.
-fn crl_authoritative(crl: &dyn CertRevocationList, cert: &Cert<'_>) -> bool {
+fn crl_authoritative(crl: &dyn CertRevocationList, path: &PathNode<'_>) -> bool {
     // In all cases we require that the authoritative CRL have the same issuer
     // as the certificate. Recall we do not support indirect CRLs.
-    if crl.issuer() != cert.issuer() {
+    if crl.issuer() != path.cert.issuer() {
         return false;
     }
 
     let crl_idp = match (
-        cert.crl_distribution_points(),
+        path.cert.crl_distribution_points(),
         crl.issuing_distribution_point(),
     ) {
         // If the certificate has no CRL distribution points, and the CRL has no issuing distribution point,
@@ -461,7 +464,7 @@ fn crl_authoritative(crl: &dyn CertRevocationList, cert: &Cert<'_>) -> bool {
         }
     };
 
-    crl_idp.authoritative_for(cert)
+    crl_idp.authoritative_for(path)
 }
 
 // When verifying CRL signed data we want to disambiguate the context of possible errors by mapping
@@ -534,10 +537,10 @@ enum UsedAsCa {
     No,
 }
 
-fn used_as_ca(ee_or_ca: &EndEntityOrCa) -> UsedAsCa {
-    match ee_or_ca {
-        EndEntityOrCa::EndEntity => UsedAsCa::No,
-        EndEntityOrCa::Ca(..) => UsedAsCa::Yes,
+fn used_as_ca(node: &PathNode<'_>) -> UsedAsCa {
+    match node.issued {
+        None => UsedAsCa::No,
+        Some(..) => UsedAsCa::Yes,
     }
 }
 
@@ -745,6 +748,15 @@ where
     Err(error.into())
 }
 
+/// A node in a [`Cert`] path, represented as a linked list from trust anchor to end-entity.
+pub(crate) struct PathNode<'a> {
+    pub(crate) cert: &'a Cert<'a>,
+    /// Links to the next node in the path; this list is in trust anchor to end-entity order.
+    /// As such, the next node, `issued`, was issued by this node; and `issued` is `None` for the
+    /// last node, which thus represents the end-entity certificate.
+    pub(crate) issued: Option<&'a PathNode<'a>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -843,10 +855,16 @@ mod tests {
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
         let ee = include_bytes!("../tests/client_auth_revocation/no_ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..]), EndEntityOrCa::EndEntity).unwrap();
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
 
         // The CRL should not be authoritative for an EE issued by a different issuer.
-        assert!(!crl_authoritative(&crl, &ee));
+        assert!(!crl_authoritative(
+            &crl,
+            &PathNode {
+                cert: &ee,
+                issued: None
+            }
+        ));
     }
 
     #[test]
@@ -856,11 +874,17 @@ mod tests {
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
         let ee = include_bytes!("../tests/client_auth_revocation/ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..]), EndEntityOrCa::EndEntity).unwrap();
+        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
 
         // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
         // cert has no CRL DPs.
-        assert!(crl_authoritative(&crl, &ee));
+        assert!(crl_authoritative(
+            &crl,
+            &PathNode {
+                cert: &ee,
+                issued: None
+            }
+        ));
     }
 
     #[cfg(feature = "alloc")]
@@ -1074,7 +1098,10 @@ mod tests {
                 intermediate_certs: &intermediates_der,
                 revocation: None,
             },
-            cert.inner(),
+            &PathNode {
+                cert: cert.inner(),
+                issued: None,
+            },
             time,
             0,
             &mut budget.unwrap_or_default(),
