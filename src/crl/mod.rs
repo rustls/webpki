@@ -1133,7 +1133,7 @@ mod tests {
         }
 
         // It should be possible to build a revocation options builder with defaults.
-        let crl = include_bytes!("../tests/crls/crl.valid.der");
+        let crl = include_bytes!("../../tests/crls/crl.valid.der");
         let crl =
             &BorrowedCertRevocationList::from_der(&crl[..]).unwrap() as &dyn CertRevocationList;
         let crls = [crl];
@@ -1197,10 +1197,10 @@ mod tests {
 
     #[test]
     fn test_crl_authoritative_issuer_mismatch() {
-        let crl = include_bytes!("../tests/crls/crl.valid.der");
+        let crl = include_bytes!("../../tests/crls/crl.valid.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
-        let ee = include_bytes!("../tests/client_auth_revocation/no_ku_chain.ee.der");
+        let ee = include_bytes!("../../tests/client_auth_revocation/no_ku_chain.ee.der");
         let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
 
         // The CRL should not be authoritative for an EE issued by a different issuer.
@@ -1216,10 +1216,10 @@ mod tests {
     #[test]
     fn test_crl_authoritative_no_idp_no_cert_dp() {
         let crl =
-            include_bytes!("../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
+            include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
-        let ee = include_bytes!("../tests/client_auth_revocation/ku_chain.ee.der");
+        let ee = include_bytes!("../../tests/client_auth_revocation/ku_chain.ee.der");
         let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
 
         // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
@@ -1281,7 +1281,7 @@ mod tests {
     #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
     fn test_derived_traits() {
         let crl = crate::crl::BorrowedCertRevocationList::from_der(include_bytes!(
-            "../tests/crls/crl.valid.der"
+            "../../tests/crls/crl.valid.der"
         ))
         .unwrap();
         println!("{:?}", crl); // BorrowedCertRevocationList should be debug.
@@ -1303,7 +1303,7 @@ mod tests {
 
     #[test]
     fn parse_issuing_distribution_point_ext() {
-        let crl = include_bytes!("../tests/crls/crl.idp.valid.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.valid.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
         // We should be able to parse the issuing distribution point extension.
@@ -1355,7 +1355,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_point_only_user_certs() {
-        let crl = include_bytes!("../tests/crls/crl.idp.only_user_certs.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.only_user_certs.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
         // We should be able to parse the issuing distribution point extension.
@@ -1370,9 +1370,9 @@ mod tests {
         assert!(crl_issuing_dp.only_contains_user_certs);
 
         // The IDP shouldn't be considered authoritative for a CA Cert.
-        let ee = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
+        let ee = include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
         let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
-        let ca = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.int.a.ca.der");
+        let ca = include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.int.a.ca.der");
         let ca = Cert::from_der(untrusted::Input::from(&ca[..])).unwrap();
         assert!(!crl_issuing_dp.authoritative_for(&PathNode {
             cert: &ca,
@@ -1385,7 +1385,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_point_only_ca_certs() {
-        let crl = include_bytes!("../tests/crls/crl.idp.only_ca_certs.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.only_ca_certs.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
         // We should be able to parse the issuing distribution point extension.
@@ -1400,7 +1400,7 @@ mod tests {
         assert!(crl_issuing_dp.only_contains_ca_certs);
 
         // The IDP shouldn't be considered authoritative for an EE Cert.
-        let ee = include_bytes!("../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
+        let ee = include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
         let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
         assert!(!crl_issuing_dp.authoritative_for(&PathNode {
             cert: &ee,
@@ -1410,7 +1410,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_point_indirect() {
-        let crl = include_bytes!("../tests/crls/crl.idp.indirect_crl.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.indirect_crl.der");
         // We should encounter an error parsing a CRL with an IDP extension that indicates it's an
         // indirect CRL.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
@@ -1419,7 +1419,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_only_attribute_certs() {
-        let crl = include_bytes!("../tests/crls/crl.idp.only_attribute_certs.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.only_attribute_certs.der");
         // We should find an error when we parse a CRL with an IDP extension that indicates it only
         // contains attribute certs.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
@@ -1428,7 +1428,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_only_some_reasons() {
-        let crl = include_bytes!("../tests/crls/crl.idp.only_some_reasons.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.only_some_reasons.der");
         // We should encounter an error parsing a CRL with an IDP extension that indicates it's
         // partitioned by revocation reason.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
@@ -1442,7 +1442,7 @@ mod tests {
     fn test_issuing_distribution_invalid_bool() {
         // Created w/
         //   ascii2der -i tests/crls/crl.idp.invalid.bool.der.txt -o tests/crls/crl.idp.invalid.bool.der
-        let crl = include_bytes!("../tests/crls/crl.idp.invalid.bool.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.invalid.bool.der");
         // We should encounter an error parsing a CRL with an IDP extension with an invalid encoded boolean.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
         assert!(matches!(result, Err(Error::BadDer)))
@@ -1452,7 +1452,7 @@ mod tests {
     fn test_issuing_distribution_explicit_false_bool() {
         // Created w/
         //   ascii2der -i tests/crls/crl.idp.explicit.false.bool.der.txt -o tests/crls/crl.idp.explicit.false.bool.der
-        let crl = include_bytes!("../tests/crls/crl.idp.explicit.false.bool.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.explicit.false.bool.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
         // We should be able to parse the issuing distribution point extension.
@@ -1466,7 +1466,7 @@ mod tests {
     fn test_issuing_distribution_unknown_tag() {
         // Created w/
         //   ascii2der -i tests/crls/crl.idp.unknown.tag.der.txt -o tests/crls/crl.idp.unknown.tag.der
-        let crl = include_bytes!("../tests/crls/crl.idp.unknown.tag.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.unknown.tag.der");
         // We should encounter an error parsing a CRL with an invalid IDP extension.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
         assert!(matches!(result, Err(Error::BadDer)));
@@ -1476,7 +1476,7 @@ mod tests {
     fn test_issuing_distribution_invalid_name() {
         // Created w/
         //   ascii2der -i tests/crls/crl.idp.invalid.name.der.txt -o tests/crls/crl.idp.invalid.name.der
-        let crl = include_bytes!("../tests/crls/crl.idp.invalid.name.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.invalid.name.der");
 
         // We should encounter an error parsing a CRL with an invalid issuing distribution point name.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
@@ -1485,7 +1485,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_relative_name() {
-        let crl = include_bytes!("../tests/crls/crl.idp.name_relative_to_issuer.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.name_relative_to_issuer.der");
         // We should encounter an error parsing a CRL with an issuing distribution point extension
         // that has a distribution point name relative to an issuer.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
@@ -1497,7 +1497,7 @@ mod tests {
 
     #[test]
     fn test_issuing_distribution_no_name() {
-        let crl = include_bytes!("../tests/crls/crl.idp.no_distribution_point_name.der");
+        let crl = include_bytes!("../../tests/crls/crl.idp.no_distribution_point_name.der");
         // We should encounter an error parsing a CRL with an issuing distribution point extension
         // that has no distribution point name.
         let result = BorrowedCertRevocationList::from_der(&crl[..]);
