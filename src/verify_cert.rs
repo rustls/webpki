@@ -22,12 +22,20 @@ use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
 use crate::{signed_data, subject_name, Error};
 
-pub(crate) struct ChainOptions<'a> {
-    pub(crate) eku: KeyUsage,
-    pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
-    pub(crate) trust_anchors: &'a [TrustAnchor<'a>],
-    pub(crate) intermediate_certs: &'a [CertificateDer<'a>],
-    pub(crate) revocation: Option<RevocationOptions<'a>>,
+/// Input context for verifying a certificate chain for a particular purpose.
+pub struct ChainOptions<'a> {
+    /// Intended usage of the certificate, indicating what purpose verification is for.
+    pub eku: KeyUsage,
+    /// Signature algorithms that are trusted for use in certificate signatures.
+    ///
+    /// The end-entity certificate's public key is not validated against this list.
+    pub supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
+    /// List of root CAs that will anchor the trust in the built path.
+    pub trust_anchors: &'a [TrustAnchor<'a>],
+    /// Intermediate certificates that a peer sent for the purpose of path building.
+    pub intermediate_certs: &'a [CertificateDer<'a>],
+    /// Optional certificate revocation list options to check for revocation.
+    pub revocation: Option<RevocationOptions<'a>>,
 }
 
 impl<'a> ChainOptions<'a> {

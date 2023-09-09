@@ -80,7 +80,7 @@ pub use {
         SubjectNameRef,
     },
     trust_anchor::extract_trust_anchor,
-    verify_cert::KeyUsage,
+    verify_cert::{ChainOptions, KeyUsage},
 };
 
 pub use pki_types as types;

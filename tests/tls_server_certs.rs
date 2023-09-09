@@ -16,7 +16,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{extract_trust_anchor, KeyUsage};
+use webpki::{extract_trust_anchor, ChainOptions, KeyUsage};
 
 fn check_cert(
     ee: &[u8],
@@ -30,14 +30,16 @@ fn check_cert(
     let ee_der = CertificateDer::from(ee);
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
-    cert.verify_for_usage(
-        webpki::ALL_VERIFICATION_ALGS,
-        &anchors,
-        &[],
-        time,
-        KeyUsage::server_auth(),
-        None,
-    )?;
+
+    let options = ChainOptions {
+        eku: KeyUsage::server_auth(),
+        trust_anchors: &anchors,
+        intermediate_certs: &[],
+        revocation: None,
+        supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
+    };
+
+    cert.verify_for_usage(time, &options)?;
 
     for valid in valid_names {
         let name = webpki::SubjectNameRef::try_from_ascii_str(valid).unwrap();

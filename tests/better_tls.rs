@@ -6,11 +6,11 @@ use std::fs::File;
 
 use base64::{engine::general_purpose, Engine as _};
 use bzip2::read::BzDecoder;
-use pki_types::UnixTime;
+use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 use serde::Deserialize;
 
-use webpki::types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
-use webpki::{extract_trust_anchor, KeyUsage, SubjectNameRef};
+use webpki::types::{CertificateDer, TrustAnchor};
+use webpki::{extract_trust_anchor, ChainOptions, KeyUsage, SubjectNameRef};
 
 // All of the BetterTLS testcases use P256 keys.
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -75,21 +75,20 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
         // certificates won't expire.
         let now = UnixTime::since_unix_epoch(Duration::from_secs(1_691_788_832));
 
-        let result = ee_cert
-            .verify_for_usage(
-                ALGS,
-                roots,
-                intermediates,
-                now,
-                KeyUsage::server_auth(),
-                None,
+        let options = ChainOptions {
+            eku: KeyUsage::server_auth(),
+            trust_anchors: roots,
+            intermediate_certs: intermediates,
+            revocation: None,
+            supported_sig_algs: ALGS,
+        };
+
+        let result = ee_cert.verify_for_usage(now, &options).and_then(|_| {
+            ee_cert.verify_is_valid_for_subject_name(
+                SubjectNameRef::try_from_ascii_str(&testcase.hostname)
+                    .expect("invalid testcase hostname"),
             )
-            .and_then(|_| {
-                ee_cert.verify_is_valid_for_subject_name(
-                    SubjectNameRef::try_from_ascii_str(&testcase.hostname)
-                        .expect("invalid testcase hostname"),
-                )
-            });
+        });
 
         match testcase.expected {
             ExpectedResult::Accept => assert!(result.is_ok(), "expected success, got {:?}", result),

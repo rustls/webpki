@@ -3,7 +3,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{extract_trust_anchor, KeyUsage};
+use webpki::{extract_trust_anchor, ChainOptions, KeyUsage};
 
 fn check_cert(
     ee: &[u8],
@@ -18,17 +18,15 @@ fn check_cert(
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
 
-    assert_eq!(
-        cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[],
-            time,
-            eku,
-            None
-        ),
-        result
-    );
+    let options = ChainOptions {
+        eku,
+        trust_anchors: &anchors,
+        intermediate_certs: &[],
+        revocation: None,
+        supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
+    };
+
+    assert_eq!(cert.verify_for_usage(time, &options), result);
 }
 
 #[test]

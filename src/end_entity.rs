@@ -14,12 +14,11 @@
 
 use core::ops::Deref;
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 
-use crate::crl::RevocationOptions;
 use crate::error::Error;
 use crate::subject_name::{self, SubjectNameRef};
-use crate::verify_cert::{self, KeyUsage};
+use crate::verify_cert::ChainOptions;
 use crate::{cert, signed_data};
 
 /// An end-entity certificate.
@@ -73,35 +72,10 @@ impl<'a> EndEntityCert<'a> {
     /// Verifies that the end-entity certificate is valid for use against the
     /// specified Extended Key Usage (EKU).
     ///
-    /// * `supported_sig_algs` is the list of signature algorithms that are
-    ///   trusted for use in certificate signatures; the end-entity certificate's
-    ///   public key is not validated against this list.
-    /// * `trust_anchors` is the list of root CAs to trust
-    /// * `intermediate_certs` is the sequence of intermediate certificates that
-    ///   the server sent in the TLS handshake.
-    /// * `time` is the time for which the validation is effective (usually the
-    ///   current time).
-    /// * `usage` is the intended usage of the certificate, indicating what kind
-    ///   of usage we're verifying the certificate for.
-    /// * `crls` is the list of certificate revocation lists to check
-    ///   the certificate against.
-    pub fn verify_for_usage(
-        &self,
-        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        trust_anchors: &[TrustAnchor],
-        intermediate_certs: &[CertificateDer<'_>],
-        time: UnixTime,
-        usage: KeyUsage,
-        revocation: Option<RevocationOptions>,
-    ) -> Result<(), Error> {
-        verify_cert::ChainOptions {
-            eku: usage,
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
-            revocation,
-        }
-        .build_chain(&self.inner, time)
+    /// `time` is the time for which the validation is effective (usually the
+    /// current time).
+    pub fn verify_for_usage(&self, time: UnixTime, opts: &ChainOptions<'_>) -> Result<(), Error> {
+        opts.build_chain(&self.inner, time)
     }
 
     /// Verifies that the certificate is valid for the given Subject Name.
