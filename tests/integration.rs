@@ -43,7 +43,7 @@ fn netflix() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(cert.verify_for_usage(time, &options), Ok(()));
+    assert_eq!(options.verify_trusted(&cert, time), Ok(()));
 }
 
 /* This is notable because it is a popular use of IP address subjectAltNames. */
@@ -70,7 +70,7 @@ fn cloudflare_dns() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(cert.verify_for_usage(time, &options), Ok(()));
+    assert_eq!(options.verify_trusted(&cert, time), Ok(()));
 
     let check_name = |name: &str| {
         let subject_name_ref = webpki::SubjectNameRef::try_from_ascii_str(name).unwrap();
@@ -122,7 +122,7 @@ fn wpt() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(cert.verify_for_usage(time, &options), Ok(()),);
+    assert_eq!(options.verify_trusted(&cert, time), Ok(()),);
 }
 
 #[test]
@@ -144,7 +144,7 @@ fn ed25519() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(cert.verify_for_usage(time, &options,), Ok(()));
+    assert_eq!(options.verify_trusted(&cert, time), Ok(()));
 }
 
 #[test]
@@ -169,14 +169,14 @@ fn critical_extensions() {
     };
 
     let res =
-        webpki::EndEntityCert::try_from(&ee).and_then(|cert| cert.verify_for_usage(time, &options));
+        webpki::EndEntityCert::try_from(&ee).and_then(|cert| options.verify_trusted(&cert, time));
     assert_eq!(res, Ok(()), "accept non-critical unknown extension");
 
     let ee = CertificateDer::from(
         &include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der")[..],
     );
     let res =
-        webpki::EndEntityCert::try_from(&ee).and_then(|cert| cert.verify_for_usage(time, &options));
+        webpki::EndEntityCert::try_from(&ee).and_then(|cert| options.verify_trusted(&cert, time));
     assert_eq!(
         res,
         Err(webpki::Error::UnsupportedCriticalExtension),
@@ -216,7 +216,7 @@ fn read_ee_with_neg_serial() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(cert.verify_for_usage(time, &options,), Ok(()));
+    assert_eq!(options.verify_trusted(&cert, time), Ok(()));
 }
 
 #[test]

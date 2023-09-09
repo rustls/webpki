@@ -83,7 +83,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
             supported_sig_algs: ALGS,
         };
 
-        let result = ee_cert.verify_for_usage(now, &options).and_then(|_| {
+        let result = options.verify_trusted(&ee_cert, now).and_then(|_| {
             ee_cert.verify_is_valid_for_subject_name(
                 SubjectNameRef::try_from_ascii_str(&testcase.hostname)
                     .expect("invalid testcase hostname"),

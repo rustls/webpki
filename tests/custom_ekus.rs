@@ -26,7 +26,7 @@ fn check_cert(
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(cert.verify_for_usage(time, &options), result);
+    assert_eq!(options.verify_trusted(&cert, time), result);
 }
 
 #[test]

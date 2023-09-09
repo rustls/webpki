@@ -14,11 +14,10 @@
 
 use core::ops::Deref;
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
 
 use crate::error::Error;
 use crate::subject_name::{self, SubjectNameRef};
-use crate::verify_cert::ChainOptions;
 use crate::{cert, signed_data};
 
 /// An end-entity certificate.
@@ -69,15 +68,6 @@ impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
 }
 
 impl<'a> EndEntityCert<'a> {
-    /// Verifies that the end-entity certificate is valid for use against the
-    /// specified Extended Key Usage (EKU).
-    ///
-    /// `time` is the time for which the validation is effective (usually the
-    /// current time).
-    pub fn verify_for_usage(&self, time: UnixTime, opts: &ChainOptions<'_>) -> Result<(), Error> {
-        opts.build_chain(&self.inner, time)
-    }
-
     /// Verifies that the certificate is valid for the given Subject Name.
     pub fn verify_is_valid_for_subject_name(
         &self,

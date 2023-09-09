@@ -20,7 +20,9 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 use crate::cert::Cert;
 use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
-use crate::{signed_data, subject_name, Error};
+use crate::end_entity::EndEntityCert;
+use crate::error::Error;
+use crate::{signed_data, subject_name};
 
 /// Input context for verifying a certificate chain for a particular purpose.
 pub struct ChainOptions<'a> {
@@ -39,8 +41,26 @@ pub struct ChainOptions<'a> {
 }
 
 impl<'a> ChainOptions<'a> {
-    pub(crate) fn build_chain(&self, cert: &Cert<'_>, time: UnixTime) -> Result<(), Error> {
-        let path = PathNode { cert, issued: None };
+    /// Verifies that the given `end_entity` certificate is trusted in the context of `self`.
+    ///
+    /// `verify_trusted()` will verify that the [`EndEntityCert`] is valid:
+    ///
+    /// * Valid at `time` (usually the current time)
+    /// * Chaining up to one of the `self.trust_anchors`
+    /// * Potentially via up to 6 of the intermediates supplied in `self.intermediate_certs`
+    /// * Valid for the intended usage as indicated by `self.eku`
+    /// * Not revoked as indicated by `self.revocation` (if `Some`)
+    /// * Using `self.supported_sig_algs` to verify certificate signatures
+    pub fn verify_trusted(
+        &self,
+        end_entity: &EndEntityCert<'a>,
+        time: UnixTime,
+    ) -> Result<(), Error> {
+        let path = PathNode {
+            cert: end_entity,
+            issued: None,
+        };
+
         self.build_chain_inner(&path, time, 0, &mut Budget::default())
             .map_err(|e| match e {
                 ControlFlow::Break(err) => err,
@@ -694,7 +714,6 @@ mod tests {
         ee_cert: &CertificateDer<'_>,
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        use crate::end_entity::EndEntityCert;
         use crate::trust_anchor::extract_trust_anchor;
         use core::time::Duration;
 
