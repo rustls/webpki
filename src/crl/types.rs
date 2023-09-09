@@ -6,7 +6,7 @@ use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
 use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
-use crate::verify_cert::{Budget, PathNode};
+use crate::verify_cert::{Budget, PathNode, Role};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 
 #[cfg(feature = "alloc")]
@@ -504,8 +504,8 @@ impl<'a> IssuingDistributionPoint<'a> {
         assert!(!self.only_contains_attribute_certs); // We check this at time of parse.
 
         // Check that the scope of the CRL issuing distribution point could include the cert.
-        if self.only_contains_ca_certs && node.issued.is_none()
-            || self.only_contains_user_certs && node.issued.is_some()
+        if self.only_contains_ca_certs && node.role() != Role::Issuer
+            || self.only_contains_user_certs && node.role() != Role::EndEntity
         {
             return false;
         }
@@ -833,8 +833,12 @@ impl TryFrom<u8> for RevocationReason {
 #[cfg(feature = "alloc")]
 #[cfg(test)]
 mod tests {
+    use pki_types::CertificateDer;
+
     use super::*;
     use crate::cert::Cert;
+    use crate::end_entity::EndEntityCert;
+    use crate::verify_cert::PartialPath;
 
     #[test]
     fn parse_issuing_distribution_point_ext() {
@@ -905,17 +909,17 @@ mod tests {
         assert!(crl_issuing_dp.only_contains_user_certs);
 
         // The IDP shouldn't be considered authoritative for a CA Cert.
-        let ee = include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
+        let ee = CertificateDer::from(
+            &include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
         let ca = include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.int.a.ca.der");
         let ca = Cert::from_der(untrusted::Input::from(&ca[..])).unwrap();
-        assert!(!crl_issuing_dp.authoritative_for(&PathNode {
-            cert: &ca,
-            issued: Some(&PathNode {
-                cert: &ee,
-                issued: None
-            }),
-        }))
+
+        let mut path = PartialPath::new(&ee);
+        path.push(ca).unwrap();
+
+        assert!(!crl_issuing_dp.authoritative_for(&path.node()));
     }
 
     #[test]
@@ -935,12 +939,13 @@ mod tests {
         assert!(crl_issuing_dp.only_contains_ca_certs);
 
         // The IDP shouldn't be considered authoritative for an EE Cert.
-        let ee = include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
-        assert!(!crl_issuing_dp.authoritative_for(&PathNode {
-            cert: &ee,
-            issued: None
-        }))
+        let ee = CertificateDer::from(
+            &include_bytes!("../../tests/client_auth_revocation/no_crl_ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
+
+        assert!(!crl_issuing_dp.authoritative_for(&path.node()));
     }
 
     #[test]

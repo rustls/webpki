@@ -20,7 +20,9 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 use crate::cert::Cert;
 use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
-use crate::{public_values_eq, signed_data, subject_name, Error};
+use crate::end_entity::EndEntityCert;
+use crate::error::Error;
+use crate::{public_values_eq, signed_data, subject_name};
 
 pub(crate) struct ChainOptions<'a> {
     pub(crate) eku: KeyUsage,
@@ -31,9 +33,13 @@ pub(crate) struct ChainOptions<'a> {
 }
 
 impl<'a> ChainOptions<'a> {
-    pub(crate) fn build_chain(&self, cert: &Cert<'_>, time: UnixTime) -> Result<(), Error> {
-        let path = PathNode { cert, issued: None };
-        self.build_chain_inner(&path, time, 0, &mut Budget::default())
+    pub(crate) fn build_chain(
+        &self,
+        end_entity: &EndEntityCert<'a>,
+        time: UnixTime,
+    ) -> Result<(), Error> {
+        let mut path = PartialPath::new(end_entity);
+        self.build_chain_inner(&mut path, time, 0, &mut Budget::default())
             .map_err(|e| match e {
                 ControlFlow::Break(err) => err,
                 ControlFlow::Continue(err) => err,
@@ -42,44 +48,31 @@ impl<'a> ChainOptions<'a> {
 
     fn build_chain_inner(
         &self,
-        path: &PathNode<'_>,
+        path: &mut PartialPath<'a>,
         time: UnixTime,
         sub_ca_count: usize,
         budget: &mut Budget,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        let role = path.role();
+        let role = path.node().role();
 
-        check_issuer_independent_properties(path.cert, time, role, sub_ca_count, self.eku.inner)?;
+        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, self.eku.inner)?;
 
         // TODO: HPKP checks.
-
-        match role {
-            Role::Issuer => {
-                const MAX_SUB_CA_COUNT: usize = 6;
-
-                if sub_ca_count >= MAX_SUB_CA_COUNT {
-                    return Err(Error::MaximumPathDepthExceeded.into());
-                }
-            }
-            Role::EndEntity => {
-                assert_eq!(0, sub_ca_count);
-            }
-        }
 
         let result = loop_while_non_fatal_error(
             Error::UnknownIssuer,
             self.trust_anchors,
             |trust_anchor: &TrustAnchor| {
                 let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
-                if !public_values_eq(path.cert.issuer, trust_anchor_subject) {
+                if !public_values_eq(path.head().issuer, trust_anchor_subject) {
                     return Err(Error::UnknownIssuer.into());
                 }
 
                 // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
-                self.check_signed_chain(path, trust_anchor, budget)?;
-
-                check_signed_chain_name_constraints(path, trust_anchor, budget)?;
+                let node = path.node();
+                self.check_signed_chain(&node, trust_anchor, budget)?;
+                check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
 
                 Ok(())
             },
@@ -97,12 +90,12 @@ impl<'a> ChainOptions<'a> {
 
         loop_while_non_fatal_error(err, self.intermediate_certs, |cert_der| {
             let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
-            if !public_values_eq(potential_issuer.subject, path.cert.issuer) {
+            if !public_values_eq(potential_issuer.subject, path.head().issuer) {
                 return Err(Error::UnknownIssuer.into());
             }
 
             // Prevent loops; see RFC 4158 section 5.2.
-            if path.iter().any(|prev| {
+            if path.node().iter().any(|prev| {
                 public_values_eq(potential_issuer.spki, prev.cert.spki)
                     && public_values_eq(potential_issuer.subject, prev.cert.subject)
             }) {
@@ -115,11 +108,13 @@ impl<'a> ChainOptions<'a> {
             };
 
             budget.consume_build_chain_call()?;
-            let potential_path = PathNode {
-                cert: &potential_issuer,
-                issued: Some(path),
-            };
-            self.build_chain_inner(&potential_path, time, next_sub_ca_count, budget)
+            path.push(potential_issuer)?;
+            let result = self.build_chain_inner(path, time, next_sub_ca_count, budget);
+            if result.is_err() {
+                path.pop();
+            }
+
+            result
         })
     }
 
@@ -142,7 +137,7 @@ impl<'a> ChainOptions<'a> {
 
             if let Some(revocation_opts) = &self.revocation {
                 revocation_opts.check(
-                    path,
+                    &path,
                     issuer_subject,
                     spki_value,
                     issuer_key_usage,
@@ -172,7 +167,7 @@ fn check_signed_chain_name_constraints(
 
     for path in path.iter() {
         untrusted::read_all_optional(name_constraints, Error::BadDer, |value| {
-            subject_name::check_name_constraints(value, path, budget)
+            subject_name::check_name_constraints(value, &path, budget)
         })?;
 
         name_constraints = path.cert.name_constraints;
@@ -463,39 +458,124 @@ where
     Err(error.into())
 }
 
-/// A node in a [`Cert`] path, represented as a linked list from trust anchor to end-entity.
-pub(crate) struct PathNode<'a> {
-    pub(crate) cert: &'a Cert<'a>,
-    /// Links to the next node in the path; this list is in trust anchor to end-entity order.
-    /// As such, the next node, `issued`, was issued by this node; and `issued` is `None` for the
-    /// last node, which thus represents the end-entity certificate.
-    pub(crate) issued: Option<&'a PathNode<'a>>,
+/// A path for consideration in path building.
+///
+/// This represents a partial path because it does not yet contain the trust anchor. It stores
+/// the end-entity certificates, and an array of intermediate certificates.
+pub(crate) struct PartialPath<'a> {
+    end_entity: &'a EndEntityCert<'a>,
+    /// Intermediate certificates, in order from end-entity to trust anchor.
+    ///
+    /// Invariant: all values below `used` are `Some`.
+    intermediates: [Option<Cert<'a>>; MAX_SUB_CA_COUNT],
+    /// The number of `Some` values in `intermediates`.
+    ///
+    /// The next `Cert` passed to `push()` will be placed at `intermediates[used]`.
+    /// If this value is 0, the path contains only the end-entity certificate.
+    used: usize,
 }
 
-impl<'a> PathNode<'a> {
-    pub(crate) fn iter(&'a self) -> PathNodeIter<'a> {
-        PathNodeIter { next: Some(self) }
+impl<'a> PartialPath<'a> {
+    pub(crate) fn new(end_entity: &'a EndEntityCert<'a>) -> Self {
+        Self {
+            end_entity,
+            intermediates: Default::default(),
+            used: 0,
+        }
     }
 
-    pub(crate) fn role(&self) -> Role {
-        match self.issued {
-            Some(_) => Role::Issuer,
-            None => Role::EndEntity,
+    pub(crate) fn push(&mut self, cert: Cert<'a>) -> Result<(), ControlFlow<Error, Error>> {
+        if self.used >= MAX_SUB_CA_COUNT {
+            return Err(Error::MaximumPathDepthExceeded.into());
+        }
+
+        self.intermediates[self.used] = Some(cert);
+        self.used += 1;
+        Ok(())
+    }
+
+    fn pop(&mut self) {
+        debug_assert!(self.used > 0);
+        if self.used == 0 {
+            return;
+        }
+
+        self.used -= 1;
+        self.intermediates[self.used] = None;
+    }
+
+    pub(crate) fn node(&self) -> PathNode<'_> {
+        PathNode {
+            path: self,
+            index: self.used,
+            cert: self.head(),
+        }
+    }
+
+    /// Current head of the path.
+    pub(crate) fn head(&self) -> &Cert<'a> {
+        self.get(self.used)
+    }
+
+    /// Get the certificate at index `idx` in the path.
+    ///
+    // `idx` must be in the range `0..=self.used`; `idx` 0 thus yields the `end_entity`,
+    // while subsequent indexes yield the intermediate at `self.intermediates[idx - 1]`.
+    fn get(&self, idx: usize) -> &Cert<'a> {
+        match idx {
+            0 => self.end_entity,
+            _ => self.intermediates[idx - 1].as_ref().unwrap(),
         }
     }
 }
 
-pub(crate) struct PathNodeIter<'a> {
-    next: Option<&'a PathNode<'a>>,
+const MAX_SUB_CA_COUNT: usize = 6;
+
+pub(crate) struct PathNode<'a> {
+    /// The path we're iterating.
+    path: &'a PartialPath<'a>,
+    /// The index of the current node in the path (input for `path.get()`).
+    index: usize,
+    /// The [`Cert`] at `index`.
+    pub(crate) cert: &'a Cert<'a>,
 }
 
-impl<'a> Iterator for PathNodeIter<'a> {
-    type Item = &'a PathNode<'a>;
+impl<'a> PathNode<'a> {
+    pub(crate) fn iter(&self) -> PathIter<'a> {
+        PathIter {
+            path: self.path,
+            next: Some(self.index),
+        }
+    }
+
+    pub(crate) fn role(&self) -> Role {
+        match self.index {
+            0 => Role::EndEntity,
+            _ => Role::Issuer,
+        }
+    }
+}
+
+pub(crate) struct PathIter<'a> {
+    path: &'a PartialPath<'a>,
+    next: Option<usize>,
+}
+
+impl<'a> Iterator for PathIter<'a> {
+    type Item = PathNode<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.next?;
-        self.next = next.issued;
-        Some(next)
+        self.next = match next {
+            0 => None,
+            _ => Some(next - 1),
+        };
+
+        Some(PathNode {
+            path: self.path,
+            index: next,
+            cert: self.path.get(next),
+        })
     }
 }
 
@@ -696,7 +776,6 @@ mod tests {
         ee_cert: &CertificateDer<'_>,
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        use crate::end_entity::EndEntityCert;
         use crate::trust_anchor::extract_trust_anchor;
         use core::time::Duration;
 
@@ -708,6 +787,7 @@ mod tests {
             .map(|x| CertificateDer::from(x.as_ref()))
             .collect::<Vec<_>>();
 
+        let mut path = PartialPath::new(&cert);
         ChainOptions {
             eku: KeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
@@ -715,14 +795,6 @@ mod tests {
             intermediate_certs: &intermediates_der,
             revocation: None,
         }
-        .build_chain_inner(
-            &PathNode {
-                cert: &cert,
-                issued: None,
-            },
-            time,
-            0,
-            &mut budget.unwrap_or_default(),
-        )
+        .build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default())
     }
 }
