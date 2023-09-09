@@ -290,9 +290,11 @@ mod private {
 
 #[cfg(test)]
 mod tests {
+    use pki_types::CertificateDer;
+
     use super::*;
-    use crate::cert::Cert;
-    use crate::verify_cert::PathNode;
+    use crate::end_entity::EndEntityCert;
+    use crate::verify_cert::PartialPath;
 
     #[test]
     // safe to convert BorrowedCertRevocationList to CertRevocationList.
@@ -378,17 +380,14 @@ mod tests {
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
-        let ee = include_bytes!("../../tests/client_auth_revocation/no_ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
+        let ee = CertificateDer::from(
+            &include_bytes!("../../tests/client_auth_revocation/no_ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
 
         // The CRL should not be authoritative for an EE issued by a different issuer.
-        assert!(!crl_authoritative(
-            &crl,
-            &PathNode {
-                cert: &ee,
-                issued: None
-            }
-        ));
+        assert!(!crl_authoritative(&crl, &path.node()));
     }
 
     #[test]
@@ -397,17 +396,14 @@ mod tests {
             include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
         let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
 
-        let ee = include_bytes!("../../tests/client_auth_revocation/ku_chain.ee.der");
-        let ee = Cert::from_der(untrusted::Input::from(&ee[..])).unwrap();
+        let ee = CertificateDer::from(
+            &include_bytes!("../../tests/client_auth_revocation/ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
 
         // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
         // cert has no CRL DPs.
-        assert!(crl_authoritative(
-            &crl,
-            &PathNode {
-                cert: &ee,
-                issued: None
-            }
-        ));
+        assert!(crl_authoritative(&crl, &path.node()));
     }
 }
