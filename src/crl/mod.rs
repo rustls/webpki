@@ -16,7 +16,7 @@ use pki_types::SignatureVerificationAlgorithm;
 
 use crate::der;
 use crate::error::Error;
-use crate::verify_cert::{Budget, PathNode};
+use crate::verify_cert::{Budget, PathNode, Role};
 
 use core::fmt::Debug;
 
@@ -117,7 +117,7 @@ impl<'a> RevocationOptions<'a> {
 
         // If the policy only specifies checking EndEntity revocation state and we're looking at an
         // issuer certificate, return early without considering the certificate's revocation state.
-        if let (RevocationCheckDepth::EndEntity, Some(_)) = (self.depth, &path.issued) {
+        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.depth, path.role()) {
             return Ok(None);
         }
 

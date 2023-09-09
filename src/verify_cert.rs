@@ -495,7 +495,7 @@ impl<'a> PathNode<'a> {
         PathNodeIter { next: Some(self) }
     }
 
-    fn role(&self) -> Role {
+    pub(crate) fn role(&self) -> Role {
         match self.issued {
             Some(_) => Role::Issuer,
             None => Role::EndEntity,
@@ -518,7 +518,7 @@ impl<'a> Iterator for PathNodeIter<'a> {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Role {
+pub(crate) enum Role {
     Issuer,
     EndEntity,
 }
