@@ -57,11 +57,10 @@ impl<'a> ChainOptions<'a> {
         time: UnixTime,
     ) -> Result<(), Error> {
         let mut path = PartialPath::new(end_entity);
-        self.build_chain_inner(&mut path, time, 0, &mut Budget::default())
-            .map_err(|e| match e {
-                ControlFlow::Break(err) => err,
-                ControlFlow::Continue(err) => err,
-            })
+        match self.build_chain_inner(&mut path, time, 0, &mut Budget::default()) {
+            Ok(_) => Ok(()),
+            Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => Err(err),
+        }
     }
 
     fn build_chain_inner(
@@ -70,7 +69,7 @@ impl<'a> ChainOptions<'a> {
         time: UnixTime,
         sub_ca_count: usize,
         budget: &mut Budget,
-    ) -> Result<(), ControlFlow<Error, Error>> {
+    ) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>> {
         let role = path.node().role();
 
         check_issuer_independent_properties(path.head(), time, role, sub_ca_count, self.eku.inner)?;
@@ -92,12 +91,12 @@ impl<'a> ChainOptions<'a> {
                 self.check_signed_chain(&node, trust_anchor, budget)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
 
-                Ok(())
+                Ok(trust_anchor)
             },
         );
 
         let err = match result {
-            Ok(()) => return Ok(()),
+            Ok(anchor) => return Ok(anchor),
             // Fatal errors should halt further path building.
             res @ Err(ControlFlow::Break(_)) => return res,
             // Non-fatal errors should be carried forward as the default_error for subsequent
@@ -444,18 +443,18 @@ const EKU_SERVER_AUTH: KeyPurposeId = KeyPurposeId::new(&oid!(1, 3, 6, 1, 5, 5, 
 // id-kp-clientAuth   OBJECT IDENTIFIER ::= { id-kp 2 }
 const EKU_CLIENT_AUTH: KeyPurposeId = KeyPurposeId::new(&oid!(1, 3, 6, 1, 5, 5, 7, 3, 2));
 
-fn loop_while_non_fatal_error<V>(
+fn loop_while_non_fatal_error<'a, V: 'a>(
     default_error: Error,
     values: V,
-    mut f: impl FnMut(V::Item) -> Result<(), ControlFlow<Error, Error>>,
-) -> Result<(), ControlFlow<Error, Error>>
+    mut f: impl FnMut(V::Item) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>>,
+) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>>
 where
     V: IntoIterator,
 {
     let mut error = default_error;
     for v in values {
         match f(v) {
-            Ok(()) => return Ok(()),
+            Ok(anchor) => return Ok(anchor),
             // Fatal errors should halt further looping.
             res @ Err(ControlFlow::Break(_)) => return res,
             // Non-fatal errors should be ranked by specificity and only returned
@@ -682,7 +681,7 @@ mod tests {
 
         let ee_der = make_end_entity(&issuer);
         let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
-        verify_chain(anchors, &intermediates, &ee_cert, None)
+        verify_chain(anchors, &intermediates, &ee_cert, None).map(|_| ())
     }
 
     #[test]
@@ -777,7 +776,7 @@ mod tests {
         intermediate_certs: &'a [CertificateDer<'a>],
         ee_cert: &'a EndEntityCert<'a>,
         budget: Option<Budget>,
-    ) -> Result<(), ControlFlow<Error, Error>> {
+    ) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>> {
         use core::time::Duration;
 
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
