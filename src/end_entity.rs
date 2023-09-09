@@ -101,7 +101,7 @@ impl<'a> EndEntityCert<'a> {
             intermediate_certs,
             revocation,
         }
-        .build_chain(&self.inner, time)
+        .build_chain(self, time)
     }
 
     /// Verifies that the certificate is valid for the given Subject Name.
