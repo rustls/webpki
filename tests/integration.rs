@@ -42,6 +42,7 @@ fn netflix() {
             time,
             KeyUsage::server_auth(),
             None,
+            None,
         )
         .is_ok());
 }
@@ -68,6 +69,7 @@ fn cloudflare_dns() {
             &[inter],
             time,
             KeyUsage::server_auth(),
+            None,
             None,
         )
         .is_ok());
@@ -121,6 +123,7 @@ fn wpt() {
             time,
             KeyUsage::server_auth(),
             None,
+            None,
         )
         .is_ok());
 }
@@ -142,6 +145,7 @@ fn ed25519() {
             &[],
             time,
             KeyUsage::server_auth(),
+            None,
             None,
         )
         .is_ok());
@@ -169,6 +173,7 @@ fn critical_extensions() {
                 &intermediates,
                 time,
                 KeyUsage::server_auth(),
+                None,
                 None,
             )
             .is_ok(),
@@ -218,8 +223,9 @@ fn read_ee_with_neg_serial() {
             time,
             KeyUsage::server_auth(),
             None,
+            None,
         )
-        .is_ok(),);
+        .is_ok());
 }
 
 #[test]

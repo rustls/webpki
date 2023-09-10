@@ -39,9 +39,10 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         &self,
         end_entity: &'p EndEntityCert<'p>,
         time: UnixTime,
+        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
     ) -> Result<VerifiedPath<'p>, Error> {
         let mut path = PartialPath::new(end_entity);
-        match self.build_chain_inner(&mut path, time, 0, &mut Budget::default()) {
+        match self.build_chain_inner(&mut path, time, verify_path, 0, &mut Budget::default()) {
             Ok(anchor) => Ok(VerifiedPath::new(end_entity, anchor, path)),
             Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => return Err(err),
         }
@@ -51,6 +52,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         &self,
         path: &mut PartialPath<'p>,
         time: UnixTime,
+        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
         sub_ca_count: usize,
         budget: &mut Budget,
     ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
@@ -75,7 +77,21 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                 self.check_signed_chain(&node, trust_anchor, budget)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
 
-                Ok(trust_anchor)
+                let verify = match verify_path {
+                    Some(verify) => verify,
+                    None => return Ok(trust_anchor),
+                };
+
+                let candidate = VerifiedPath {
+                    end_entity: path.end_entity,
+                    intermediates: Intermediates::Borrowed(&path.intermediates[..path.used]),
+                    anchor: trust_anchor,
+                };
+
+                match verify(&candidate) {
+                    Ok(()) => Ok(trust_anchor),
+                    Err(err) => Err(ControlFlow::Continue(err)),
+                }
             },
         );
 
@@ -110,7 +126,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
 
             budget.consume_build_chain_call()?;
             path.push(potential_issuer)?;
-            let result = self.build_chain_inner(path, time, next_sub_ca_count, budget);
+            let result = self.build_chain_inner(path, time, verify_path, next_sub_ca_count, budget);
             if result.is_err() {
                 path.pop();
             }
@@ -161,8 +177,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
 /// See [`EndEntityCert::verify_for_usage()`] for more details on what verification entails.
 pub struct VerifiedPath<'p> {
     end_entity: &'p EndEntityCert<'p>,
-    intermediates: [Option<Cert<'p>>; MAX_SUB_CA_COUNT],
-    used: usize,
+    intermediates: Intermediates<'p>,
     anchor: &'p TrustAnchor<'p>,
 }
 
@@ -174,8 +189,10 @@ impl<'p> VerifiedPath<'p> {
     ) -> Self {
         Self {
             end_entity,
-            intermediates: partial.intermediates,
-            used: partial.used,
+            intermediates: Intermediates::Owned {
+                certs: partial.intermediates,
+                used: partial.used,
+            },
             anchor,
         }
     }
@@ -183,7 +200,7 @@ impl<'p> VerifiedPath<'p> {
     /// Yields a (double-ended) iterator over the intermediate certificates in this path.
     pub fn intermediate_certificates(&'p self) -> IntermediateIterator<'p> {
         IntermediateIterator {
-            intermediates: &self.intermediates[..self.used],
+            intermediates: self.intermediates.as_ref(),
         }
     }
 
@@ -228,6 +245,23 @@ impl<'a> DoubleEndedIterator for IntermediateIterator<'a> {
                 Some(head.as_ref().unwrap())
             }
             None => None,
+        }
+    }
+}
+
+enum Intermediates<'a> {
+    Owned {
+        certs: [Option<Cert<'a>>; MAX_SUB_CA_COUNT],
+        used: usize,
+    },
+    Borrowed(&'a [Option<Cert<'a>>]),
+}
+
+impl<'a> AsRef<[Option<Cert<'a>>]> for Intermediates<'a> {
+    fn as_ref(&self) -> &[Option<Cert<'a>>] {
+        match self {
+            Intermediates::Owned { certs, used } => &certs[..*used],
+            Intermediates::Borrowed(certs) => certs,
         }
     }
 }
@@ -715,6 +749,7 @@ mod tests {
             &intermediates,
             &ee_cert,
             None,
+            None,
         )
         .map(|_| ())
         .unwrap_err()
@@ -753,36 +788,43 @@ mod tests {
 
         let ee_der = make_end_entity(&issuer);
         let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
-        let path = match verify_chain(anchors, &intermediates, &ee_cert, None) {
-            Ok(path) => path,
-            Err(err) => return Err(err),
+
+        let expected_chain = |path: &VerifiedPath<'_>| {
+            assert_eq!(path.anchor().subject, anchor.subject);
+            assert!(public_values_eq(path.end_entity().subject, ee_cert.subject));
+            assert_eq!(path.intermediate_certificates().count(), chain_length);
+
+            let intermediate_certs = intermediates
+                .iter()
+                .map(|der| Cert::from_der(untrusted::Input::from(der.as_ref())).unwrap())
+                .collect::<Vec<_>>();
+
+            for (cert, expected) in path
+                .intermediate_certificates()
+                .rev()
+                .zip(intermediate_certs.iter())
+            {
+                assert!(public_values_eq(cert.subject, expected.subject));
+            }
+
+            for (cert, expected) in path
+                .intermediate_certificates()
+                .zip(intermediate_certs.iter().rev())
+            {
+                assert!(public_values_eq(cert.subject, expected.subject));
+            }
+
+            Ok(())
         };
 
-        assert_eq!(path.anchor().subject, anchor.subject);
-        assert!(public_values_eq(path.end_entity().subject, ee_cert.subject));
-        assert_eq!(path.intermediate_certificates().count(), chain_length);
-
-        let intermediate_certs = intermediates
-            .iter()
-            .map(|der| Cert::from_der(untrusted::Input::from(der.as_ref())).unwrap())
-            .collect::<Vec<_>>();
-
-        for (cert, expected) in path
-            .intermediate_certificates()
-            .rev()
-            .zip(intermediate_certs.iter())
-        {
-            assert!(public_values_eq(cert.subject, expected.subject));
-        }
-
-        for (cert, expected) in path
-            .intermediate_certificates()
-            .zip(intermediate_certs.iter().rev())
-        {
-            assert!(public_values_eq(cert.subject, expected.subject));
-        }
-
-        Ok(())
+        verify_chain(
+            anchors,
+            &intermediates,
+            &ee_cert,
+            Some(&expected_chain),
+            None,
+        )
+        .map(|_| ())
     }
 
     #[test]
@@ -852,8 +894,14 @@ mod tests {
         // Validation should succeed with the name constraint comparison budget allocated above.
         // This shows that we're not consuming budget on unused intermediates: we didn't budget
         // enough comparisons for that to pass the overall chain building.
-        let path =
-            verify_chain(anchors, &intermediates_der, &ee_cert, Some(passing_budget)).unwrap();
+        let path = verify_chain(
+            anchors,
+            &intermediates_der,
+            &ee_cert,
+            None,
+            Some(passing_budget),
+        )
+        .unwrap();
         assert_eq!(path.anchor().subject, anchors.first().unwrap().subject);
 
         let failing_budget = Budget {
@@ -864,7 +912,13 @@ mod tests {
         // Validation should fail when the budget is smaller than the number of comparisons performed
         // on the validated path. This demonstrates we properly fail path building when too many
         // name constraint comparisons occur.
-        let result = verify_chain(anchors, &intermediates_der, &ee_cert, Some(failing_budget));
+        let result = verify_chain(
+            anchors,
+            &intermediates_der,
+            &ee_cert,
+            None,
+            Some(failing_budget),
+        );
 
         assert!(matches!(
             result,
@@ -878,6 +932,7 @@ mod tests {
         trust_anchors: &'a [TrustAnchor<'a>],
         intermediate_certs: &'a [CertificateDer<'a>],
         ee_cert: &'a EndEntityCert<'a>,
+        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
         budget: Option<Budget>,
     ) -> Result<VerifiedPath<'a>, ControlFlow<Error, Error>> {
         use core::time::Duration;
@@ -892,7 +947,13 @@ mod tests {
             revocation: None,
         };
 
-        match opts.build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default()) {
+        match opts.build_chain_inner(
+            &mut path,
+            time,
+            verify_path,
+            0,
+            &mut budget.unwrap_or_default(),
+        ) {
             Ok(anchor) => Ok(VerifiedPath::new(ee_cert, anchor, path)),
             Err(err) => Err(err),
         }

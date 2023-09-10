@@ -85,9 +85,16 @@ impl<'a> EndEntityCert<'a> {
     ///   of usage we're verifying the certificate for.
     /// * `crls` is the list of certificate revocation lists to check
     ///   the certificate against.
+    /// * `verify_path` is an optional verification function for path candidates.
     ///
     /// If successful, yields a `VerifiedPath` type that can be used to inspect a verified chain
     /// of certificates that leads from the `end_entity` to one of the `self.trust_anchors`.
+    ///
+    /// `verify_path` will only be called for potentially verified paths, that is, paths that
+    /// have been verified up to the trust anchor. As such, `verify_path()` cannot be used to
+    /// verify a path that doesn't satisfy the constraints listed above; it can only be used to
+    /// reject a path that does satisfy the aforementioned constraints. If `verify_path` returns
+    /// an error, path building will continue in order to try other options.
     pub fn verify_for_usage<'p>(
         &'p self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
@@ -96,6 +103,7 @@ impl<'a> EndEntityCert<'a> {
         time: UnixTime,
         usage: KeyUsage,
         revocation: Option<RevocationOptions<'_>>,
+        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
     ) -> Result<VerifiedPath<'p>, Error> {
         verify_cert::ChainOptions {
             eku: usage,
@@ -104,7 +112,7 @@ impl<'a> EndEntityCert<'a> {
             intermediate_certs,
             revocation,
         }
-        .build_chain(self, time)
+        .build_chain(self, time, verify_path)
     }
 
     /// Verifies that the certificate is valid for the given Subject Name.

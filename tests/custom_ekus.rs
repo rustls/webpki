@@ -25,7 +25,8 @@ fn check_cert(
             &[],
             time,
             eku,
-            None
+            None,
+            None,
         )
         .map(|_| ()),
         result
