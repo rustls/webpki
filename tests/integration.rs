@@ -34,9 +34,8 @@ fn netflix() {
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_for_usage(
+    assert!(cert
+        .verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
@@ -44,7 +43,7 @@ fn netflix() {
             KeyUsage::server_auth(),
             None,
         )
-    );
+        .is_ok());
 }
 
 /* This is notable because it is a popular use of IP address subjectAltNames. */
@@ -62,9 +61,8 @@ fn cloudflare_dns() {
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_for_usage(
+    assert!(cert
+        .verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
@@ -72,7 +70,7 @@ fn cloudflare_dns() {
             KeyUsage::server_auth(),
             None,
         )
-    );
+        .is_ok());
 
     let check_name = |name: &str| {
         let subject_name_ref = webpki::SubjectNameRef::try_from_ascii_str(name).unwrap();
@@ -115,9 +113,8 @@ fn wpt() {
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_619_256_684)); // 2021-04-24T09:31:24Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_for_usage(
+    assert!(cert
+        .verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
@@ -125,7 +122,7 @@ fn wpt() {
             KeyUsage::server_auth(),
             None,
         )
-    );
+        .is_ok());
 }
 
 #[test]
@@ -138,9 +135,8 @@ fn ed25519() {
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_547_363_522)); // 2019-01-13T07:12:02Z
 
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_for_usage(
+    assert!(cert
+        .verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
@@ -148,7 +144,7 @@ fn ed25519() {
             KeyUsage::server_auth(),
             None,
         )
-    );
+        .is_ok());
 }
 
 #[test]
@@ -159,21 +155,25 @@ fn critical_extensions() {
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
     let anchors = [extract_trust_anchor(&root).unwrap()];
+    let intermediates = [ca];
 
     let ee = CertificateDer::from(
         &include_bytes!("critical_extensions/ee-cert-noncrit-unknown-ext.der")[..],
     );
-    let res = webpki::EndEntityCert::try_from(&ee).and_then(|cert| {
-        cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[ca.clone()],
-            time,
-            KeyUsage::server_auth(),
-            None,
-        )
-    });
-    assert_eq!(res, Ok(()), "accept non-critical unknown extension");
+    let ee_cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    assert!(
+        ee_cert
+            .verify_for_usage(
+                webpki::ALL_VERIFICATION_ALGS,
+                &anchors,
+                &intermediates,
+                time,
+                KeyUsage::server_auth(),
+                None,
+            )
+            .is_ok(),
+        "accept non-critical unknown extension"
+    );
 
     let ee = CertificateDer::from(
         &include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der")[..],
@@ -210,9 +210,8 @@ fn read_ee_with_neg_serial() {
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_667_401_500)); // 2022-11-02T15:05:00Z
 
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_for_usage(
+    assert!(cert
+        .verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
@@ -220,7 +219,7 @@ fn read_ee_with_neg_serial() {
             KeyUsage::server_auth(),
             None,
         )
-    );
+        .is_ok(),);
 }
 
 #[test]

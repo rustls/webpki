@@ -26,7 +26,8 @@ fn check_cert(
             time,
             eku,
             None
-        ),
+        )
+        .map(|_| ()),
         result
     );
 }

@@ -19,7 +19,7 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 use crate::crl::RevocationOptions;
 use crate::error::Error;
 use crate::subject_name::{NameIterator, SubjectNameRef};
-use crate::verify_cert::{self, KeyUsage};
+use crate::verify_cert::{self, KeyUsage, VerifiedPath};
 use crate::{cert, signed_data};
 
 /// An end-entity certificate.
@@ -85,15 +85,18 @@ impl<'a> EndEntityCert<'a> {
     ///   of usage we're verifying the certificate for.
     /// * `crls` is the list of certificate revocation lists to check
     ///   the certificate against.
-    pub fn verify_for_usage(
-        &self,
+    ///
+    /// If successful, yields a `VerifiedPath` type that can be used to inspect a verified chain
+    /// of certificates that leads from the `end_entity` to one of the `self.trust_anchors`.
+    pub fn verify_for_usage<'p>(
+        &'p self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        trust_anchors: &[TrustAnchor],
-        intermediate_certs: &[CertificateDer<'_>],
+        trust_anchors: &'p [TrustAnchor],
+        intermediate_certs: &'p [CertificateDer<'p>],
         time: UnixTime,
         usage: KeyUsage,
-        revocation: Option<RevocationOptions>,
-    ) -> Result<(), Error> {
+        revocation: Option<RevocationOptions<'_>>,
+    ) -> Result<VerifiedPath<'p>, Error> {
         verify_cert::ChainOptions {
             eku: usage,
             supported_sig_algs,
