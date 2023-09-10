@@ -83,6 +83,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
                 now,
                 KeyUsage::server_auth(),
                 None,
+                None,
             )
             .and_then(|_| {
                 ee_cert.verify_is_valid_for_subject_name(
