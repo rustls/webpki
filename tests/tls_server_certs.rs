@@ -39,7 +39,7 @@ fn check_cert(
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    options.verify_trusted(&cert, time)?;
+    options.verify_trusted(&cert, time, None)?;
 
     for valid in valid_names {
         let name = webpki::SubjectNameRef::try_from_ascii_str(valid).unwrap();

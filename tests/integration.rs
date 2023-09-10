@@ -43,7 +43,10 @@ fn netflix() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(options.verify_trusted(&cert, time).map(|_| ()), Ok(()));
+    assert_eq!(
+        options.verify_trusted(&cert, time, None).map(|_| ()),
+        Ok(())
+    );
 }
 
 /* This is notable because it is a popular use of IP address subjectAltNames. */
@@ -70,7 +73,10 @@ fn cloudflare_dns() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(options.verify_trusted(&cert, time).map(|_| ()), Ok(()));
+    assert_eq!(
+        options.verify_trusted(&cert, time, None).map(|_| ()),
+        Ok(())
+    );
 
     let check_name = |name: &str| {
         let subject_name_ref = webpki::SubjectNameRef::try_from_ascii_str(name).unwrap();
@@ -122,7 +128,10 @@ fn wpt() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(options.verify_trusted(&cert, time).map(|_| ()), Ok(()),);
+    assert_eq!(
+        options.verify_trusted(&cert, time, None).map(|_| ()),
+        Ok(()),
+    );
 }
 
 #[test]
@@ -144,7 +153,10 @@ fn ed25519() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(options.verify_trusted(&cert, time).map(|_| ()), Ok(()));
+    assert_eq!(
+        options.verify_trusted(&cert, time, None).map(|_| ()),
+        Ok(())
+    );
 }
 
 #[test]
@@ -169,18 +181,14 @@ fn critical_extensions() {
     };
 
     let res = webpki::EndEntityCert::try_from(&ee)
-        .and_then(|cert| options.verify_trusted(&cert, time).map(|_| ()));
-    assert_eq!(
-        res.map(|_| ()),
-        Ok(()),
-        "accept non-critical unknown extension"
-    );
+        .and_then(|cert| options.verify_trusted(&cert, time, None).map(|_| ()));
+    assert_eq!(res, Ok(()), "accept non-critical unknown extension");
 
     let ee = CertificateDer::from(
         &include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der")[..],
     );
     let res = webpki::EndEntityCert::try_from(&ee)
-        .and_then(|cert| options.verify_trusted(&cert, time).map(|_| ()));
+        .and_then(|cert| options.verify_trusted(&cert, time, None).map(|_| ()));
     assert_eq!(
         res.map(|_| ()),
         Err(webpki::Error::UnsupportedCriticalExtension),
@@ -220,7 +228,10 @@ fn read_ee_with_neg_serial() {
         supported_sig_algs: webpki::ALL_VERIFICATION_ALGS,
     };
 
-    assert_eq!(options.verify_trusted(&cert, time).map(|_| ()), Ok(()));
+    assert_eq!(
+        options.verify_trusted(&cert, time, None).map(|_| ()),
+        Ok(())
+    );
 }
 
 #[test]
