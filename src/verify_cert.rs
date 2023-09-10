@@ -51,15 +51,18 @@ impl<'a> ChainOptions<'a> {
     /// * Valid for the intended usage as indicated by `self.eku`
     /// * Not revoked as indicated by `self.revocation` (if `Some`)
     /// * Using `self.supported_sig_algs` to verify certificate signatures
+    ///
+    /// If successful, it yields a `VerifiedPath` type that can be used to inspect a verified
+    /// chain of certificates that leads from the `end_entity` to one of the `self.trust_anchors`.
     pub fn verify_trusted(
         &self,
-        end_entity: &EndEntityCert<'a>,
+        end_entity: &'a EndEntityCert<'a>,
         time: UnixTime,
-    ) -> Result<(), Error> {
+    ) -> Result<VerifiedPath<'a>, Error> {
         let mut path = PartialPath::new(end_entity);
         match self.build_chain_inner(&mut path, time, 0, &mut Budget::default()) {
-            Ok(_) => Ok(()),
-            Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => Err(err),
+            Ok(anchor) => Ok(VerifiedPath::new(end_entity, anchor, path)),
+            Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => return Err(err),
         }
     }
 
@@ -169,6 +172,82 @@ impl<'a> ChainOptions<'a> {
         }
 
         Ok(())
+    }
+}
+
+/// Path from end-entity certificate to trust anchor that's been verified.
+///
+/// See [`ChainOptions::verify_trusted()`] for more details on what verification entails.
+pub struct VerifiedPath<'a> {
+    end_entity: &'a EndEntityCert<'a>,
+    intermediates: [Option<Cert<'a>>; MAX_SUB_CA_COUNT],
+    used: usize,
+    anchor: &'a TrustAnchor<'a>,
+}
+
+impl<'a> VerifiedPath<'a> {
+    fn new(
+        end_entity: &'a EndEntityCert<'a>,
+        anchor: &'a TrustAnchor<'a>,
+        partial: PartialPath<'a>,
+    ) -> Self {
+        Self {
+            end_entity,
+            intermediates: partial.intermediates,
+            used: partial.used,
+            anchor,
+        }
+    }
+
+    /// Yields a (double-ended) iterator over the intermediate certificates in this path.
+    pub fn intermediate_certificates(&'a self) -> IntermediateIterator<'a> {
+        IntermediateIterator {
+            intermediates: &self.intermediates[..self.used],
+        }
+    }
+
+    /// Yields the end-entity certificate for this path.
+    pub fn end_entity(&self) -> &'a EndEntityCert<'a> {
+        self.end_entity
+    }
+
+    /// Yields the trust anchor for this path.
+    pub fn anchor(&self) -> &'a TrustAnchor<'a> {
+        self.anchor
+    }
+}
+
+/// Iterator over a path's intermediate certificates.
+///
+/// Implements [`DoubleEndedIterator`] so it can be traversed in both directions.
+pub struct IntermediateIterator<'a> {
+    /// Invariant: all of these `Option`s are `Some`.
+    intermediates: &'a [Option<Cert<'a>>],
+}
+
+impl<'a> Iterator for IntermediateIterator<'a> {
+    type Item = &'a Cert<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.intermediates.split_first() {
+            Some((head, tail)) => {
+                self.intermediates = tail;
+                Some(head.as_ref().unwrap())
+            }
+            None => None,
+        }
+    }
+}
+
+impl<'a> DoubleEndedIterator for IntermediateIterator<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.intermediates.split_last() {
+            Some((head, tail)) => {
+                self.intermediates = tail;
+                Some(head.as_ref().unwrap())
+            }
+            None => None,
+        }
     }
 }
 
@@ -646,6 +725,7 @@ mod tests {
             &ee_cert,
             None,
         )
+        .map(|_| ())
         .unwrap_err()
     }
 
@@ -668,7 +748,8 @@ mod tests {
     fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
-        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
+        let anchor = extract_trust_anchor(&ca_cert_der).unwrap();
+        let anchors = &[anchor.clone()];
 
         let mut intermediates = Vec::with_capacity(chain_length);
         let mut issuer = ca_cert;
@@ -681,7 +762,36 @@ mod tests {
 
         let ee_der = make_end_entity(&issuer);
         let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
-        verify_chain(anchors, &intermediates, &ee_cert, None).map(|_| ())
+        let path = match verify_chain(anchors, &intermediates, &ee_cert, None) {
+            Ok(path) => path,
+            Err(err) => return Err(err),
+        };
+
+        assert_eq!(path.anchor().subject, anchor.subject);
+        assert_eq!(path.end_entity().subject, ee_cert.subject);
+        assert_eq!(path.intermediate_certificates().count(), chain_length);
+
+        let intermediate_certs = intermediates
+            .iter()
+            .map(|der| Cert::from_der(untrusted::Input::from(der.as_ref())).unwrap())
+            .collect::<Vec<_>>();
+
+        for (cert, expected) in path
+            .intermediate_certificates()
+            .rev()
+            .zip(intermediate_certs.iter())
+        {
+            assert_eq!(cert.subject, expected.subject);
+        }
+
+        for (cert, expected) in path
+            .intermediate_certificates()
+            .zip(intermediate_certs.iter().rev())
+        {
+            assert_eq!(cert.subject, expected.subject);
+        }
+
+        Ok(())
     }
 
     #[test]
@@ -751,7 +861,9 @@ mod tests {
         // Validation should succeed with the name constraint comparison budget allocated above.
         // This shows that we're not consuming budget on unused intermediates: we didn't budget
         // enough comparisons for that to pass the overall chain building.
-        assert!(verify_chain(anchors, &intermediates_der, &ee_cert, Some(passing_budget),).is_ok());
+        let path =
+            verify_chain(anchors, &intermediates_der, &ee_cert, Some(passing_budget)).unwrap();
+        assert_eq!(path.anchor().subject, anchors.first().unwrap().subject);
 
         let failing_budget = Budget {
             // See passing_budget: 2 comparisons is not sufficient.
@@ -776,18 +888,22 @@ mod tests {
         intermediate_certs: &'a [CertificateDer<'a>],
         ee_cert: &'a EndEntityCert<'a>,
         budget: Option<Budget>,
-    ) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>> {
+    ) -> Result<VerifiedPath<'a>, ControlFlow<Error, Error>> {
         use core::time::Duration;
 
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
-        ChainOptions {
+        let opts = ChainOptions {
             eku: KeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
             trust_anchors,
             intermediate_certs,
             revocation: None,
+        };
+
+        match opts.build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default()) {
+            Ok(anchor) => Ok(VerifiedPath::new(ee_cert, anchor, path)),
+            Err(err) => Err(err),
         }
-        .build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default())
     }
 }
