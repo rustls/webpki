@@ -12,9 +12,10 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::signed_data::alg_id;
 use pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use ring::signature;
+
+use crate::signed_data::alg_id;
 
 /// A `SignatureVerificationAlgorithm` implemented using *ring*.
 struct RingAlgorithm {

@@ -298,13 +298,13 @@ impl<'a> FromDer<'a> for CrlDistributionPoint<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::cert::Cert;
+    use super::*;
     #[cfg(feature = "alloc")]
-    use crate::{
-        cert::{CrlDistributionPoint, DistributionPointName},
-        subject_name::GeneralName,
-        Error, RevocationReason,
-    };
+    use crate::crl::RevocationReason;
+    #[cfg(feature = "alloc")]
+    use crate::error::Error;
+    #[cfg(feature = "alloc")]
+    use crate::subject_name::GeneralName;
 
     #[test]
     // Note: cert::parse_cert is crate-local visibility, and EndEntityCert doesn't expose the

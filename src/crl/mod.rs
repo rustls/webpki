@@ -291,7 +291,8 @@ mod private {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{verify_cert::PathNode, Cert};
+    use crate::cert::Cert;
+    use crate::verify_cert::PathNode;
 
     #[test]
     // safe to convert BorrowedCertRevocationList to CertRevocationList.

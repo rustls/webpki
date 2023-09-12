@@ -227,9 +227,10 @@ const DAYS_BEFORE_UNIX_EPOCH_AD: u64 = 1969 * 365 + 477;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_days_before_unix_epoch() {
-        use super::{days_before_year_ad, DAYS_BEFORE_UNIX_EPOCH_AD, UNIX_EPOCH_YEAR};
         assert_eq!(
             DAYS_BEFORE_UNIX_EPOCH_AD,
             days_before_year_ad(UNIX_EPOCH_YEAR)
@@ -238,7 +239,6 @@ mod tests {
 
     #[test]
     fn test_days_before_year_since_unix_epoch() {
-        use super::{days_before_year_since_unix_epoch, Error, UNIX_EPOCH_YEAR};
         assert_eq!(Ok(0), days_before_year_since_unix_epoch(UNIX_EPOCH_YEAR));
         assert_eq!(
             Ok(365),
@@ -252,7 +252,6 @@ mod tests {
 
     #[test]
     fn test_days_in_month() {
-        use super::days_in_month;
         assert_eq!(days_in_month(2017, 1), 31);
         assert_eq!(days_in_month(2017, 2), 28);
         assert_eq!(days_in_month(2017, 3), 31);
@@ -275,8 +274,6 @@ mod tests {
 
     #[test]
     fn test_time_from_ymdhms_utc() {
-        use super::{time_from_ymdhms_utc, Error, Time, UNIX_EPOCH_YEAR};
-
         // 1969-12-31 00:00:00
         assert_eq!(
             Err(Error::BadDerTime),
