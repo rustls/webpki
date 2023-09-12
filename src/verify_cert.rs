@@ -699,8 +699,10 @@ mod tests {
         ee_cert: &CertificateDer<'_>,
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        use crate::{extract_trust_anchor, ECDSA_P256_SHA256};
-        use crate::{EndEntityCert, Time};
+        use crate::end_entity::EndEntityCert;
+        use crate::ring_algs::ECDSA_P256_SHA256;
+        use crate::time::Time;
+        use crate::trust_anchor::extract_trust_anchor;
 
         let anchors = &[extract_trust_anchor(trust_anchor).unwrap()];
         let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
