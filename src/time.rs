@@ -14,31 +14,14 @@
 
 //! Conversions into the library's time type.
 
+use core::time::Duration;
+
+use pki_types::UnixTime;
+
 use crate::der::{self, FromDer, Tag};
 use crate::error::{DerTypeId, Error};
 
-/// The time type.
-///
-/// Internally this is merely a UNIX timestamp: a count of non-leap
-/// seconds since the start of 1970.  This type exists to assist
-/// unit-of-measure correctness.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
-pub struct Time(u64);
-
-impl Time {
-    /// Create a `webpki::Time` from a unix timestamp.
-    ///
-    /// It is usually better to use the less error-prone
-    /// `webpki::Time::try_from(time: std::time::SystemTime)` instead when
-    /// `std::time::SystemTime` is available (when `#![no_std]` isn't being
-    /// used).
-    #[allow(clippy::must_use_candidate)]
-    pub fn from_seconds_since_unix_epoch(secs: u64) -> Self {
-        Self(secs)
-    }
-}
-
-impl<'a> FromDer<'a> for Time {
+impl<'a> FromDer<'a> for UnixTime {
     fn from_der(input: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
         let is_utc_time = input.peek(Tag::UTCTime.into());
         let expected_tag = if is_utc_time {
@@ -106,35 +89,6 @@ impl<'a> FromDer<'a> for Time {
     const TYPE_ID: DerTypeId = DerTypeId::Time;
 }
 
-#[cfg(feature = "std")]
-impl TryFrom<std::time::SystemTime> for Time {
-    type Error = std::time::SystemTimeError;
-
-    /// Create a `webpki::Time` from a `std::time::SystemTime`.
-    ///
-    /// # Example:
-    ///
-    /// Construct a `webpki::Time` from the current system time:
-    ///
-    /// ```
-    /// # extern crate ring;
-    /// # extern crate webpki;
-    /// #
-    /// #![cfg(feature = "std")]
-    /// use std::time::SystemTime;
-    ///
-    /// # fn foo() -> Result<(), std::time::SystemTimeError> {
-    /// let time = webpki::Time::try_from(SystemTime::now())?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn try_from(value: std::time::SystemTime) -> Result<Self, Self::Error> {
-        value
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| Self::from_seconds_since_unix_epoch(d.as_secs()))
-    }
-}
-
 pub(crate) fn time_from_ymdhms_utc(
     year: u64,
     month: u64,
@@ -142,7 +96,7 @@ pub(crate) fn time_from_ymdhms_utc(
     hours: u64,
     minutes: u64,
     seconds: u64,
-) -> Result<Time, Error> {
+) -> Result<UnixTime, Error> {
     let days_before_year_since_unix_epoch = days_before_year_since_unix_epoch(year)?;
 
     const JAN: u64 = 31;
@@ -178,9 +132,9 @@ pub(crate) fn time_from_ymdhms_utc(
     let seconds_since_unix_epoch =
         (days_before * 24 * 60 * 60) + (hours * 60 * 60) + (minutes * 60) + seconds;
 
-    Ok(Time::from_seconds_since_unix_epoch(
+    Ok(UnixTime::since_unix_epoch(Duration::from_secs(
         seconds_since_unix_epoch,
-    ))
+    )))
 }
 
 fn days_before_year_since_unix_epoch(year: u64) -> Result<u64, Error> {
@@ -288,41 +242,41 @@ mod tests {
 
         // 1970-01-01 00:00:00
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(0),
+            UnixTime::since_unix_epoch(Duration::from_secs(0)),
             time_from_ymdhms_utc(UNIX_EPOCH_YEAR, 1, 1, 0, 0, 0).unwrap()
         );
 
         // 1970-01-01 00:00:01
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1),
+            UnixTime::since_unix_epoch(Duration::from_secs(1)),
             time_from_ymdhms_utc(UNIX_EPOCH_YEAR, 1, 1, 0, 0, 1).unwrap()
         );
 
         // 1971-01-01 00:00:00
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(365 * 86400),
+            UnixTime::since_unix_epoch(Duration::from_secs(365 * 86400)),
             time_from_ymdhms_utc(UNIX_EPOCH_YEAR + 1, 1, 1, 0, 0, 0).unwrap()
         );
 
         // year boundary
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1_483_228_799),
+            UnixTime::since_unix_epoch(Duration::from_secs(1_483_228_799)),
             time_from_ymdhms_utc(2016, 12, 31, 23, 59, 59).unwrap()
         );
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1_483_228_800),
+            UnixTime::since_unix_epoch(Duration::from_secs(1_483_228_800)),
             time_from_ymdhms_utc(2017, 1, 1, 0, 0, 0).unwrap()
         );
 
         // not a leap year
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1_492_449_162),
+            UnixTime::since_unix_epoch(Duration::from_secs(1_492_449_162)),
             time_from_ymdhms_utc(2017, 4, 17, 17, 12, 42).unwrap()
         );
 
         // leap year, post-feb
         assert_eq!(
-            Time::from_seconds_since_unix_epoch(1_460_913_162),
+            UnixTime::since_unix_epoch(Duration::from_secs(1_460_913_162)),
             time_from_ymdhms_utc(2016, 4, 17, 17, 12, 42).unwrap()
         );
     }

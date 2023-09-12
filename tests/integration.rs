@@ -14,7 +14,9 @@
 
 #![cfg(feature = "ring")]
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
+use core::time::Duration;
+
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{extract_trust_anchor, KeyUsage};
 
 static ALL_SIGALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -44,7 +46,7 @@ pub fn netflix() {
 
     let anchors = [extract_trust_anchor(&ca).unwrap()];
 
-    let time = webpki::Time::from_seconds_since_unix_epoch(1_492_441_716); // 2017-04-17T15:08:36Z
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_492_441_716)); // 2017-04-17T15:08:36Z
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
@@ -72,7 +74,7 @@ pub fn cloudflare_dns() {
     let ca_cert = CertificateDer::from(&ca[..]);
     let anchors = [extract_trust_anchor(&ca_cert).unwrap()];
 
-    let time = webpki::Time::from_seconds_since_unix_epoch(1_663_495_771);
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_663_495_771));
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
@@ -127,7 +129,7 @@ pub fn wpt() {
 
     let anchors = [extract_trust_anchor(&ca).unwrap()];
 
-    let time = webpki::Time::from_seconds_since_unix_epoch(1_619_256_684); // 2021-04-24T09:31:24Z
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_619_256_684)); // 2021-04-24T09:31:24Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
         Ok(()),
@@ -149,7 +151,7 @@ pub fn ed25519() {
 
     let anchors = [extract_trust_anchor(&ca).unwrap()];
 
-    let time = webpki::Time::from_seconds_since_unix_epoch(1_547_363_522); // 2019-01-13T07:12:02Z
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_547_363_522)); // 2019-01-13T07:12:02Z
 
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
@@ -171,7 +173,7 @@ fn critical_extensions() {
     let root = CertificateDer::from(&include_bytes!("critical_extensions/root-cert.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("critical_extensions/ca-cert.der")[..]);
 
-    let time = webpki::Time::from_seconds_since_unix_epoch(1_670_779_098);
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
     let anchors = [extract_trust_anchor(&root).unwrap()];
 
     let ee = CertificateDer::from(
@@ -229,7 +231,7 @@ fn read_ee_with_neg_serial() {
 
     let anchors = [extract_trust_anchor(&ca).unwrap()];
 
-    let time = webpki::Time::from_seconds_since_unix_epoch(1_667_401_500); // 2022-11-02T15:05:00Z
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_667_401_500)); // 2022-11-02T15:05:00Z
 
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert_eq!(
@@ -251,14 +253,6 @@ fn read_ee_with_large_pos_serial() {
     let ee = CertificateDer::from(&include_bytes!("misc/serial_large_positive.der")[..]);
 
     webpki::EndEntityCert::try_from(&ee).expect("should parse 20-octet positive serial number");
-}
-
-#[cfg(feature = "std")]
-#[test]
-fn time_constructor() {
-    let _ =
-        <webpki::Time as TryFrom<std::time::SystemTime>>::try_from(std::time::SystemTime::now())
-            .unwrap();
 }
 
 #[cfg(feature = "alloc")]

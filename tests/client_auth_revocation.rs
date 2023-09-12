@@ -14,7 +14,9 @@
 
 #![cfg(feature = "ring")]
 
-use pki_types::CertificateDer;
+use core::time::Duration;
+
+use pki_types::{CertificateDer, UnixTime};
 use webpki::{
     extract_trust_anchor, KeyUsage, RevocationCheckDepth, RevocationOptions,
     RevocationOptionsBuilder,
@@ -30,7 +32,7 @@ fn check_cert(
     let anchors = &[extract_trust_anchor(&ca).unwrap()];
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let intermediates = intermediates
         .iter()
         .map(|cert| CertificateDer::from(*cert))

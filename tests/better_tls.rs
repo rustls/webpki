@@ -1,10 +1,12 @@
 #![cfg(feature = "ring")]
 
+use core::time::Duration;
 use std::collections::HashMap;
 use std::fs::File;
 
 use base64::{engine::general_purpose, Engine as _};
 use bzip2::read::BzDecoder;
+use pki_types::UnixTime;
 use serde::Deserialize;
 
 use webpki::types::{CertificateDer, TrustAnchor};
@@ -61,7 +63,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
 
         // Set the time to the time of test case generation. This ensures that the test case
         // certificates won't expire.
-        let now = webpki::Time::from_seconds_since_unix_epoch(1_691_788_832);
+        let now = UnixTime::since_unix_epoch(Duration::from_secs(1_691_788_832));
 
         let result = ee_cert
             .verify_for_usage(

@@ -15,12 +15,12 @@
 use core::default::Default;
 use core::ops::ControlFlow;
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::cert::Cert;
 use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
-use crate::{signed_data, subject_name, time, Error};
+use crate::{signed_data, subject_name, Error};
 
 pub(crate) struct ChainOptions<'a> {
     pub(crate) eku: KeyUsage,
@@ -31,7 +31,7 @@ pub(crate) struct ChainOptions<'a> {
 }
 
 impl<'a> ChainOptions<'a> {
-    pub(crate) fn build_chain(&self, cert: &Cert<'_>, time: time::Time) -> Result<(), Error> {
+    pub(crate) fn build_chain(&self, cert: &Cert<'_>, time: UnixTime) -> Result<(), Error> {
         let path = PathNode { cert, issued: None };
         self.build_chain_inner(&path, time, 0, &mut Budget::default())
             .map_err(|e| match e {
@@ -43,7 +43,7 @@ impl<'a> ChainOptions<'a> {
     fn build_chain_inner(
         &self,
         path: &PathNode<'_>,
-        time: time::Time,
+        time: UnixTime,
         sub_ca_count: usize,
         budget: &mut Budget,
     ) -> Result<(), ControlFlow<Error, Error>> {
@@ -238,7 +238,7 @@ impl Default for Budget {
 
 fn check_issuer_independent_properties(
     cert: &Cert,
-    time: time::Time,
+    time: UnixTime,
     role: Role,
     sub_ca_count: usize,
     eku: ExtendedKeyUsage,
@@ -265,9 +265,9 @@ fn check_issuer_independent_properties(
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.1.2.5
-fn check_validity(input: &mut untrusted::Reader, time: time::Time) -> Result<(), Error> {
-    let not_before = time::Time::from_der(input)?;
-    let not_after = time::Time::from_der(input)?;
+fn check_validity(input: &mut untrusted::Reader, time: UnixTime) -> Result<(), Error> {
+    let not_before = UnixTime::from_der(input)?;
+    let not_after = UnixTime::from_der(input)?;
 
     if not_before > not_after {
         return Err(Error::InvalidCertValidity);
@@ -701,11 +701,11 @@ mod tests {
     ) -> Result<(), ControlFlow<Error, Error>> {
         use crate::end_entity::EndEntityCert;
         use crate::ring_algs::ECDSA_P256_SHA256;
-        use crate::time::Time;
         use crate::trust_anchor::extract_trust_anchor;
+        use core::time::Duration;
 
         let anchors = &[extract_trust_anchor(trust_anchor).unwrap()];
-        let time = Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let cert = EndEntityCert::try_from(ee_cert).unwrap();
         let intermediates_der = intermediates_der
             .iter()

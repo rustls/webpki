@@ -12,14 +12,13 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
 #[cfg(feature = "alloc")]
 use crate::subject_name::GeneralDnsNameRef;
 use crate::subject_name::{self, SubjectNameRef};
-use crate::time::Time;
 use crate::verify_cert::{self, KeyUsage};
 use crate::{cert, signed_data};
 
@@ -95,7 +94,7 @@ impl<'a> EndEntityCert<'a> {
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         trust_anchors: &[TrustAnchor],
         intermediate_certs: &[CertificateDer<'_>],
-        time: Time,
+        time: UnixTime,
         usage: KeyUsage,
         revocation: Option<RevocationOptions>,
     ) -> Result<(), Error> {
