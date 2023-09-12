@@ -1,4 +1,4 @@
-use pki_types::SignatureVerificationAlgorithm;
+use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::cert::lenient_certificate_serial_number;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
@@ -7,7 +7,6 @@ use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::Time;
 
 #[cfg(feature = "alloc")]
 use alloc::collections::BTreeMap;
@@ -294,13 +293,13 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             //    encoded as UTCTime or GeneralizedTime.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            Time::from_der(tbs_cert_list)?;
+            UnixTime::from_der(tbs_cert_list)?;
 
             // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
             //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            Time::from_der(tbs_cert_list)?;
+            UnixTime::from_der(tbs_cert_list)?;
 
             // RFC 5280 §5.1.2.6:
             //   When there are no revoked certificates, the revoked certificates list
@@ -592,7 +591,7 @@ pub struct OwnedRevokedCert {
     pub serial_number: Vec<u8>,
 
     /// The date at which the CA processed the revocation.
-    pub revocation_date: Time,
+    pub revocation_date: UnixTime,
 
     /// Identifies the reason for the certificate revocation. When absent, the revocation reason
     /// is assumed to be RevocationReason::Unspecified. For consistency with other extensions
@@ -603,7 +602,7 @@ pub struct OwnedRevokedCert {
     /// Provides the date on which it is known or suspected that the private key was compromised or
     /// that the certificate otherwise became invalid. This date may be earlier than the revocation
     /// date which is the date at which the CA processed the revocation.
-    pub invalidity_date: Option<Time>,
+    pub invalidity_date: Option<UnixTime>,
 }
 
 #[cfg(feature = "alloc")]
@@ -629,7 +628,7 @@ pub struct BorrowedRevokedCert<'a> {
     pub serial_number: &'a [u8],
 
     /// The date at which the CA processed the revocation.
-    pub revocation_date: Time,
+    pub revocation_date: UnixTime,
 
     /// Identifies the reason for the certificate revocation. When absent, the revocation reason
     /// is assumed to be RevocationReason::Unspecified. For consistency with other extensions
@@ -640,7 +639,7 @@ pub struct BorrowedRevokedCert<'a> {
     /// Provides the date on which it is known or suspected that the private key was compromised or
     /// that the certificate otherwise became invalid. This date may be earlier than the revocation
     /// date which is the date at which the CA processed the revocation.
-    pub invalidity_date: Option<Time>,
+    pub invalidity_date: Option<UnixTime>,
 }
 
 impl<'a> BorrowedRevokedCert<'a> {
@@ -663,7 +662,7 @@ impl<'a> BorrowedRevokedCert<'a> {
 
                 // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
                 24 => set_extension_once(&mut self.invalidity_date, || {
-                    extension.value.read_all(Error::BadDer, Time::from_der)
+                    extension.value.read_all(Error::BadDer, UnixTime::from_der)
                 }),
 
                 // id-ce-certificateIssuer 2.5.29.29 - RFC 5280 §5.3.3.
@@ -702,7 +701,7 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
                     .map_err(|_| Error::InvalidSerialNumber)?
                     .as_slice_less_safe();
 
-                let revocation_date = Time::from_der(der)?;
+                let revocation_date = UnixTime::from_der(der)?;
 
                 let mut revoked_cert = BorrowedRevokedCert {
                     serial_number,

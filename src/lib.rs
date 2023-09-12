@@ -76,7 +76,6 @@ pub use {
         AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,
         SubjectNameRef,
     },
-    time::Time,
     trust_anchor::extract_trust_anchor,
     verify_cert::KeyUsage,
 };

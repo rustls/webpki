@@ -13,7 +13,9 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #![cfg(feature = "alloc")]
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm};
+use core::time::Duration;
+
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{extract_trust_anchor, KeyUsage};
 
 static ALL_SIGALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -38,7 +40,7 @@ fn check_cert(
     let anchors = [extract_trust_anchor(&ca_cert_der).unwrap()];
 
     let ee_der = CertificateDer::from(ee);
-    let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
     cert.verify_for_usage(
         ALL_SIGALGS,

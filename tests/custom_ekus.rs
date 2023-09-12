@@ -1,13 +1,15 @@
 #![cfg(all(feature = "alloc", feature = "ring"))]
 
-use pki_types::CertificateDer;
+use core::time::Duration;
+
+use pki_types::{CertificateDer, UnixTime};
 use webpki::{extract_trust_anchor, KeyUsage};
 
 fn check_cert(
     ee: &[u8],
     ca: &[u8],
     eku: KeyUsage,
-    time: webpki::Time,
+    time: UnixTime,
     result: Result<(), webpki::Error>,
 ) {
     let ca = CertificateDer::from(ca);
@@ -29,7 +31,7 @@ fn check_cert(
 #[test]
 pub fn verify_custom_eku_mdoc() {
     let err = Err(webpki::Error::RequiredEkuNotFound);
-    let time = webpki::Time::from_seconds_since_unix_epoch(1609459200); //  Jan 1 01:00:00 CET 2021
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_609_459_200)); //  Jan 1 01:00:00 CET 2021
 
     let ee = include_bytes!("misc/mdoc_eku.ee.der");
     let ca = include_bytes!("misc/mdoc_eku.ca.der");
@@ -43,7 +45,7 @@ pub fn verify_custom_eku_mdoc() {
 
 #[test]
 pub fn verify_custom_eku_client() {
-    let time = webpki::Time::from_seconds_since_unix_epoch(0x1fed_f00d);
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
 
     let ee = include_bytes!("client_auth/cert_with_no_eku_accepted_for_client_auth.ee.der");
     let ca = include_bytes!("client_auth/cert_with_no_eku_accepted_for_client_auth.ca.der");
