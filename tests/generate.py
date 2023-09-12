@@ -819,7 +819,6 @@ def generate_client_auth_test(
     print(
         """
 #[test]
-#[cfg(feature = "alloc")]
 fn %(test_name)s() {
     let ee = include_bytes!("%(ee_cert_path)s");
     let ca = include_bytes!("%(ca_cert_path)s");
