@@ -85,7 +85,6 @@ pub use {
 
 pub use pki_types as types;
 
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[cfg(feature = "alloc")]
 pub use {
     crl::{OwnedCertRevocationList, OwnedRevokedCert},
