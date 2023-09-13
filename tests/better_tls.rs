@@ -14,7 +14,7 @@ use webpki::{extract_trust_anchor, KeyUsage, SubjectNameRef};
 
 #[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --ignored`
 #[test]
-fn better_tls() {
+fn path_building() {
     let better_tls = testdata();
     let root_der = &better_tls.root_der();
     let root_der = CertificateDer::from(root_der.as_slice());
