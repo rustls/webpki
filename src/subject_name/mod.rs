@@ -17,7 +17,6 @@ mod dns_name;
 pub(crate) use dns_name::GeneralDnsNameRef;
 pub use dns_name::{DnsNameRef, InvalidDnsNameError};
 
-/// Requires the `alloc` feature.
 #[cfg(feature = "alloc")]
 pub use dns_name::DnsName;
 
