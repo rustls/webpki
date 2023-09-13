@@ -12,6 +12,7 @@ use serde::Deserialize;
 use webpki::types::{CertificateDer, TrustAnchor};
 use webpki::{extract_trust_anchor, KeyUsage, SubjectNameRef};
 
+#[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --ignored`
 #[test]
 fn better_tls() {
     let better_tls = testdata();
@@ -30,6 +31,7 @@ fn better_tls() {
     );
 }
 
+#[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --ignored`
 #[test]
 fn name_constraints() {
     let better_tls = testdata();
