@@ -555,7 +555,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "alloc")]
-    fn test_too_many_path_calls() {
+    fn test_too_many_path_calls_mini() {
         assert!(matches!(
             build_degenerate_chain(
                 10,
@@ -565,6 +565,10 @@ mod tests {
                     // first expending the signature checks budget is tricky, so we artificially
                     // inflate the signature limit to make this test easier to write.
                     signatures: usize::MAX,
+                    // We don't use the default build chain budget here. Doing so makes this test
+                    // run slowly (due to testing quadratic runtime up to the limit) without adding
+                    // much value from a testing perspective over using a smaller non-default limit.
+                    build_chain_calls: 100,
                     ..Budget::default()
                 })
             ),
