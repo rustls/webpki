@@ -191,7 +191,7 @@ jobs:
           toolchain: ${{ matrix.rust_channel }}
 
       - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
-        run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }}
+        run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
         env:
           RUSTFLAGS: "-D warnings"
 
