@@ -23,7 +23,7 @@ use webpki::{extract_trust_anchor, KeyUsage};
  * because they're rooted at a Verisign v1 root. */
 #[cfg(feature = "alloc")]
 #[test]
-pub fn netflix() {
+fn netflix() {
     let ee: &[u8] = include_bytes!("netflix/ee.der");
     let inter = CertificateDer::from(&include_bytes!("netflix/inter.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
@@ -50,7 +50,7 @@ pub fn netflix() {
 /* This is notable because it is a popular use of IP address subjectAltNames. */
 #[cfg(feature = "alloc")]
 #[test]
-pub fn cloudflare_dns() {
+fn cloudflare_dns() {
     let ee: &[u8] = include_bytes!("cloudflare_dns/ee.der");
     let inter = CertificateDer::from(&include_bytes!("cloudflare_dns/inter.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("cloudflare_dns/ca.der")[..]);
@@ -107,7 +107,7 @@ pub fn cloudflare_dns() {
 
 #[cfg(feature = "alloc")]
 #[test]
-pub fn wpt() {
+fn wpt() {
     let ee = CertificateDer::from(&include_bytes!("wpt/ee.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("wpt/ca.der")[..]);
 
@@ -129,7 +129,7 @@ pub fn wpt() {
 }
 
 #[test]
-pub fn ed25519() {
+fn ed25519() {
     let ee = CertificateDer::from(&include_bytes!("ed25519/ee.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("ed25519/ca.der")[..]);
 
@@ -241,7 +241,7 @@ fn read_ee_with_large_pos_serial() {
 
 #[cfg(feature = "alloc")]
 #[test]
-pub fn list_netflix_names() {
+fn list_netflix_names() {
     let ee = include_bytes!("netflix/ee.der");
 
     expect_cert_dns_names(
@@ -265,7 +265,7 @@ pub fn list_netflix_names() {
 
 #[cfg(feature = "alloc")]
 #[test]
-pub fn invalid_subject_alt_names() {
+fn invalid_subject_alt_names() {
     // same as netflix ee certificate, but with the last name in the list
     // changed to 'www.netflix:com'
     let data = include_bytes!("misc/invalid_subject_alternative_name.der");
@@ -291,7 +291,7 @@ pub fn invalid_subject_alt_names() {
 
 #[cfg(feature = "alloc")]
 #[test]
-pub fn wildcard_subject_alternative_names() {
+fn wildcard_subject_alternative_names() {
     // same as netflix ee certificate, but with the last name in the list
     // changed to 'ww*.netflix:com'
     let data = include_bytes!("misc/dns_names_and_wildcards.der");
@@ -342,7 +342,7 @@ fn expect_cert_dns_names(data: &[u8], expected_names: &[&str]) {
 
 #[cfg(feature = "alloc")]
 #[test]
-pub fn no_subject_alt_names() {
+fn no_subject_alt_names() {
     let ee = CertificateDer::from(&include_bytes!("misc/no_subject_alternative_name.der")[..]);
 
     let cert = webpki::EndEntityCert::try_from(&ee)
