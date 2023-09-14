@@ -258,10 +258,8 @@ fn read_ee_with_large_pos_serial() {
 #[cfg(feature = "alloc")]
 #[test]
 fn list_netflix_names() {
-    let ee = include_bytes!("netflix/ee.der");
-
     expect_cert_dns_names(
-        ee,
+        include_bytes!("netflix/ee.der"),
         [
             "account.netflix.com",
             "ca.netflix.com",
@@ -282,12 +280,10 @@ fn list_netflix_names() {
 #[cfg(feature = "alloc")]
 #[test]
 fn invalid_subject_alt_names() {
-    // same as netflix ee certificate, but with the last name in the list
-    // changed to 'www.netflix:com'
-    let data = include_bytes!("misc/invalid_subject_alternative_name.der");
-
     expect_cert_dns_names(
-        data,
+        // same as netflix ee certificate, but with the last name in the list
+        // changed to 'www.netflix:com'
+        include_bytes!("misc/invalid_subject_alternative_name.der"),
         [
             "account.netflix.com",
             "ca.netflix.com",
@@ -308,12 +304,10 @@ fn invalid_subject_alt_names() {
 #[cfg(feature = "alloc")]
 #[test]
 fn wildcard_subject_alternative_names() {
-    // same as netflix ee certificate, but with the last name in the list
-    // changed to 'ww*.netflix:com'
-    let data = include_bytes!("misc/dns_names_and_wildcards.der");
-
     expect_cert_dns_names(
-        data,
+        // same as netflix ee certificate, but with the last name in the list
+        // changed to 'ww*.netflix:com'
+        include_bytes!("misc/dns_names_and_wildcards.der"),
         [
             "account.netflix.com",
             "*.netflix.com",
