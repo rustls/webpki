@@ -151,8 +151,8 @@ impl<'a> EndEntityCert<'a> {
     /// Returns a list of the DNS names provided in the subject alternative names extension
     ///
     /// This function must not be used to implement custom DNS name verification.
-    /// Verification functions are already provided as `verify_is_valid_for_dns_name`
-    /// and `verify_is_valid_for_at_least_one_dns_name`.
+    /// Checking that a certificate is valid for a given subject name should always be done with
+    /// [EndEntityCert::verify_is_valid_for_subject_name].
     #[cfg(feature = "alloc")]
     pub fn dns_names(&'a self) -> Result<impl Iterator<Item = &'a str>, Error> {
         subject_name::list_cert_dns_names(self)
