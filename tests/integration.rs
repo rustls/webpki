@@ -332,10 +332,10 @@ fn wildcard_subject_alternative_names() {
 }
 
 #[cfg(feature = "alloc")]
-fn expect_cert_dns_names(data: &[u8], expected_names: &[&str]) {
+fn expect_cert_dns_names(cert_der: &[u8], expected_names: &[&str]) {
     use std::collections::HashSet;
 
-    let der = CertificateDer::from(data);
+    let der = CertificateDer::from(cert_der);
     let cert = webpki::EndEntityCert::try_from(&der)
         .expect("should parse end entity certificate correctly");
 
