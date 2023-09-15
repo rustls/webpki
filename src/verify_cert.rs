@@ -495,10 +495,9 @@ enum Role {
     EndEntity,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "alloc", feature = "ring"))]
 mod tests {
     use super::*;
-    #[cfg(feature = "alloc")]
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
 
     #[test]
@@ -513,7 +512,6 @@ mod tests {
         InChain,
     }
 
-    #[cfg(feature = "alloc")]
     fn build_degenerate_chain(
         intermediate_count: usize,
         trust_anchor: ChainTrustAnchor,
@@ -552,7 +550,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "alloc")]
     fn test_too_many_signatures() {
         assert!(matches!(
             build_degenerate_chain(5, ChainTrustAnchor::NotInChain),
@@ -561,7 +558,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "alloc")]
     fn test_too_many_path_calls() {
         assert!(matches!(
             dbg!(build_degenerate_chain(10, ChainTrustAnchor::InChain)),
@@ -569,7 +565,6 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "alloc")]
     fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
@@ -592,7 +587,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "alloc")]
     fn longest_allowed_path() {
         assert!(build_linear_chain(1).is_ok());
         assert!(build_linear_chain(2).is_ok());
@@ -603,7 +597,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "alloc")]
     fn path_too_long() {
         assert!(matches!(
             build_linear_chain(7),
@@ -612,7 +605,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "alloc")]
     fn name_constraint_budget() {
         // Issue a trust anchor that imposes name constraints. The constraint should match
         // the end entity certificate SAN.
@@ -688,7 +680,6 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "alloc")]
     fn verify_chain(
         trust_anchor: &CertificateDer<'_>,
         intermediates_der: &[Vec<u8>],
