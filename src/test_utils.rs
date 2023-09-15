@@ -7,13 +7,8 @@ use crate::types::CertificateDer;
 /// same algorithm when generating certificates using `rcgen`.
 pub(crate) static RCGEN_SIGNATURE_ALG: &rcgen::SignatureAlgorithm = &rcgen::PKCS_ECDSA_P256_SHA256;
 
-pub(crate) fn make_issuer(
-    org_name: impl Into<String>,
-    name_constraints: Option<rcgen::NameConstraints>,
-) -> rcgen::Certificate {
-    let mut params = issuer_params(org_name);
-    params.name_constraints = name_constraints;
-    rcgen::Certificate::from_params(params).unwrap()
+pub(crate) fn make_issuer(org_name: impl Into<String>) -> rcgen::Certificate {
+    rcgen::Certificate::from_params(issuer_params(org_name)).unwrap()
 }
 
 /// Populate a [CertificateParams] that describes an unconstrained issuer certificate capable

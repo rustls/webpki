@@ -499,7 +499,7 @@ enum Role {
 mod tests {
     use super::*;
     #[cfg(feature = "alloc")]
-    use crate::test_utils::{make_end_entity, make_issuer};
+    use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
 
     #[test]
     fn eku_key_purpose_id() {
@@ -519,13 +519,13 @@ mod tests {
         trust_anchor_is_actual_issuer: TrustAnchorIsActualIssuer,
         budget: Option<Budget>,
     ) -> ControlFlow<Error, Error> {
-        let ca_cert = make_issuer("Bogus Subject", None);
+        let ca_cert = make_issuer("Bogus Subject");
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
         let mut intermediates = Vec::with_capacity(intermediate_count);
         let mut issuer = ca_cert;
         for _ in 0..intermediate_count {
-            let intermediate = make_issuer("Bogus Subject", None);
+            let intermediate = make_issuer("Bogus Subject");
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
             intermediates.push(intermediate_der);
             issuer = intermediate;
@@ -578,13 +578,13 @@ mod tests {
 
     #[cfg(feature = "alloc")]
     fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
-        let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"), None);
+        let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
         let mut intermediates = Vec::with_capacity(chain_length);
         let mut issuer = ca_cert;
         for i in 0..chain_length {
-            let intermediate = make_issuer(format!("Bogus Subject {i}"), None);
+            let intermediate = make_issuer(format!("Bogus Subject {i}"));
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
             intermediates.push(intermediate_der);
             issuer = intermediate;
@@ -623,13 +623,12 @@ mod tests {
     fn name_constraint_budget() {
         // Issue a trust anchor that imposes name constraints. The constraint should match
         // the end entity certificate SAN.
-        let ca_cert = make_issuer(
-            "Constrained Root",
-            Some(rcgen::NameConstraints {
-                permitted_subtrees: vec![rcgen::GeneralSubtree::DnsName(".com".into())],
-                excluded_subtrees: vec![],
-            }),
-        );
+        let mut ca_cert_params = issuer_params("Constrained Root");
+        ca_cert_params.name_constraints = Some(rcgen::NameConstraints {
+            permitted_subtrees: vec![rcgen::GeneralSubtree::DnsName(".com".into())],
+            excluded_subtrees: vec![],
+        });
+        let ca_cert = rcgen::Certificate::from_params(ca_cert_params).unwrap();
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
         // Create a series of intermediate issuers. We'll only use one in the actual built path,
@@ -638,7 +637,7 @@ mod tests {
         const NUM_INTERMEDIATES: usize = 5;
         let mut intermediates = Vec::with_capacity(NUM_INTERMEDIATES);
         for i in 0..NUM_INTERMEDIATES {
-            intermediates.push(make_issuer(format!("Intermediate {i}"), None));
+            intermediates.push(make_issuer(format!("Intermediate {i}")));
         }
 
         // Each intermediate should be issued by the trust anchor.
