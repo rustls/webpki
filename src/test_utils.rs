@@ -1,13 +1,12 @@
-#[cfg(feature = "alloc")]
+#![cfg(feature = "alloc")]
+
 use crate::types::CertificateDer;
 
 /// Signature algorithm used by certificates generated using `make_issuer` and
 /// `make_end_entity`. This is exported as a constant so that tests can use the
 /// same algorithm when generating certificates using `rcgen`.
-#[cfg(feature = "alloc")]
 pub(crate) static RCGEN_SIGNATURE_ALG: &rcgen::SignatureAlgorithm = &rcgen::PKCS_ECDSA_P256_SHA256;
 
-#[cfg(feature = "alloc")]
 pub(crate) fn make_issuer(
     org_name: impl Into<String>,
     name_constraints: Option<rcgen::NameConstraints>,
@@ -27,7 +26,6 @@ pub(crate) fn make_issuer(
     rcgen::Certificate::from_params(ca_params).unwrap()
 }
 
-#[cfg(feature = "alloc")]
 pub(crate) fn make_end_entity(issuer: &rcgen::Certificate) -> CertificateDer<'static> {
     let mut ee_params = rcgen::CertificateParams::new(vec!["example.com".to_string()]);
     ee_params.is_ca = rcgen::IsCa::ExplicitNoCa;
