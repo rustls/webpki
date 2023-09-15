@@ -174,7 +174,7 @@ mod tests {
     fn printable_string_common_name() {
         const DNS_NAME: &str = "test.example.com";
 
-        let issuer = test_utils::make_issuer("Test", None);
+        let issuer = test_utils::make_issuer("Test");
 
         let ee_cert_der = {
             let mut params = rcgen::CertificateParams::new(vec![DNS_NAME.to_string()]);
