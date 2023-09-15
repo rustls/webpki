@@ -516,13 +516,17 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn build_degenerate_chain(
         intermediate_count: usize,
-        trust_anchor_is_actual_issuer: TrustAnchorIsActualIssuer,
+        trust_anchor: TrustAnchorIsActualIssuer,
         budget: Option<Budget>,
     ) -> ControlFlow<Error, Error> {
         let ca_cert = make_issuer("Bogus Subject");
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
-        let mut intermediates = Vec::with_capacity(intermediate_count);
+        let mut intermediates = Vec::with_capacity(intermediate_count + 1);
+        if let TrustAnchorIsActualIssuer::No = trust_anchor {
+            intermediates.push(ca_cert_der.to_vec());
+        }
+
         let mut issuer = ca_cert;
         for _ in 0..intermediate_count {
             let intermediate = make_issuer("Bogus Subject");
@@ -531,12 +535,16 @@ mod tests {
             issuer = intermediate;
         }
 
-        if let TrustAnchorIsActualIssuer::No = trust_anchor_is_actual_issuer {
-            intermediates.pop();
-        }
+        let trust_anchor = match trust_anchor {
+            TrustAnchorIsActualIssuer::No => {
+                let unused_anchor = make_issuer("Bogus Trust Anchor");
+                CertificateDer::from(unused_anchor.serialize_der().unwrap())
+            }
+            TrustAnchorIsActualIssuer::Yes => ca_cert_der,
+        };
 
         verify_chain(
-            &ca_cert_der,
+            &trust_anchor,
             &intermediates,
             &make_end_entity(&issuer),
             budget,
@@ -555,23 +563,13 @@ mod tests {
 
     #[test]
     #[cfg(feature = "alloc")]
-    fn test_too_many_path_calls_mini() {
+    fn test_too_many_path_calls() {
         assert!(matches!(
-            build_degenerate_chain(
+            dbg!(build_degenerate_chain(
                 10,
                 TrustAnchorIsActualIssuer::No,
-                Some(Budget {
-                    // Crafting a chain that will expend the build chain calls budget without
-                    // first expending the signature checks budget is tricky, so we artificially
-                    // inflate the signature limit to make this test easier to write.
-                    signatures: usize::MAX,
-                    // We don't use the default build chain budget here. Doing so makes this test
-                    // run slowly (due to testing quadratic runtime up to the limit) without adding
-                    // much value from a testing perspective over using a smaller non-default limit.
-                    build_chain_calls: 100,
-                    ..Budget::default()
-                })
-            ),
+                None
+            )),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
         ));
     }
