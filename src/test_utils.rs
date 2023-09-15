@@ -11,6 +11,15 @@ pub(crate) fn make_issuer(
     org_name: impl Into<String>,
     name_constraints: Option<rcgen::NameConstraints>,
 ) -> rcgen::Certificate {
+    let mut params = issuer_params(org_name);
+    params.name_constraints = name_constraints;
+    rcgen::Certificate::from_params(params).unwrap()
+}
+
+/// Populate a [CertificateParams] that describes an unconstrained issuer certificate capable
+/// of signing other certificates and CRLs, with the given `org_name` as an organization distinguished
+/// subject name.
+pub(crate) fn issuer_params(org_name: impl Into<String>) -> rcgen::CertificateParams {
     let mut ca_params = rcgen::CertificateParams::new(Vec::new());
     ca_params
         .distinguished_name
@@ -22,8 +31,7 @@ pub(crate) fn make_issuer(
         rcgen::KeyUsagePurpose::CrlSign,
     ];
     ca_params.alg = RCGEN_SIGNATURE_ALG;
-    ca_params.name_constraints = name_constraints;
-    rcgen::Certificate::from_params(ca_params).unwrap()
+    ca_params
 }
 
 pub(crate) fn make_end_entity(issuer: &rcgen::Certificate) -> CertificateDer<'static> {
