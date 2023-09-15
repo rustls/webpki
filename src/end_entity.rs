@@ -177,15 +177,13 @@ mod tests {
         let issuer = test_utils::make_issuer("Test");
 
         let ee_cert_der = {
-            let mut params = rcgen::CertificateParams::new(vec![DNS_NAME.to_string()]);
+            let mut params = test_utils::end_entity_params(vec![DNS_NAME.to_string()]);
             // construct a certificate that uses `PrintableString` as the
             // common name value, rather than `UTF8String`.
             params.distinguished_name.push(
                 rcgen::DnType::CommonName,
                 rcgen::DnValue::PrintableString("example.com".to_string()),
             );
-            params.is_ca = rcgen::IsCa::ExplicitNoCa;
-            params.alg = test_utils::RCGEN_SIGNATURE_ALG;
             let cert = rcgen::Certificate::from_params(params)
                 .expect("failed to make ee cert (this is a test bug)");
             let bytes = cert
