@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#![cfg(feature = "alloc")]
+#![cfg(all(feature = "alloc", feature = "ring"))]
 
 use core::time::Duration;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
