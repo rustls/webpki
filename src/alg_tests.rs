@@ -19,6 +19,11 @@ use crate::verify_cert::Budget;
 use crate::{der, signed_data};
 use alloc::{string::String, vec::Vec};
 
+use super::{
+    INVALID_SIGNATURE_FOR_RSA_KEY, OK_IF_RSA_AVAILABLE, SUPPORTED_ALGORITHMS_IN_TESTS,
+    UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY,
+};
+
 macro_rules! test_file_bytes {
     ( $file_name:expr ) => {
         include_bytes!(concat!(
@@ -127,24 +132,6 @@ fn test_parse_spki_bad_outer(file_contents: &[u8], expected_error: Error) {
         })
     );
 }
-
-const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
-    Error::UnsupportedSignatureAlgorithmForPublicKey
-} else {
-    Error::UnsupportedSignatureAlgorithm
-};
-
-const INVALID_SIGNATURE_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
-    Error::InvalidSignatureForPublicKey
-} else {
-    Error::UnsupportedSignatureAlgorithm
-};
-
-const OK_IF_RSA_AVAILABLE: Result<(), Error> = if cfg!(feature = "alloc") {
-    Ok(())
-} else {
-    Err(Error::UnsupportedSignatureAlgorithm)
-};
 
 // XXX: Some of the BadDer tests should have better error codes, maybe?
 
@@ -400,27 +387,3 @@ fn read_pem_section(lines: &mut Lines, section_name: &str) -> Vec<u8> {
 
     general_purpose::STANDARD.decode(&base64).unwrap()
 }
-
-static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
-    // Reasonable algorithms.
-    super::ECDSA_P256_SHA256,
-    super::ECDSA_P384_SHA384,
-    super::ED25519,
-    #[cfg(feature = "alloc")]
-    super::RSA_PKCS1_2048_8192_SHA256,
-    #[cfg(feature = "alloc")]
-    super::RSA_PKCS1_2048_8192_SHA384,
-    #[cfg(feature = "alloc")]
-    super::RSA_PKCS1_2048_8192_SHA512,
-    #[cfg(feature = "alloc")]
-    super::RSA_PKCS1_3072_8192_SHA384,
-    #[cfg(feature = "alloc")]
-    super::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-    #[cfg(feature = "alloc")]
-    super::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-    #[cfg(feature = "alloc")]
-    super::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-    // Algorithms deprecated because they are nonsensical combinations.
-    super::ECDSA_P256_SHA384, // Truncates digest.
-    super::ECDSA_P384_SHA256, // Digest is unnecessarily short.
-];
