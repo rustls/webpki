@@ -2,10 +2,8 @@
 
 use crate::types::CertificateDer;
 
-/// Signature algorithm used by certificates generated using `make_issuer` and
-/// `make_end_entity`. This is exported as a constant so that tests can use the
-/// same algorithm when generating certificates using `rcgen`.
-pub(crate) static RCGEN_SIGNATURE_ALG: &rcgen::SignatureAlgorithm = &rcgen::PKCS_ECDSA_P256_SHA256;
+/// Signature algorithm used by certificates and parameters generated using the test utils helpers.
+static RCGEN_SIGNATURE_ALG: &rcgen::SignatureAlgorithm = &rcgen::PKCS_ECDSA_P256_SHA256;
 
 pub(crate) fn make_issuer(org_name: impl Into<String>) -> rcgen::Certificate {
     rcgen::Certificate::from_params(issuer_params(org_name)).unwrap()
