@@ -27,6 +27,7 @@ pub(crate) fn issuer_params(org_name: impl Into<String>) -> rcgen::CertificatePa
     ca_params
 }
 
+#[cfg_attr(not(feature = "ring"), allow(dead_code))]
 pub(crate) fn make_end_entity(issuer: &rcgen::Certificate) -> CertificateDer<'static> {
     CertificateDer::from(
         rcgen::Certificate::from_params(end_entity_params(vec!["example.com".into()]))
