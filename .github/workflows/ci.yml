@@ -125,6 +125,7 @@ jobs:
           - features: # Default
           - features: --features=alloc
           - features: --no-default-features
+          - features: --no-default-features --features alloc,std
           - features: --all-features
             mode: --release
           - features: --all-features
@@ -146,6 +147,11 @@ jobs:
             host_os: ubuntu-20.04
 
           - features: --no-default-features
+            mode: # debug
+            rust_channel: stable
+            host_os: ubuntu-20.04
+
+          - features: --no-default-features --features alloc,std
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-20.04
