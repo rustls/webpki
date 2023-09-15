@@ -517,7 +517,6 @@ mod tests {
     fn build_degenerate_chain(
         intermediate_count: usize,
         trust_anchor: ChainTrustAnchor,
-        budget: Option<Budget>,
     ) -> ControlFlow<Error, Error> {
         let ca_cert = make_issuer("Bogus Subject");
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
@@ -547,7 +546,7 @@ mod tests {
             &trust_anchor,
             &intermediates,
             &make_end_entity(&issuer),
-            budget,
+            None,
         )
         .unwrap_err()
     }
@@ -556,7 +555,7 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_too_many_signatures() {
         assert!(matches!(
-            build_degenerate_chain(5, ChainTrustAnchor::NotInChain, None),
+            build_degenerate_chain(5, ChainTrustAnchor::NotInChain),
             ControlFlow::Break(Error::MaximumSignatureChecksExceeded)
         ));
     }
@@ -565,7 +564,7 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_too_many_path_calls() {
         assert!(matches!(
-            dbg!(build_degenerate_chain(10, ChainTrustAnchor::InChain, None)),
+            dbg!(build_degenerate_chain(10, ChainTrustAnchor::InChain)),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
         ));
     }
