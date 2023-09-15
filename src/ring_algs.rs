@@ -149,5 +149,52 @@ pub static ED25519: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
 };
 
 #[cfg(test)]
-#[path = "alg_tests.rs"]
-mod alg_tests;
+#[path = "."]
+mod tests {
+    use crate::Error;
+
+    static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
+        // Reasonable algorithms.
+        super::ECDSA_P256_SHA256,
+        super::ECDSA_P384_SHA384,
+        super::ED25519,
+        #[cfg(feature = "alloc")]
+        super::RSA_PKCS1_2048_8192_SHA256,
+        #[cfg(feature = "alloc")]
+        super::RSA_PKCS1_2048_8192_SHA384,
+        #[cfg(feature = "alloc")]
+        super::RSA_PKCS1_2048_8192_SHA512,
+        #[cfg(feature = "alloc")]
+        super::RSA_PKCS1_3072_8192_SHA384,
+        #[cfg(feature = "alloc")]
+        super::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        #[cfg(feature = "alloc")]
+        super::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+        #[cfg(feature = "alloc")]
+        super::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        // Algorithms deprecated because they are nonsensical combinations.
+        super::ECDSA_P256_SHA384, // Truncates digest.
+        super::ECDSA_P384_SHA256, // Digest is unnecessarily short.
+    ];
+
+    const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
+        Error::UnsupportedSignatureAlgorithmForPublicKey
+    } else {
+        Error::UnsupportedSignatureAlgorithm
+    };
+
+    const INVALID_SIGNATURE_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
+        Error::InvalidSignatureForPublicKey
+    } else {
+        Error::UnsupportedSignatureAlgorithm
+    };
+
+    const OK_IF_RSA_AVAILABLE: Result<(), Error> = if cfg!(feature = "alloc") {
+        Ok(())
+    } else {
+        Err(Error::UnsupportedSignatureAlgorithm)
+    };
+
+    #[path = "alg_tests.rs"]
+    mod alg_tests;
+}
