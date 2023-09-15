@@ -669,7 +669,7 @@ fn %(lower_test_name)s() {
     let message = include_bytes!("%(message_path)s");
     let signature = include_bytes!("%(sig_path)s");
     assert_eq!(
-        check_sig(ee, webpki::%(algorithm)s, message, signature),
+        check_sig(ee, %(algorithm)s, message, signature),
         %(expected)s
     );
 }"""
@@ -712,9 +712,7 @@ fn %(lower_test_name)s() {
     ) -> None:
         cert_path: str = _cert_path(cert_type)
         test_name_lower: str = test_name.lower()
-        unusable_algs_str: str = ", ".join(
-            "webpki::" + alg for alg in sorted(unusable_algs)
-        )
+        unusable_algs_str: str = ", ".join(alg for alg in sorted(unusable_algs))
         print(
             """
 #[test]
