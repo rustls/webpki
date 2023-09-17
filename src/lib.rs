@@ -28,7 +28,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(unreachable_pub)]
-#![deny(warnings, missing_docs, clippy::as_conversions)]
+#![deny(missing_docs, clippy::as_conversions)]
 #![allow(
     clippy::len_without_is_empty,
     clippy::new_without_default,
