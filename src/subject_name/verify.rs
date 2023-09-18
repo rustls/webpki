@@ -320,42 +320,36 @@ impl<'a> Iterator for NameIterator<'a> {
 #[cfg(feature = "alloc")]
 pub(crate) fn list_cert_dns_names<'names>(
     cert: &'names crate::EndEntityCert<'names>,
-) -> Result<impl Iterator<Item = &'names str>, Error> {
+) -> impl Iterator<Item = &'names str> {
     let cert = &cert.inner();
     let mut names = Vec::new();
 
-    let result =
-        NameIterator::new(Some(cert.subject), cert.subject_alt_name).find_map(&mut |result| {
-            let name = match result {
-                Ok(name) => name,
-                Err(err) => return Some(err),
-            };
+    NameIterator::new(Some(cert.subject), cert.subject_alt_name).for_each(|result| {
+        let name = match result {
+            Ok(name) => name,
+            Err(_) => return,
+        };
 
-            let presented_id = match name {
-                GeneralName::DnsName(presented) => presented,
-                _ => return None,
-            };
+        let presented_id = match name {
+            GeneralName::DnsName(presented) => presented,
+            _ => return,
+        };
 
-            let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                .map(GeneralDnsNameRef::DnsName)
-                .or_else(|_| {
-                    WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                        .map(GeneralDnsNameRef::Wildcard)
-                });
+        let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+            .map(GeneralDnsNameRef::DnsName)
+            .or_else(|_| {
+                WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
+                    .map(GeneralDnsNameRef::Wildcard)
+            });
 
-            // if the name could be converted to a DNS name, add it; otherwise,
-            // keep going.
-            if let Ok(name) = dns_name {
-                names.push(name.into())
-            }
+        // if the name could be converted to a DNS name, add it; otherwise,
+        // keep going.
+        if let Ok(name) = dns_name {
+            names.push(name.into())
+        }
+    });
 
-            None
-        });
-
-    match result {
-        Some(err) => Err(err),
-        _ => Ok(names.into_iter()),
-    }
+    names.into_iter()
 }
 
 // It is *not* valid to derive `Eq`, `PartialEq, etc. for this type. In
