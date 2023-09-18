@@ -13,8 +13,6 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 mod dns_name;
-#[cfg(feature = "alloc")]
-pub(crate) use dns_name::GeneralDnsNameRef;
 pub use dns_name::{DnsNameRef, InvalidDnsNameError};
 
 #[cfg(feature = "alloc")]
