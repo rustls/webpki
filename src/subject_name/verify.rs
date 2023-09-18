@@ -12,12 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-
-use super::dns_name::{self, DnsNameRef};
-#[cfg(feature = "alloc")]
-use super::dns_name::{GeneralDnsNameRef, WildcardDnsNameRef};
+use super::dns_name::{self, DnsNameRef, GeneralDnsNameRef, WildcardDnsNameRef};
 use super::ip_address::{self, IpAddrRef};
 use super::name::SubjectNameRef;
 use crate::der::{self, FromDer};
@@ -317,22 +312,16 @@ impl<'a> Iterator for NameIterator<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 pub(crate) fn list_cert_dns_names<'names>(
     cert: &'names crate::EndEntityCert<'names>,
 ) -> impl Iterator<Item = &'names str> {
     let cert = &cert.inner();
-    let mut names = Vec::new();
-
-    NameIterator::new(Some(cert.subject), cert.subject_alt_name).for_each(|result| {
-        let name = match result {
-            Ok(name) => name,
-            Err(_) => return,
-        };
+    NameIterator::new(Some(cert.subject), cert.subject_alt_name).filter_map(|result| {
+        let name = result.ok()?;
 
         let presented_id = match name {
             GeneralName::DnsName(presented) => presented,
-            _ => return,
+            _ => return None,
         };
 
         let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
@@ -344,12 +333,11 @@ pub(crate) fn list_cert_dns_names<'names>(
 
         // if the name could be converted to a DNS name, add it; otherwise,
         // keep going.
-        if let Ok(name) = dns_name {
-            names.push(name.into())
+        match dns_name {
+            Ok(name) => Some(name.into()),
+            _ => None,
         }
-    });
-
-    names.into_iter()
+    })
 }
 
 // It is *not* valid to derive `Eq`, `PartialEq, etc. for this type. In

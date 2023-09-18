@@ -28,6 +28,6 @@ pub use ip_address::{AddrParseError, IpAddrRef};
 pub use ip_address::IpAddr;
 
 mod verify;
-#[cfg(feature = "alloc")]
-pub(super) use verify::list_cert_dns_names;
-pub(super) use verify::{check_name_constraints, verify_cert_subject_name, GeneralName};
+pub(super) use verify::{
+    check_name_constraints, list_cert_dns_names, verify_cert_subject_name, GeneralName,
+};
