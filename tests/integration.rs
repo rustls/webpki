@@ -255,7 +255,6 @@ fn read_ee_with_large_pos_serial() {
     webpki::EndEntityCert::try_from(&ee).expect("should parse 20-octet positive serial number");
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn list_netflix_names() {
     expect_cert_dns_names(
@@ -277,7 +276,6 @@ fn list_netflix_names() {
     );
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn invalid_subject_alt_names() {
     expect_cert_dns_names(
@@ -301,7 +299,6 @@ fn invalid_subject_alt_names() {
     );
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn wildcard_subject_alternative_names() {
     expect_cert_dns_names(
@@ -325,13 +322,11 @@ fn wildcard_subject_alternative_names() {
     );
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn no_subject_alt_names() {
     expect_cert_dns_names(include_bytes!("misc/no_subject_alternative_name.der"), [])
 }
 
-#[cfg(feature = "alloc")]
 fn expect_cert_dns_names<'name>(
     cert_der: &[u8],
     expected_names: impl IntoIterator<Item = &'name str>,
