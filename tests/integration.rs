@@ -246,7 +246,7 @@ fn list_netflix_names() {
 
     expect_cert_dns_names(
         ee,
-        &[
+        [
             "account.netflix.com",
             "ca.netflix.com",
             "netflix.ca",
@@ -272,7 +272,7 @@ fn invalid_subject_alt_names() {
 
     expect_cert_dns_names(
         data,
-        &[
+        [
             "account.netflix.com",
             "ca.netflix.com",
             "netflix.ca",
@@ -298,7 +298,7 @@ fn wildcard_subject_alternative_names() {
 
     expect_cert_dns_names(
         data,
-        &[
+        [
             "account.netflix.com",
             "*.netflix.com",
             "netflix.ca",
@@ -316,28 +316,15 @@ fn wildcard_subject_alternative_names() {
 }
 
 #[cfg(feature = "alloc")]
-fn expect_cert_dns_names(cert_der: &[u8], expected_names: &[&str]) {
-    use std::collections::HashSet;
-
+fn expect_cert_dns_names<'name>(
+    cert_der: &[u8],
+    expected_names: impl IntoIterator<Item = &'name str>,
+) {
     let der = CertificateDer::from(cert_der);
     let cert = webpki::EndEntityCert::try_from(&der)
         .expect("should parse end entity certificate correctly");
 
-    let expected_names: HashSet<_> = expected_names.iter().cloned().collect();
-
-    let mut actual_names = cert
-        .dns_names()
-        .expect("should get all DNS names correctly for end entity cert")
-        .collect::<Vec<_>>();
-
-    // Ensure that converting the list to a set doesn't throw away
-    // any duplicates that aren't supposed to be there
-    assert_eq!(actual_names.len(), expected_names.len());
-
-    let actual_names: std::collections::HashSet<&str> =
-        actual_names.drain(..).map(|name| name.into()).collect();
-
-    assert_eq!(actual_names, expected_names);
+    assert!(cert.dns_names().unwrap().eq(expected_names))
 }
 
 #[cfg(feature = "alloc")]
