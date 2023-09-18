@@ -318,16 +318,7 @@ fn wildcard_subject_alternative_names() {
 #[cfg(feature = "alloc")]
 #[test]
 fn no_subject_alt_names() {
-    let ee = CertificateDer::from(&include_bytes!("misc/no_subject_alternative_name.der")[..]);
-
-    let cert = webpki::EndEntityCert::try_from(&ee)
-        .expect("should parse end entity certificate correctly");
-
-    let names = cert
-        .dns_names()
-        .expect("we should get a result even without subjectAltNames");
-
-    assert!(names.collect::<Vec<_>>().is_empty());
+    expect_cert_dns_names(include_bytes!("misc/no_subject_alternative_name.der"), [])
 }
 
 #[cfg(feature = "alloc")]
