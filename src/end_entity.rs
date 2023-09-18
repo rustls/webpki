@@ -153,7 +153,6 @@ impl<'a> EndEntityCert<'a> {
     /// This function must not be used to implement custom DNS name verification.
     /// Checking that a certificate is valid for a given subject name should always be done with
     /// [EndEntityCert::verify_is_valid_for_subject_name].
-    #[cfg(feature = "alloc")]
     pub fn dns_names(&'a self) -> impl Iterator<Item = &'a str> {
         subject_name::list_cert_dns_names(self)
     }
