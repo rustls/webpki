@@ -508,22 +508,22 @@ mod tests {
     }
 
     #[cfg(feature = "alloc")]
-    enum TrustAnchorIsActualIssuer {
-        Yes,
-        No,
+    enum ChainTrustAnchor {
+        NotInChain,
+        InChain,
     }
 
     #[cfg(feature = "alloc")]
     fn build_degenerate_chain(
         intermediate_count: usize,
-        trust_anchor: TrustAnchorIsActualIssuer,
+        trust_anchor: ChainTrustAnchor,
         budget: Option<Budget>,
     ) -> ControlFlow<Error, Error> {
         let ca_cert = make_issuer("Bogus Subject");
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
 
         let mut intermediates = Vec::with_capacity(intermediate_count + 1);
-        if let TrustAnchorIsActualIssuer::No = trust_anchor {
+        if let ChainTrustAnchor::InChain = trust_anchor {
             intermediates.push(ca_cert_der.to_vec());
         }
 
@@ -536,11 +536,11 @@ mod tests {
         }
 
         let trust_anchor = match trust_anchor {
-            TrustAnchorIsActualIssuer::No => {
+            ChainTrustAnchor::InChain => {
                 let unused_anchor = make_issuer("Bogus Trust Anchor");
                 CertificateDer::from(unused_anchor.serialize_der().unwrap())
             }
-            TrustAnchorIsActualIssuer::Yes => ca_cert_der,
+            ChainTrustAnchor::NotInChain => ca_cert_der,
         };
 
         verify_chain(
@@ -556,7 +556,7 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_too_many_signatures() {
         assert!(matches!(
-            build_degenerate_chain(5, TrustAnchorIsActualIssuer::Yes, None),
+            build_degenerate_chain(5, ChainTrustAnchor::NotInChain, None),
             ControlFlow::Break(Error::MaximumSignatureChecksExceeded)
         ));
     }
@@ -565,11 +565,7 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn test_too_many_path_calls() {
         assert!(matches!(
-            dbg!(build_degenerate_chain(
-                10,
-                TrustAnchorIsActualIssuer::No,
-                None
-            )),
+            dbg!(build_degenerate_chain(10, ChainTrustAnchor::InChain, None)),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
         ));
     }
