@@ -16,8 +16,6 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
-#[cfg(feature = "alloc")]
-use crate::subject_name::GeneralDnsNameRef;
 use crate::subject_name::{self, SubjectNameRef};
 use crate::verify_cert::{self, KeyUsage};
 use crate::{cert, signed_data};
@@ -156,7 +154,7 @@ impl<'a> EndEntityCert<'a> {
     /// Verification functions are already provided as `verify_is_valid_for_dns_name`
     /// and `verify_is_valid_for_at_least_one_dns_name`.
     #[cfg(feature = "alloc")]
-    pub fn dns_names(&'a self) -> Result<impl Iterator<Item = GeneralDnsNameRef<'a>>, Error> {
+    pub fn dns_names(&'a self) -> Result<impl Iterator<Item = &'a str>, Error> {
         subject_name::list_cert_dns_names(self)
     }
 }

@@ -320,7 +320,7 @@ impl<'a> Iterator for NameIterator<'a> {
 #[cfg(feature = "alloc")]
 pub(crate) fn list_cert_dns_names<'names>(
     cert: &'names crate::EndEntityCert<'names>,
-) -> Result<impl Iterator<Item = GeneralDnsNameRef<'names>>, Error> {
+) -> Result<impl Iterator<Item = &'names str>, Error> {
     let cert = &cert.inner();
     let mut names = Vec::new();
 
@@ -346,7 +346,7 @@ pub(crate) fn list_cert_dns_names<'names>(
             // if the name could be converted to a DNS name, add it; otherwise,
             // keep going.
             if let Ok(name) = dns_name {
-                names.push(name)
+                names.push(name.into())
             }
 
             None
