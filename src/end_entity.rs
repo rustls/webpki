@@ -148,13 +148,13 @@ impl<'a> EndEntityCert<'a> {
         )
     }
 
-    /// Returns a list of the DNS names provided in the subject alternative names extension
+    /// Returns a list of valid DNS names provided in the subject alternative names extension
     ///
     /// This function must not be used to implement custom DNS name verification.
     /// Checking that a certificate is valid for a given subject name should always be done with
     /// [EndEntityCert::verify_is_valid_for_subject_name].
     #[cfg(feature = "alloc")]
-    pub fn dns_names(&'a self) -> Result<impl Iterator<Item = &'a str>, Error> {
+    pub fn dns_names(&'a self) -> impl Iterator<Item = &'a str> {
         subject_name::list_cert_dns_names(self)
     }
 }
@@ -212,9 +212,7 @@ mod tests {
         let cert =
             EndEntityCert::try_from(der).expect("should parse end entity certificate correctly");
 
-        let mut names = cert
-            .dns_names()
-            .expect("should get all DNS names correctly for end entity cert");
+        let mut names = cert.dns_names();
         assert_eq!(names.next().map(<&str>::from), Some(name));
         assert_eq!(names.next().map(<&str>::from), None);
     }
