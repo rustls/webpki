@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::dns_name::{self, DnsNameRef, GeneralDnsNameRef, WildcardDnsNameRef};
+use super::dns_name::{self, DnsNameRef, WildcardDnsNameRef};
 use super::ip_address::{self, IpAddrRef};
 use super::name::SubjectNameRef;
 use crate::der::{self, FromDer};
@@ -317,25 +317,19 @@ pub(crate) fn list_cert_dns_names<'names>(
 ) -> impl Iterator<Item = &'names str> {
     let cert = &cert.inner();
     NameIterator::new(Some(cert.subject), cert.subject_alt_name).filter_map(|result| {
-        let name = result.ok()?;
-
-        let presented_id = match name {
+        let presented_id = match result.ok()? {
             GeneralName::DnsName(presented) => presented,
             _ => return None,
         };
 
-        let dns_name = DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-            .map(GeneralDnsNameRef::DnsName)
-            .or_else(|_| {
-                WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe())
-                    .map(GeneralDnsNameRef::Wildcard)
-            });
-
-        // if the name could be converted to a DNS name, add it; otherwise,
+        // if the name could be converted to a DNS name, return it; otherwise,
         // keep going.
-        match dns_name {
-            Ok(name) => Some(name.into()),
-            _ => None,
+        match DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
+            Ok(dns_name) => Some(dns_name.into()),
+            Err(_) => match WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
+                Ok(wildcard_dns_name) => Some(wildcard_dns_name.into()),
+                Err(_) => None,
+            },
         }
     })
 }
