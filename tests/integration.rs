@@ -316,18 +316,6 @@ fn wildcard_subject_alternative_names() {
 }
 
 #[cfg(feature = "alloc")]
-fn expect_cert_dns_names<'name>(
-    cert_der: &[u8],
-    expected_names: impl IntoIterator<Item = &'name str>,
-) {
-    let der = CertificateDer::from(cert_der);
-    let cert = webpki::EndEntityCert::try_from(&der)
-        .expect("should parse end entity certificate correctly");
-
-    assert!(cert.dns_names().unwrap().eq(expected_names))
-}
-
-#[cfg(feature = "alloc")]
 #[test]
 fn no_subject_alt_names() {
     let ee = CertificateDer::from(&include_bytes!("misc/no_subject_alternative_name.der")[..]);
@@ -340,4 +328,16 @@ fn no_subject_alt_names() {
         .expect("we should get a result even without subjectAltNames");
 
     assert!(names.collect::<Vec<_>>().is_empty());
+}
+
+#[cfg(feature = "alloc")]
+fn expect_cert_dns_names<'name>(
+    cert_der: &[u8],
+    expected_names: impl IntoIterator<Item = &'name str>,
+) {
+    let der = CertificateDer::from(cert_der);
+    let cert = webpki::EndEntityCert::try_from(&der)
+        .expect("should parse end entity certificate correctly");
+
+    assert!(cert.dns_names().unwrap().eq(expected_names))
 }
