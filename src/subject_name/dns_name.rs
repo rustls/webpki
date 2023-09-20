@@ -18,6 +18,25 @@ use core::fmt::Write;
 
 use crate::Error;
 
+/// A DNS name that may be either a DNS name identifier presented by a server (which may include
+/// wildcards), or a DNS name identifier referenced by a client for matching purposes (wildcards
+/// not permitted).
+pub enum GeneralDnsNameRef<'name> {
+    /// a reference to a DNS name that may be used for matching purposes.
+    DnsName(DnsNameRef<'name>),
+    /// a reference to a presented DNS name that may include a wildcard.
+    Wildcard(WildcardDnsNameRef<'name>),
+}
+
+impl<'a> From<GeneralDnsNameRef<'a>> for &'a str {
+    fn from(d: GeneralDnsNameRef<'a>) -> Self {
+        match d {
+            GeneralDnsNameRef::DnsName(name) => name.into(),
+            GeneralDnsNameRef::Wildcard(name) => name.into(),
+        }
+    }
+}
+
 /// A DNS Name suitable for use in the TLS Server Name Indication (SNI)
 /// extension and/or for use as the reference hostname for which to verify a
 /// certificate.
@@ -123,25 +142,6 @@ impl<'a> From<DnsNameRef<'a>> for &'a str {
         // The unwrap won't fail because DnsNameRefs are guaranteed to be ASCII
         // and ASCII is a subset of UTF-8.
         core::str::from_utf8(d).unwrap()
-    }
-}
-
-/// A DNS name that may be either a DNS name identifier presented by a server (which may include
-/// wildcards), or a DNS name identifier referenced by a client for matching purposes (wildcards
-/// not permitted).
-pub enum GeneralDnsNameRef<'name> {
-    /// a reference to a DNS name that may be used for matching purposes.
-    DnsName(DnsNameRef<'name>),
-    /// a reference to a presented DNS name that may include a wildcard.
-    Wildcard(WildcardDnsNameRef<'name>),
-}
-
-impl<'a> From<GeneralDnsNameRef<'a>> for &'a str {
-    fn from(d: GeneralDnsNameRef<'a>) -> Self {
-        match d {
-            GeneralDnsNameRef::DnsName(name) => name.into(),
-            GeneralDnsNameRef::Wildcard(name) => name.into(),
-        }
     }
 }
 
