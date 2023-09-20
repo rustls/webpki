@@ -123,7 +123,14 @@ impl<'a> Cert<'a> {
         )
     }
 
-    pub(crate) fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
+    /// Returns a list of valid DNS names provided in the subject alternative names extension
+    ///
+    /// This function must not be used to implement custom DNS name verification.
+    /// Checking that a certificate is valid for a given subject name should always be done with
+    /// [EndEntityCert::verify_is_valid_for_subject_name].
+    ///
+    /// [EndEntityCert::verify_is_valid_for_subject_name]: crate::EndEntityCert::verify_is_valid_for_subject_name
+    pub fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
         NameIterator::new(Some(self.subject), self.subject_alt_name).filter_map(|result| {
             let presented_id = match result.ok()? {
                 GeneralName::DnsName(presented) => presented,
