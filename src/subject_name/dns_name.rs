@@ -98,7 +98,7 @@ impl<'a> DnsNameRef<'a> {
         if !is_valid_dns_id(
             untrusted::Input::from(dns_name),
             IdRole::Reference,
-            AllowWildcards::No,
+            Wildcards::Deny,
         ) {
             return Err(InvalidDnsNameError);
         }
@@ -167,7 +167,7 @@ impl<'a> WildcardDnsNameRef<'a> {
         if !is_valid_dns_id(
             untrusted::Input::from(dns_name),
             IdRole::Reference,
-            AllowWildcards::Yes,
+            Wildcards::Allow,
         ) {
             return Err(InvalidDnsNameError);
         }
@@ -371,11 +371,11 @@ fn presented_id_matches_reference_id_internal(
     reference_dns_id_role: IdRole,
     reference_dns_id: untrusted::Input,
 ) -> Result<bool, Error> {
-    if !is_valid_dns_id(presented_dns_id, IdRole::Presented, AllowWildcards::Yes) {
+    if !is_valid_dns_id(presented_dns_id, IdRole::Presented, Wildcards::Allow) {
         return Err(Error::MalformedDnsIdentifier);
     }
 
-    if !is_valid_dns_id(reference_dns_id, reference_dns_id_role, AllowWildcards::No) {
+    if !is_valid_dns_id(reference_dns_id, reference_dns_id_role, Wildcards::Deny) {
         return Err(match reference_dns_id_role {
             IdRole::NameConstraint => Error::MalformedNameConstraint,
             _ => Error::MalformedDnsIdentifier,
@@ -506,9 +506,9 @@ fn ascii_lower(b: u8) -> u8 {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum AllowWildcards {
-    No,
-    Yes,
+enum Wildcards {
+    Deny,
+    Allow,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -531,7 +531,7 @@ enum IdRole {
 fn is_valid_dns_id(
     hostname: untrusted::Input,
     id_role: IdRole,
-    allow_wildcards: AllowWildcards,
+    allow_wildcards: Wildcards,
 ) -> bool {
     // https://blogs.msdn.microsoft.com/oldnewthing/20120412-00/?p=7873/
     if hostname.len() > 253 {
@@ -552,7 +552,7 @@ fn is_valid_dns_id(
     // Only presented IDs are allowed to have wildcard labels. And, like
     // Chromium, be stricter than RFC 6125 requires by insisting that a
     // wildcard label consist only of '*'.
-    let is_wildcard = allow_wildcards == AllowWildcards::Yes && input.peek(b'*');
+    let is_wildcard = allow_wildcards == Wildcards::Allow && input.peek(b'*');
     let mut is_first_byte = !is_wildcard;
     if is_wildcard {
         if input.read_byte() != Ok(b'*') || input.read_byte() != Ok(b'.') {
