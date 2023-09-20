@@ -707,7 +707,7 @@ mod tests {
         }
         .build_chain_inner(
             &PathNode {
-                cert: cert.inner(),
+                cert: &cert,
                 issued: None,
             },
             time,
