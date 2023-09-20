@@ -123,21 +123,6 @@ impl<'a> Cert<'a> {
         )
     }
 
-    /// Raw DER encoded certificate serial number.
-    pub fn serial(&self) -> &[u8] {
-        self.serial.as_slice_less_safe()
-    }
-
-    /// Raw DER encoded certificate issuer.
-    pub fn issuer(&self) -> &[u8] {
-        self.issuer.as_slice_less_safe()
-    }
-
-    /// Raw DER encoded certificate subject.
-    pub fn subject(&self) -> &[u8] {
-        self.subject.as_slice_less_safe()
-    }
-
     pub(crate) fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
         NameIterator::new(Some(self.subject), self.subject_alt_name).filter_map(|result| {
             let presented_id = match result.ok()? {
@@ -157,6 +142,21 @@ impl<'a> Cert<'a> {
                 }
             }
         })
+    }
+
+    /// Raw DER encoded certificate serial number.
+    pub fn serial(&self) -> &[u8] {
+        self.serial.as_slice_less_safe()
+    }
+
+    /// Raw DER encoded certificate issuer.
+    pub fn issuer(&self) -> &[u8] {
+        self.issuer.as_slice_less_safe()
+    }
+
+    /// Raw DER encoded certificate subject.
+    pub fn subject(&self) -> &[u8] {
+        self.subject.as_slice_less_safe()
     }
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
