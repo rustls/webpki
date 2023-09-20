@@ -154,7 +154,7 @@ impl<'a> EndEntityCert<'a> {
     /// Checking that a certificate is valid for a given subject name should always be done with
     /// [EndEntityCert::verify_is_valid_for_subject_name].
     pub fn dns_names(&'a self) -> impl Iterator<Item = &'a str> {
-        subject_name::list_cert_dns_names(self)
+        self.inner.valid_dns_names()
     }
 }
 
