@@ -252,7 +252,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools
 
