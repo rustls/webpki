@@ -72,20 +72,6 @@ impl AsRef<str> for DnsNameRef<'_> {
     }
 }
 
-/// An error indicating that a `DnsNameRef` could not built because the input
-/// is not a syntactically-valid DNS Name.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InvalidDnsNameError;
-
-impl core::fmt::Display for InvalidDnsNameError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[cfg(feature = "std")]
-impl ::std::error::Error for InvalidDnsNameError {}
-
 impl<'a> DnsNameRef<'a> {
     /// Constructs a `DnsNameRef` from the given input if the input is a
     /// syntactically-valid DNS name.
@@ -227,6 +213,20 @@ impl AsRef<str> for WildcardDnsNameRef<'_> {
         core::str::from_utf8(self.0).unwrap()
     }
 }
+
+/// An error indicating that a `DnsNameRef` could not built because the input
+/// is not a syntactically-valid DNS Name.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InvalidDnsNameError;
+
+impl core::fmt::Display for InvalidDnsNameError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[cfg(feature = "std")]
+impl ::std::error::Error for InvalidDnsNameError {}
 
 pub(super) fn presented_id_matches_reference_id(
     presented_dns_id: untrusted::Input,
