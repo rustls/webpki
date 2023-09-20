@@ -319,5 +319,5 @@ fn expect_cert_dns_names<'name>(
     let cert = webpki::EndEntityCert::try_from(&der)
         .expect("should parse end entity certificate correctly");
 
-    assert!(cert.dns_names().eq(expected_names))
+    assert!(cert.valid_dns_names().eq(expected_names))
 }
