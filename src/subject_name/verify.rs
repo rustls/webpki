@@ -325,9 +325,9 @@ pub(crate) fn list_cert_dns_names<'names>(
         // if the name could be converted to a DNS name, return it; otherwise,
         // keep going.
         match DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
-            Ok(dns_name) => Some(dns_name.into()),
+            Ok(dns_name) => Some(dns_name.as_str()),
             Err(_) => match WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
-                Ok(wildcard_dns_name) => Some(wildcard_dns_name.into()),
+                Ok(wildcard_dns_name) => Some(wildcard_dns_name.as_str()),
                 Err(_) => None,
             },
         }

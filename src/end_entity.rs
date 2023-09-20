@@ -212,7 +212,7 @@ mod tests {
             EndEntityCert::try_from(der).expect("should parse end entity certificate correctly");
 
         let mut names = cert.dns_names();
-        assert_eq!(names.next().map(<&str>::from), Some(name));
-        assert_eq!(names.next().map(<&str>::from), None);
+        assert_eq!(names.next(), Some(name));
+        assert_eq!(names.next(), None);
     }
 }
