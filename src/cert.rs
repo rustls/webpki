@@ -15,7 +15,9 @@
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::signed_data::SignedData;
+use crate::subject_name::{GeneralName, NameIterator, WildcardDnsNameRef};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
+use crate::DnsNameRef;
 
 /// A parsed X509 certificate.
 pub struct Cert<'a> {
@@ -134,6 +136,27 @@ impl<'a> Cert<'a> {
     /// Raw DER encoded certificate subject.
     pub fn subject(&self) -> &[u8] {
         self.subject.as_slice_less_safe()
+    }
+
+    pub(crate) fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
+        NameIterator::new(Some(self.subject), self.subject_alt_name).filter_map(|result| {
+            let presented_id = match result.ok()? {
+                GeneralName::DnsName(presented) => presented,
+                _ => return None,
+            };
+
+            // if the name could be converted to a DNS name, return it; otherwise,
+            // keep going.
+            match DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
+                Ok(dns_name) => Some(dns_name.as_str()),
+                Err(_) => {
+                    match WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
+                        Ok(wildcard_dns_name) => Some(wildcard_dns_name.as_str()),
+                        Err(_) => None,
+                    }
+                }
+            }
+        })
     }
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.

@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::dns_name::{self, DnsNameRef, WildcardDnsNameRef};
+use super::dns_name::{self, DnsNameRef};
 use super::ip_address::{self, IpAddrRef};
 use super::name::SubjectNameRef;
 use crate::der::{self, FromDer};
@@ -258,13 +258,13 @@ enum Subtrees {
     ExcludedSubtrees,
 }
 
-struct NameIterator<'a> {
+pub(crate) struct NameIterator<'a> {
     subject_alt_name: Option<untrusted::Reader<'a>>,
     subject_directory_name: Option<untrusted::Input<'a>>,
 }
 
 impl<'a> NameIterator<'a> {
-    fn new(
+    pub(crate) fn new(
         subject: Option<untrusted::Input<'a>>,
         subject_alt_name: Option<untrusted::Input<'a>>,
     ) -> Self {
@@ -310,28 +310,6 @@ impl<'a> Iterator for NameIterator<'a> {
 
         None
     }
-}
-
-pub(crate) fn list_cert_dns_names<'names>(
-    cert: &'names crate::EndEntityCert<'names>,
-) -> impl Iterator<Item = &'names str> {
-    let cert = &cert.inner();
-    NameIterator::new(Some(cert.subject), cert.subject_alt_name).filter_map(|result| {
-        let presented_id = match result.ok()? {
-            GeneralName::DnsName(presented) => presented,
-            _ => return None,
-        };
-
-        // if the name could be converted to a DNS name, return it; otherwise,
-        // keep going.
-        match DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
-            Ok(dns_name) => Some(dns_name.as_str()),
-            Err(_) => match WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
-                Ok(wildcard_dns_name) => Some(wildcard_dns_name.as_str()),
-                Err(_) => None,
-            },
-        }
-    })
 }
 
 // It is *not* valid to derive `Eq`, `PartialEq, etc. for this type. In
