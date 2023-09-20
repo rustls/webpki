@@ -18,26 +18,6 @@ use core::fmt::Write;
 
 use crate::Error;
 
-/// A DNS name that may be either a DNS name identifier presented by a server (which may include
-/// wildcards), or a DNS name identifier referenced by a client for matching purposes (wildcards
-/// not permitted).
-pub enum GeneralDnsNameRef<'name> {
-    /// a reference to a DNS name that may be used for matching purposes.
-    DnsName(DnsNameRef<'name>),
-    /// a reference to a presented DNS name that may include a wildcard.
-    Wildcard(WildcardDnsNameRef<'name>),
-}
-
-impl<'a> GeneralDnsNameRef<'a> {
-    /// Yields the DNS name as a `&str`.
-    pub fn as_str(&self) -> &'a str {
-        match self {
-            Self::DnsName(name) => name.as_str(),
-            Self::Wildcard(name) => name.as_str(),
-        }
-    }
-}
-
 /// A DNS Name suitable for use in the TLS Server Name Indication (SNI)
 /// extension and/or for use as the reference hostname for which to verify a
 /// certificate.
@@ -147,12 +127,12 @@ impl core::fmt::Debug for DnsNameRef<'_> {
 /// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
 /// [RFC 6125 Section 4.1]: https://www.rfc-editor.org/rfc/rfc6125#section-4.1
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub struct WildcardDnsNameRef<'a>(&'a [u8]);
+pub(crate) struct WildcardDnsNameRef<'a>(&'a [u8]);
 
 impl<'a> WildcardDnsNameRef<'a> {
     /// Constructs a `WildcardDnsNameRef` from the given input if the input is a
     /// syntactically-valid DNS name.
-    pub fn try_from_ascii(dns_name: &'a [u8]) -> Result<Self, InvalidDnsNameError> {
+    pub(crate) fn try_from_ascii(dns_name: &'a [u8]) -> Result<Self, InvalidDnsNameError> {
         if !is_valid_dns_id(
             untrusted::Input::from(dns_name),
             IdRole::Reference,
@@ -164,14 +144,8 @@ impl<'a> WildcardDnsNameRef<'a> {
         Ok(Self(dns_name))
     }
 
-    /// Constructs a `WildcardDnsNameRef` from the given input if the input is a
-    /// syntactically-valid DNS name.
-    pub fn try_from_ascii_str(dns_name: &'a str) -> Result<Self, InvalidDnsNameError> {
-        Self::try_from_ascii(dns_name.as_bytes())
-    }
-
     /// Yields a reference to the DNS name as a `&str`.
-    pub fn as_str(&self) -> &'a str {
+    pub(crate) fn as_str(&self) -> &'a str {
         // The unwrap won't fail because a `WildcardDnsNameRef` is guaranteed to be ASCII and
         // ASCII is a subset of UTF-8.
         core::str::from_utf8(self.0).unwrap()
