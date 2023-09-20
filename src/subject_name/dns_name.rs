@@ -28,11 +28,12 @@ pub enum GeneralDnsNameRef<'name> {
     Wildcard(WildcardDnsNameRef<'name>),
 }
 
-impl<'a> From<GeneralDnsNameRef<'a>> for &'a str {
-    fn from(d: GeneralDnsNameRef<'a>) -> Self {
-        match d {
-            GeneralDnsNameRef::DnsName(name) => name.as_str(),
-            GeneralDnsNameRef::Wildcard(name) => name.as_str(),
+impl<'a> GeneralDnsNameRef<'a> {
+    /// Yields the DNS name as a `&str`.
+    pub fn as_str(&self) -> &'a str {
+        match self {
+            Self::DnsName(name) => name.as_str(),
+            Self::Wildcard(name) => name.as_str(),
         }
     }
 }
