@@ -31,7 +31,7 @@ pub enum GeneralDnsNameRef<'name> {
 impl<'a> From<GeneralDnsNameRef<'a>> for &'a str {
     fn from(d: GeneralDnsNameRef<'a>) -> Self {
         match d {
-            GeneralDnsNameRef::DnsName(name) => name.into(),
+            GeneralDnsNameRef::DnsName(name) => name.as_str(),
             GeneralDnsNameRef::Wildcard(name) => name.into(),
         }
     }
@@ -82,15 +82,6 @@ impl AsRef<str> for DnsName {
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct DnsNameRef<'a>(pub(crate) &'a [u8]);
 
-impl AsRef<str> for DnsNameRef<'_> {
-    #[inline]
-    fn as_ref(&self) -> &str {
-        // The unwrap won't fail because DnsNameRef are guaranteed to be ASCII
-        // and ASCII is a subset of UTF-8.
-        core::str::from_utf8(self.0).unwrap()
-    }
-}
-
 impl<'a> DnsNameRef<'a> {
     /// Constructs a `DnsNameRef` from the given input if the input is a
     /// syntactically-valid DNS name.
@@ -115,10 +106,15 @@ impl<'a> DnsNameRef<'a> {
     /// Constructs a `DnsName` from this `DnsNameRef`
     #[cfg(feature = "alloc")]
     pub fn to_owned(&self) -> DnsName {
-        // DnsNameRef is already guaranteed to be valid ASCII, which is a
-        // subset of UTF-8.
-        let s: &str = (*self).into();
-        DnsName(s.to_ascii_lowercase())
+        // DnsNameRef is already guaranteed to be valid ASCII, which is subset of UTF-8.
+        DnsName(self.as_str().to_ascii_lowercase())
+    }
+
+    /// Yields a reference to the DNS name as a `&str`.
+    pub fn as_str(&self) -> &'a str {
+        // The unwrap won't fail because `DnsNameRef` values are guaranteed to be ASCII and ASCII
+        // is a subset of UTF-8.
+        core::str::from_utf8(self.0).unwrap()
     }
 }
 
@@ -134,14 +130,6 @@ impl core::fmt::Debug for DnsNameRef<'_> {
         }
 
         f.write_str("\")")
-    }
-}
-
-impl<'a> From<DnsNameRef<'a>> for &'a str {
-    fn from(DnsNameRef(d): DnsNameRef<'a>) -> Self {
-        // The unwrap won't fail because DnsNameRefs are guaranteed to be ASCII
-        // and ASCII is a subset of UTF-8.
-        core::str::from_utf8(d).unwrap()
     }
 }
 
