@@ -23,7 +23,6 @@ pub(crate) fn verify_cert_dns_name(
     cert: &crate::EndEntityCert,
     dns_name: DnsNameRef,
 ) -> Result<(), Error> {
-    let cert = cert.inner();
     let dns_name = untrusted::Input::from(dns_name.as_str().as_bytes());
     NameIterator::new(Some(cert.subject), cert.subject_alt_name)
         .find_map(|result| {
@@ -64,7 +63,7 @@ pub(crate) fn verify_cert_subject_name(
         // IP addresses are not compared against the subject field;
         // only against Subject Alternative Names.
         None,
-        cert.inner().subject_alt_name,
+        cert.subject_alt_name,
     )
     .find_map(|result| {
         let name = match result {

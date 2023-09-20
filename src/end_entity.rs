@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use core::ops::Deref;
+
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::crl::RevocationOptions;
@@ -68,10 +70,6 @@ impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
 }
 
 impl<'a> EndEntityCert<'a> {
-    pub(super) fn inner(&self) -> &cert::Cert {
-        &self.inner
-    }
-
     /// Verifies that the end-entity certificate is valid for use against the
     /// specified Extended Key Usage (EKU).
     ///
@@ -155,6 +153,14 @@ impl<'a> EndEntityCert<'a> {
     /// [EndEntityCert::verify_is_valid_for_subject_name].
     pub fn dns_names(&'a self) -> impl Iterator<Item = &'a str> {
         self.inner.valid_dns_names()
+    }
+}
+
+impl<'a> Deref for EndEntityCert<'a> {
+    type Target = cert::Cert<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
