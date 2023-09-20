@@ -1,4 +1,4 @@
-#![cfg(feature = "ring")]
+#![cfg(any(feature = "ring", feature = "aws_lc_rs"))]
 
 use core::time::Duration;
 use std::collections::HashMap;
@@ -9,8 +9,16 @@ use bzip2::read::BzDecoder;
 use pki_types::UnixTime;
 use serde::Deserialize;
 
-use webpki::types::{CertificateDer, TrustAnchor};
+use webpki::types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 use webpki::{extract_trust_anchor, KeyUsage, SubjectNameRef};
+
+// All of the BetterTLS testcases use P256 keys.
+static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
+    #[cfg(feature = "ring")]
+    webpki::ring::ECDSA_P256_SHA256,
+    #[cfg(feature = "aws_lc_rs")]
+    webpki::aws_lc_rs::ECDSA_P256_SHA256,
+];
 
 #[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --ignored`
 #[test]
@@ -69,7 +77,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
 
         let result = ee_cert
             .verify_for_usage(
-                &[webpki::ring::ECDSA_P256_SHA256], // All of the BetterTLS testcases use P256 keys.
+                ALGS,
                 roots,
                 intermediates,
                 now,

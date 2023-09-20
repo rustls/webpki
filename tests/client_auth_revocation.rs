@@ -12,15 +12,22 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#![cfg(feature = "ring")]
+#![cfg(any(feature = "ring", feature = "aws_lc_rs"))]
 
 use core::time::Duration;
 
-use pki_types::{CertificateDer, UnixTime};
+use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{
     extract_trust_anchor, KeyUsage, RevocationCheckDepth, RevocationOptions,
     RevocationOptionsBuilder,
 };
+
+static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
+    #[cfg(feature = "ring")]
+    webpki::ring::ECDSA_P256_SHA256,
+    #[cfg(feature = "aws_lc_rs")]
+    webpki::aws_lc_rs::ECDSA_P256_SHA256,
+];
 
 fn check_cert(
     ee: &[u8],
@@ -39,7 +46,7 @@ fn check_cert(
         .collect::<Vec<_>>();
 
     cert.verify_for_usage(
-        &[webpki::ring::ECDSA_P256_SHA256],
+        ALGS,
         anchors,
         &intermediates,
         time,

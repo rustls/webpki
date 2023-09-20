@@ -495,7 +495,7 @@ enum Role {
     EndEntity,
 }
 
-#[cfg(all(test, feature = "alloc", feature = "ring"))]
+#[cfg(all(test, feature = "alloc", any(feature = "ring", feature = "aws_lc_rs")))]
 mod tests {
     use super::*;
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
