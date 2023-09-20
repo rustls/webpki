@@ -99,7 +99,7 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - run: cargo package
+      - run: cargo package --all-features
 
   test:
     name: Build+test
@@ -111,6 +111,7 @@ jobs:
           - --features=alloc
           - --all-features
           - --no-default-features
+          - --no-default-features --features alloc,std,aws_lc_rs
 
         mode:
           - # debug
@@ -126,6 +127,7 @@ jobs:
           - features: --features=alloc
           - features: --no-default-features
           - features: --no-default-features --features alloc,std
+          - features: --no-default-features --features alloc,std,aws_lc_rs
           - features: --all-features
             mode: --release
           - features: --all-features
@@ -185,6 +187,23 @@ jobs:
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-latest
+
+          # check aws-lc-rs alone
+          - features: --no-default-features --features alloc,std,aws_lc_rs
+            mode: # debug
+            rust_channel: stable
+            host_os: macos-latest
+
+          - features: --no-default-features --features alloc,std,aws_lc_rs
+            mode: # debug
+            rust_channel: stable
+            host_os: windows-latest
+
+          - features: --no-default-features --features alloc,std,aws_lc_rs
+            mode: # debug
+            rust_channel: stable
+            host_os: ubuntu-latest
+
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -195,6 +214,10 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_channel }}
+
+      - name: Install NASM for aws-lc-rs on Windows
+        if: runner.os == 'Windows'
+        uses: ilammy/setup-nasm@v1
 
       - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
         run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
