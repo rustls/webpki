@@ -32,7 +32,7 @@ impl<'a> From<GeneralDnsNameRef<'a>> for &'a str {
     fn from(d: GeneralDnsNameRef<'a>) -> Self {
         match d {
             GeneralDnsNameRef::DnsName(name) => name.as_str(),
-            GeneralDnsNameRef::Wildcard(name) => name.into(),
+            GeneralDnsNameRef::Wildcard(name) => name.as_str(),
         }
     }
 }
@@ -168,6 +168,13 @@ impl<'a> WildcardDnsNameRef<'a> {
     pub fn try_from_ascii_str(dns_name: &'a str) -> Result<Self, InvalidDnsNameError> {
         Self::try_from_ascii(dns_name.as_bytes())
     }
+
+    /// Yields a reference to the DNS name as a `&str`.
+    pub fn as_str(&self) -> &'a str {
+        // The unwrap won't fail because a `WildcardDnsNameRef` is guaranteed to be ASCII and
+        // ASCII is a subset of UTF-8.
+        core::str::from_utf8(self.0).unwrap()
+    }
 }
 
 impl core::fmt::Debug for WildcardDnsNameRef<'_> {
@@ -182,23 +189,6 @@ impl core::fmt::Debug for WildcardDnsNameRef<'_> {
         }
 
         f.write_str("\")")
-    }
-}
-
-impl<'a> From<WildcardDnsNameRef<'a>> for &'a str {
-    fn from(WildcardDnsNameRef(d): WildcardDnsNameRef<'a>) -> Self {
-        // The unwrap won't fail because WildcardDnsNameRef are guaranteed to be ASCII
-        // and ASCII is a subset of UTF-8.
-        core::str::from_utf8(d).unwrap()
-    }
-}
-
-impl AsRef<str> for WildcardDnsNameRef<'_> {
-    #[inline]
-    fn as_ref(&self) -> &str {
-        // The unwrap won't fail because WildcardDnsNameRef are guaranteed to be ASCII
-        // and ASCII is a subset of UTF-8.
-        core::str::from_utf8(self.0).unwrap()
     }
 }
 
