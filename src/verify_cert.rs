@@ -597,6 +597,7 @@ pub(crate) enum Role {
 mod tests {
     use super::*;
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
+    use crate::trust_anchor::extract_trust_anchor;
 
     #[test]
     fn eku_key_purpose_id() {
@@ -639,7 +640,7 @@ mod tests {
         };
 
         verify_chain(
-            &trust_anchor,
+            &[extract_trust_anchor(&trust_anchor).unwrap()],
             &intermediates,
             &make_end_entity(&issuer),
             None,
@@ -666,6 +667,7 @@ mod tests {
     fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
+        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
 
         let mut intermediates = Vec::with_capacity(chain_length);
         let mut issuer = ca_cert;
@@ -676,12 +678,7 @@ mod tests {
             issuer = intermediate;
         }
 
-        verify_chain(
-            &ca_cert_der,
-            &intermediates,
-            &make_end_entity(&issuer),
-            None,
-        )
+        verify_chain(anchors, &intermediates, &make_end_entity(&issuer), None)
     }
 
     #[test]
@@ -713,6 +710,7 @@ mod tests {
         });
         let ca_cert = rcgen::Certificate::from_params(ca_cert_params).unwrap();
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
+        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
 
         // Create a series of intermediate issuers. We'll only use one in the actual built path,
         // helping demonstrate that the name constraint budget is not expended checking certificates
@@ -747,13 +745,7 @@ mod tests {
         // Validation should succeed with the name constraint comparison budget allocated above.
         // This shows that we're not consuming budget on unused intermediates: we didn't budget
         // enough comparisons for that to pass the overall chain building.
-        assert!(verify_chain(
-            &ca_cert_der,
-            &intermediates_der,
-            &ee_cert,
-            Some(passing_budget),
-        )
-        .is_ok());
+        assert!(verify_chain(anchors, &intermediates_der, &ee_cert, Some(passing_budget),).is_ok());
 
         let failing_budget = Budget {
             // See passing_budget: 2 comparisons is not sufficient.
@@ -763,12 +755,7 @@ mod tests {
         // Validation should fail when the budget is smaller than the number of comparisons performed
         // on the validated path. This demonstrates we properly fail path building when too many
         // name constraint comparisons occur.
-        let result = verify_chain(
-            &ca_cert_der,
-            &intermediates_der,
-            &ee_cert,
-            Some(failing_budget),
-        );
+        let result = verify_chain(anchors, &intermediates_der, &ee_cert, Some(failing_budget));
 
         assert!(matches!(
             result,
@@ -778,16 +765,14 @@ mod tests {
         ));
     }
 
-    fn verify_chain(
-        trust_anchor: &CertificateDer<'_>,
+    fn verify_chain<'a>(
+        trust_anchors: &'a [TrustAnchor<'a>],
         intermediates_der: &[Vec<u8>],
         ee_cert: &CertificateDer<'_>,
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
-        use crate::trust_anchor::extract_trust_anchor;
         use core::time::Duration;
 
-        let anchors = &[extract_trust_anchor(trust_anchor).unwrap()];
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let cert = EndEntityCert::try_from(ee_cert).unwrap();
         let intermediates_der = intermediates_der
@@ -799,7 +784,7 @@ mod tests {
         ChainOptions {
             eku: KeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
-            trust_anchors: anchors,
+            trust_anchors,
             intermediate_certs: &intermediates_der,
             revocation: None,
         }
