@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use pki_types::CertificateDer;
+
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::signed_data::SignedData;
@@ -38,6 +40,8 @@ pub struct Cert<'a> {
     pub(crate) name_constraints: Option<untrusted::Input<'a>>,
     pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
     pub(crate) crl_distribution_points: Option<untrusted::Input<'a>>,
+
+    der: CertificateDer<'a>,
 }
 
 impl<'a> Cert<'a> {
@@ -94,6 +98,8 @@ impl<'a> Cert<'a> {
                     name_constraints: None,
                     subject_alt_name: None,
                     crl_distribution_points: None,
+
+                    der: CertificateDer::from(cert_der.as_slice_less_safe()),
                 };
 
                 if !tbs.at_end() {
@@ -171,6 +177,11 @@ impl<'a> Cert<'a> {
         &self,
     ) -> Option<impl Iterator<Item = Result<CrlDistributionPoint<'a>, Error>>> {
         self.crl_distribution_points.map(DerIterator::new)
+    }
+
+    /// Raw DER encoded representation of the certificate.
+    pub fn der(&self) -> CertificateDer<'a> {
+        self.der.clone() // This is cheap, just cloning a reference.
     }
 }
 
