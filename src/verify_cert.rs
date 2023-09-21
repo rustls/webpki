@@ -639,10 +639,12 @@ mod tests {
             ChainTrustAnchor::NotInChain => ca_cert_der,
         };
 
+        let ee_der = make_end_entity(&issuer);
+        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
         verify_chain(
             &[extract_trust_anchor(&trust_anchor).unwrap()],
             &intermediates,
-            &make_end_entity(&issuer),
+            &ee_cert,
             None,
         )
         .unwrap_err()
@@ -678,7 +680,9 @@ mod tests {
             issuer = intermediate;
         }
 
-        verify_chain(anchors, &intermediates, &make_end_entity(&issuer), None)
+        let ee_der = make_end_entity(&issuer);
+        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
+        verify_chain(anchors, &intermediates, &ee_cert, None)
     }
 
     #[test]
@@ -728,7 +732,8 @@ mod tests {
         }
 
         // Create an end-entity cert that is issued by the last of the intermediates.
-        let ee_cert = make_end_entity(intermediates.last().unwrap());
+        let ee_der = make_end_entity(intermediates.last().unwrap());
+        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
 
         // We use a custom budget to make it easier to write a test, otherwise it is tricky to
         // stuff enough names/constraints into the potential chains while staying within the path
@@ -768,19 +773,18 @@ mod tests {
     fn verify_chain<'a>(
         trust_anchors: &'a [TrustAnchor<'a>],
         intermediates_der: &[Vec<u8>],
-        ee_cert: &CertificateDer<'_>,
+        ee_cert: &'a EndEntityCert<'a>,
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
         use core::time::Duration;
 
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
-        let cert = EndEntityCert::try_from(ee_cert).unwrap();
         let intermediates_der = intermediates_der
             .iter()
             .map(|x| CertificateDer::from(x.as_ref()))
             .collect::<Vec<_>>();
 
-        let mut path = PartialPath::new(&cert);
+        let mut path = PartialPath::new(ee_cert);
         ChainOptions {
             eku: KeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
