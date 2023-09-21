@@ -821,6 +821,7 @@ mod tests {
                 .zip(intermediate_certs.iter())
             {
                 assert_eq!(cert.subject, expected.subject);
+                assert_eq!(cert.der(), expected.der());
             }
 
             for (cert, expected) in path
@@ -828,6 +829,7 @@ mod tests {
                 .zip(intermediate_certs.iter().rev())
             {
                 assert_eq!(cert.subject, expected.subject);
+                assert_eq!(cert.der(), expected.der());
             }
 
             Ok(())
