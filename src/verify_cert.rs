@@ -620,14 +620,14 @@ mod tests {
 
         let mut intermediates = Vec::with_capacity(intermediate_count + 1);
         if let ChainTrustAnchor::InChain = trust_anchor {
-            intermediates.push(ca_cert_der.to_vec());
+            intermediates.push(CertificateDer::from(ca_cert_der.to_vec()));
         }
 
         let mut issuer = ca_cert;
         for _ in 0..intermediate_count {
             let intermediate = make_issuer("Bogus Subject");
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
-            intermediates.push(intermediate_der);
+            intermediates.push(CertificateDer::from(intermediate_der));
             issuer = intermediate;
         }
 
@@ -676,7 +676,7 @@ mod tests {
         for i in 0..chain_length {
             let intermediate = make_issuer(format!("Bogus Subject {i}"));
             let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
-            intermediates.push(intermediate_der);
+            intermediates.push(CertificateDer::from(intermediate_der));
             issuer = intermediate;
         }
 
@@ -728,7 +728,9 @@ mod tests {
         // Each intermediate should be issued by the trust anchor.
         let mut intermediates_der = Vec::with_capacity(NUM_INTERMEDIATES);
         for intermediate in &intermediates {
-            intermediates_der.push(intermediate.serialize_der_with_signer(&ca_cert).unwrap());
+            intermediates_der.push(CertificateDer::from(
+                intermediate.serialize_der_with_signer(&ca_cert).unwrap(),
+            ));
         }
 
         // Create an end-entity cert that is issued by the last of the intermediates.
@@ -772,24 +774,19 @@ mod tests {
 
     fn verify_chain<'a>(
         trust_anchors: &'a [TrustAnchor<'a>],
-        intermediates_der: &[Vec<u8>],
+        intermediate_certs: &'a [CertificateDer<'a>],
         ee_cert: &'a EndEntityCert<'a>,
         budget: Option<Budget>,
     ) -> Result<(), ControlFlow<Error, Error>> {
         use core::time::Duration;
 
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
-        let intermediates_der = intermediates_der
-            .iter()
-            .map(|x| CertificateDer::from(x.as_ref()))
-            .collect::<Vec<_>>();
-
         let mut path = PartialPath::new(ee_cert);
         ChainOptions {
             eku: KeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
             trust_anchors,
-            intermediate_certs: &intermediates_der,
+            intermediate_certs,
             revocation: None,
         }
         .build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default())
