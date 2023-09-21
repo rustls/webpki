@@ -205,7 +205,7 @@ fn check_signed_chain_name_constraints(
     Ok(())
 }
 
-pub struct Budget {
+pub(crate) struct Budget {
     signatures: usize,
     build_chain_calls: usize,
     name_constraint_comparisons: usize,
@@ -294,7 +294,11 @@ fn check_crls(
     // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
     //            of per-lookup.
     //            https://github.com/rustls/webpki/issues/81
-    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe(), budget)
+    // Note: The `verify_signature` method is part of a public trait in the exported API.
+    //       We can't add a budget argument to that fn in a semver compatible way and so must
+    //       consume signature budget here before calling verify_signature.
+    budget.consume_signature()?;
+    crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe())
         .map_err(crl_signature_err)?;
 
     // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
