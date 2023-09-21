@@ -133,11 +133,11 @@ impl<'a> ChainOptions<'a> {
         let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
         let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
         for path in path.iter() {
+            budget.consume_signature()?;
             signed_data::verify_signed_data(
                 self.supported_sig_algs,
                 spki_value,
                 &path.cert.signed_data,
-                budget,
             )?;
 
             if let Some(revocation_opts) = &self.revocation {
@@ -181,7 +181,7 @@ fn check_signed_chain_name_constraints(
     Ok(())
 }
 
-pub struct Budget {
+pub(crate) struct Budget {
     signatures: usize,
     build_chain_calls: usize,
     name_constraint_comparisons: usize,

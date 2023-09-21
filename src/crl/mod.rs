@@ -140,7 +140,8 @@ impl<'a> RevocationOptions<'a> {
         // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
         //            of per-lookup.
         //            https://github.com/rustls/webpki/issues/81
-        crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe(), budget)
+        budget.consume_signature()?;
+        crl.verify_signature(supported_sig_algs, issuer_spki.as_slice_less_safe())
             .map_err(crl_signature_err)?;
 
         // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
