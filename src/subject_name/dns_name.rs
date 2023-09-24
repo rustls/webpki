@@ -85,9 +85,9 @@ impl<'a> DnsNameRef<'a> {
         Self::try_from_ascii(dns_name.as_bytes())
     }
 
-    pub(crate) fn verify_cert_dns_name(&self, cert: &crate::EndEntityCert) -> Result<(), Error> {
+    pub(crate) fn verify_dns_names(&self, mut names: NameIterator<'_>) -> Result<(), Error> {
         let dns_name = untrusted::Input::from(self.as_str().as_bytes());
-        NameIterator::new(Some(cert.subject), cert.subject_alt_name)
+        names
             .find_map(|result| {
                 let name = match result {
                     Ok(name) => name,
