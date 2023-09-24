@@ -18,7 +18,7 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
-use crate::subject_name::{self, SubjectNameRef};
+use crate::subject_name::{verify_cert_dns_name, verify_cert_ip_addresses, SubjectNameRef};
 use crate::verify_cert::{self, KeyUsage};
 use crate::{cert, signed_data};
 
@@ -109,7 +109,10 @@ impl<'a> EndEntityCert<'a> {
         &self,
         subject_name: SubjectNameRef,
     ) -> Result<(), Error> {
-        subject_name::verify_cert_subject_name(self, subject_name)
+        match subject_name {
+            SubjectNameRef::DnsName(dns_name) => verify_cert_dns_name(self, dns_name),
+            SubjectNameRef::IpAddress(ip_address) => verify_cert_ip_addresses(self, ip_address),
+        }
     }
 
     /// Verifies the signature `signature` of message `msg` using the

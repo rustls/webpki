@@ -30,5 +30,6 @@ pub use ip_address::IpAddr;
 
 mod verify;
 pub(super) use verify::{
-    check_name_constraints, verify_cert_subject_name, GeneralName, NameIterator,
+    check_name_constraints, verify_cert_dns_name, verify_cert_ip_addresses, GeneralName,
+    NameIterator,
 };
