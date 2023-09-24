@@ -16,6 +16,7 @@
 use alloc::string::String;
 use core::fmt::Write;
 
+use super::verify::{GeneralName, NameIterator};
 use crate::Error;
 
 /// A DNS Name suitable for use in the TLS Server Name Indication (SNI)
@@ -82,6 +83,29 @@ impl<'a> DnsNameRef<'a> {
     /// syntactically-valid DNS name.
     pub fn try_from_ascii_str(dns_name: &'a str) -> Result<Self, InvalidDnsNameError> {
         Self::try_from_ascii(dns_name.as_bytes())
+    }
+
+    pub(crate) fn verify_cert_dns_name(&self, cert: &crate::EndEntityCert) -> Result<(), Error> {
+        let dns_name = untrusted::Input::from(self.as_str().as_bytes());
+        NameIterator::new(Some(cert.subject), cert.subject_alt_name)
+            .find_map(|result| {
+                let name = match result {
+                    Ok(name) => name,
+                    Err(err) => return Some(Err(err)),
+                };
+
+                let presented_id = match name {
+                    GeneralName::DnsName(presented) => presented,
+                    _ => return None,
+                };
+
+                match presented_id_matches_reference_id(presented_id, dns_name) {
+                    Ok(true) => Some(Ok(())),
+                    Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
+                    Err(e) => Some(Err(e)),
+                }
+            })
+            .unwrap_or(Err(Error::CertNotValidForName))
     }
 
     /// Constructs a `DnsName` from this `DnsNameRef`
@@ -181,7 +205,7 @@ impl core::fmt::Display for InvalidDnsNameError {
 #[cfg(feature = "std")]
 impl ::std::error::Error for InvalidDnsNameError {}
 
-pub(super) fn presented_id_matches_reference_id(
+fn presented_id_matches_reference_id(
     presented_dns_id: untrusted::Input,
     reference_dns_id: untrusted::Input,
 ) -> Result<bool, Error> {

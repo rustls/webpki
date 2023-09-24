@@ -12,37 +12,11 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::dns_name::{self, DnsNameRef};
+use super::dns_name;
 use super::ip_address;
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::{Budget, PathNode};
-
-pub(crate) fn verify_cert_dns_name(
-    cert: &crate::EndEntityCert,
-    dns_name: DnsNameRef,
-) -> Result<(), Error> {
-    let dns_name = untrusted::Input::from(dns_name.as_str().as_bytes());
-    NameIterator::new(Some(cert.subject), cert.subject_alt_name)
-        .find_map(|result| {
-            let name = match result {
-                Ok(name) => name,
-                Err(err) => return Some(Err(err)),
-            };
-
-            let presented_id = match name {
-                GeneralName::DnsName(presented) => presented,
-                _ => return None,
-            };
-
-            match dns_name::presented_id_matches_reference_id(presented_id, dns_name) {
-                Ok(true) => Some(Ok(())),
-                Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
-                Err(e) => Some(Err(e)),
-            }
-        })
-        .unwrap_or(Err(Error::CertNotValidForName))
-}
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
 pub(crate) fn check_name_constraints(

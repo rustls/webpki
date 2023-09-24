@@ -29,4 +29,4 @@ pub use ip_address::{AddrParseError, IpAddrRef};
 pub use ip_address::IpAddr;
 
 mod verify;
-pub(super) use verify::{check_name_constraints, verify_cert_dns_name, GeneralName, NameIterator};
+pub(super) use verify::{check_name_constraints, GeneralName, NameIterator};
