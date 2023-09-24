@@ -52,38 +52,30 @@ pub enum IpAddrRef<'a> {
 }
 
 impl<'a> IpAddrRef<'a> {
-    pub(crate) fn verify_cert_ip_addresses(
-        &self,
-        cert: &crate::EndEntityCert,
-    ) -> Result<(), Error> {
+    pub(crate) fn verify_ip_address_names(&self, mut names: NameIterator<'_>) -> Result<(), Error> {
         let ip_address = match self {
             IpAddrRef::V4(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
             IpAddrRef::V6(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
         };
 
-        NameIterator::new(
-            // IP addresses are not compared against the subject field;
-            // only against Subject Alternative Names.
-            None,
-            cert.subject_alt_name,
-        )
-        .find_map(|result| {
-            let name = match result {
-                Ok(name) => name,
-                Err(err) => return Some(Err(err)),
-            };
+        names
+            .find_map(|result| {
+                let name = match result {
+                    Ok(name) => name,
+                    Err(err) => return Some(Err(err)),
+                };
 
-            let presented_id = match name {
-                GeneralName::IpAddress(presented) => presented,
-                _ => return None,
-            };
+                let presented_id = match name {
+                    GeneralName::IpAddress(presented) => presented,
+                    _ => return None,
+                };
 
-            match presented_id_matches_reference_id(presented_id, ip_address) {
-                true => Some(Ok(())),
-                false => None,
-            }
-        })
-        .unwrap_or(Err(Error::CertNotValidForName))
+                match presented_id_matches_reference_id(presented_id, ip_address) {
+                    true => Some(Ok(())),
+                    false => None,
+                }
+            })
+            .unwrap_or(Err(Error::CertNotValidForName))
     }
 }
 
