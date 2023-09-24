@@ -99,7 +99,7 @@ impl<'a> DnsNameRef<'a> {
                     _ => return None,
                 };
 
-                match presented_id_matches_reference_id(presented_id, dns_name) {
+                match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
                     Ok(true) => Some(Ok(())),
                     Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
                     Err(e) => Some(Err(e)),
@@ -204,28 +204,6 @@ impl core::fmt::Display for InvalidDnsNameError {
 
 #[cfg(feature = "std")]
 impl ::std::error::Error for InvalidDnsNameError {}
-
-fn presented_id_matches_reference_id(
-    presented_dns_id: untrusted::Input,
-    reference_dns_id: untrusted::Input,
-) -> Result<bool, Error> {
-    presented_id_matches_reference_id_internal(
-        presented_dns_id,
-        IdRole::Reference,
-        reference_dns_id,
-    )
-}
-
-pub(super) fn presented_id_matches_constraint(
-    presented_dns_id: untrusted::Input,
-    reference_dns_id: untrusted::Input,
-) -> Result<bool, Error> {
-    presented_id_matches_reference_id_internal(
-        presented_dns_id,
-        IdRole::NameConstraint,
-        reference_dns_id,
-    )
-}
 
 // We assume that both presented_dns_id and reference_dns_id are encoded in
 // such a way that US-ASCII (7-bit) characters are encoded in one byte and no
@@ -343,7 +321,7 @@ pub(super) fn presented_id_matches_constraint(
 // [4] Feedback on the lack of clarify in the definition that never got
 //     incorporated into the spec:
 //     https://www.ietf.org/mail-archive/web/pkix/current/msg21192.html
-fn presented_id_matches_reference_id_internal(
+pub(super) fn presented_id_matches_reference_id(
     presented_dns_id: untrusted::Input,
     reference_dns_id_role: IdRole,
     reference_dns_id: untrusted::Input,
@@ -489,7 +467,7 @@ enum Wildcards {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum IdRole {
+pub(super) enum IdRole {
     Reference,
     Presented,
     NameConstraint,
@@ -1000,6 +978,7 @@ mod tests {
         for &(presented, reference, expected_result) in PRESENTED_MATCHES_REFERENCE {
             let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
+                IdRole::Reference,
                 untrusted::Input::from(reference),
             );
             assert_eq!(
@@ -1074,8 +1053,9 @@ mod tests {
     #[test]
     fn presented_matches_constraint_test() {
         for &(presented, constraint, expected_result) in PRESENTED_MATCHES_CONSTRAINT {
-            let actual_result = presented_id_matches_constraint(
+            let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
+                IdRole::NameConstraint,
                 untrusted::Input::from(constraint),
             );
             assert_eq!(
