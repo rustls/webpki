@@ -18,7 +18,7 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
-use crate::subject_name::{verify_cert_dns_name, SubjectNameRef};
+use crate::subject_name::SubjectNameRef;
 use crate::verify_cert::{self, KeyUsage};
 use crate::{cert, signed_data};
 
@@ -110,7 +110,7 @@ impl<'a> EndEntityCert<'a> {
         subject_name: SubjectNameRef,
     ) -> Result<(), Error> {
         match subject_name {
-            SubjectNameRef::DnsName(dns_name) => verify_cert_dns_name(self, dns_name),
+            SubjectNameRef::DnsName(dns_name) => dns_name.verify_cert_dns_name(self),
             SubjectNameRef::IpAddress(ip_address) => ip_address.verify_cert_ip_addresses(self),
         }
     }
