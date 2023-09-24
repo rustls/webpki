@@ -15,6 +15,7 @@
 #[cfg(feature = "std")]
 use core::fmt::Write;
 
+use super::verify::{GeneralName, NameIterator};
 use crate::Error;
 
 #[cfg(feature = "alloc")]
@@ -48,6 +49,42 @@ pub enum IpAddrRef<'a> {
     V4(&'a [u8], [u8; 4]),
     /// An IPv6 address and its borrowed string representation
     V6(&'a [u8], [u8; 16]),
+}
+
+impl<'a> IpAddrRef<'a> {
+    pub(crate) fn verify_cert_ip_addresses(
+        &self,
+        cert: &crate::EndEntityCert,
+    ) -> Result<(), Error> {
+        let ip_address = match self {
+            IpAddrRef::V4(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
+            IpAddrRef::V6(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
+        };
+
+        NameIterator::new(
+            // IP addresses are not compared against the subject field;
+            // only against Subject Alternative Names.
+            None,
+            cert.subject_alt_name,
+        )
+        .find_map(|result| {
+            let name = match result {
+                Ok(name) => name,
+                Err(err) => return Some(Err(err)),
+            };
+
+            let presented_id = match name {
+                GeneralName::IpAddress(presented) => presented,
+                _ => return None,
+            };
+
+            match presented_id_matches_reference_id(presented_id, ip_address) {
+                true => Some(Ok(())),
+                false => None,
+            }
+        })
+        .unwrap_or(Err(Error::CertNotValidForName))
+    }
 }
 
 #[cfg(feature = "alloc")]
@@ -196,7 +233,7 @@ impl<'a> From<IpAddrRef<'a>> for &'a [u8] {
 //   version 4, as specified in [RFC791], the octet string MUST contain
 //   exactly four octets.  For IP version 6, as specified in
 //   [RFC2460], the octet string MUST contain exactly sixteen octets.
-pub(super) fn presented_id_matches_reference_id(
+fn presented_id_matches_reference_id(
     presented_id: untrusted::Input,
     reference_id: untrusted::Input,
 ) -> bool {

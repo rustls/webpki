@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use super::dns_name::{self, DnsNameRef};
-use super::ip_address::{self, IpAddrRef};
+use super::ip_address;
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::{Budget, PathNode};
@@ -42,40 +42,6 @@ pub(crate) fn verify_cert_dns_name(
             }
         })
         .unwrap_or(Err(Error::CertNotValidForName))
-}
-
-pub(crate) fn verify_cert_ip_addresses(
-    cert: &crate::EndEntityCert,
-    ip_address: IpAddrRef,
-) -> Result<(), Error> {
-    let ip_address = match ip_address {
-        IpAddrRef::V4(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
-        IpAddrRef::V6(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
-    };
-
-    NameIterator::new(
-        // IP addresses are not compared against the subject field;
-        // only against Subject Alternative Names.
-        None,
-        cert.subject_alt_name,
-    )
-    .find_map(|result| {
-        let name = match result {
-            Ok(name) => name,
-            Err(err) => return Some(Err(err)),
-        };
-
-        let presented_id = match name {
-            GeneralName::IpAddress(presented) => presented,
-            _ => return None,
-        };
-
-        match ip_address::presented_id_matches_reference_id(presented_id, ip_address) {
-            true => Some(Ok(())),
-            false => None,
-        }
-    })
-    .unwrap_or(Err(Error::CertNotValidForName))
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
