@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use super::dns_name;
+use super::dns_name::{self, IdRole};
 use super::ip_address;
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
@@ -108,7 +108,7 @@ fn check_presented_id_conforms_to_constraints(
 
             let matches = match (name, base) {
                 (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
-                    dns_name::presented_id_matches_constraint(name, base)
+                    dns_name::presented_id_matches_reference_id(name, IdRole::NameConstraint, base)
                 }
 
                 (GeneralName::DirectoryName(_), GeneralName::DirectoryName(_)) => Ok(
