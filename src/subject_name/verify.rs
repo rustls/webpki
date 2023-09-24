@@ -14,7 +14,6 @@
 
 use super::dns_name::{self, DnsNameRef};
 use super::ip_address::{self, IpAddrRef};
-use super::name::SubjectNameRef;
 use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::{Budget, PathNode};
@@ -45,18 +44,13 @@ pub(crate) fn verify_cert_dns_name(
         .unwrap_or(Err(Error::CertNotValidForName))
 }
 
-pub(crate) fn verify_cert_subject_name(
+pub(crate) fn verify_cert_ip_addresses(
     cert: &crate::EndEntityCert,
-    subject_name: SubjectNameRef,
+    ip_address: IpAddrRef,
 ) -> Result<(), Error> {
-    let ip_address = match subject_name {
-        SubjectNameRef::DnsName(dns_name) => return verify_cert_dns_name(cert, dns_name),
-        SubjectNameRef::IpAddress(IpAddrRef::V4(_, ref ip_address_octets)) => {
-            untrusted::Input::from(ip_address_octets)
-        }
-        SubjectNameRef::IpAddress(IpAddrRef::V6(_, ref ip_address_octets)) => {
-            untrusted::Input::from(ip_address_octets)
-        }
+    let ip_address = match ip_address {
+        IpAddrRef::V4(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
+        IpAddrRef::V6(_, ref ip_address_octets) => untrusted::Input::from(ip_address_octets),
     };
 
     NameIterator::new(
