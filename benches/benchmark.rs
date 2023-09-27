@@ -85,6 +85,7 @@ fn generate_crl(revoked_count: usize) -> Vec<u8> {
         crl_number: SerialNumber::from(1234),
         alg: &PKCS_ECDSA_P256_SHA256,
         key_identifier_method: KeyIdMethod::Sha256,
+        issuing_distribution_point: None,
         revoked_certs,
     };
     let crl = CertificateRevocationList::from_params(crl).unwrap();
