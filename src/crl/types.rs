@@ -38,7 +38,6 @@ pub trait CertRevocationList: Sealed + Debug {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
-        budget: &mut Budget,
     ) -> Result<(), Error>;
 }
 
@@ -86,13 +85,12 @@ impl CertRevocationList for OwnedCertRevocationList {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
-        budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
             supported_sig_algs,
             untrusted::Input::from(issuer_spki),
             &self.signed_data.borrow(),
-            budget,
+            &mut Budget::default(),
         )
     }
 }
@@ -230,13 +228,12 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
-        budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
             supported_sig_algs,
             untrusted::Input::from(issuer_spki),
             &self.signed_data,
-            budget,
+            &mut Budget::default(),
         )
     }
 }

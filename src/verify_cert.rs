@@ -181,7 +181,7 @@ fn check_signed_chain_name_constraints(
     Ok(())
 }
 
-pub struct Budget {
+pub(crate) struct Budget {
     signatures: usize,
     build_chain_calls: usize,
     name_constraint_comparisons: usize,
