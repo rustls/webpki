@@ -946,6 +946,137 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_reject_candidate_path() {
+        /*
+         This test builds a PKI like the following diagram depicts. We first verify
+         that we can build a path EE -> B -> A -> TA. Next we supply a custom path verification
+         function that rejects the B->A path, and verify that we build a path EE -> B -> C -> TA.
+
+               ┌───────────┐
+               │           │
+               │     TA    │
+               │           │
+               └───┬───┬───┘
+                   │   │
+                   │   │
+        ┌────────┐◄┘   └──►┌────────┐
+        │        │         │        │
+        │   A    │         │   C    │
+        │        │         │        │
+        └────┬───┘         └───┬────┘
+             │                 │
+             │                 │
+             │   ┌─────────┐   │
+             └──►│         │◄──┘
+                 │    B    │
+                 │         │
+                 └────┬────┘
+                      │
+                      │
+                      │
+                 ┌────▼────┐
+                 │         │
+                 │    EE   │
+                 │         │
+                 └─────────┘
+          */
+
+        // Create a trust anchor, and use it to issue two distinct intermediate certificates, each
+        // with a unique subject and keypair.
+        let trust_anchor = make_issuer("Trust Anchor");
+        let trust_anchor_der = CertificateDer::from(trust_anchor.serialize_der().unwrap());
+        let trust_anchor_cert =
+            Cert::from_der(untrusted::Input::from(trust_anchor_der.as_ref())).unwrap();
+        let trust_anchors = &[extract_trust_anchor(&trust_anchor_der).unwrap()];
+
+        let intermediate_a = make_issuer("Intermediate A");
+        let intermediate_a_der = CertificateDer::from(
+            intermediate_a
+                .serialize_der_with_signer(&trust_anchor)
+                .unwrap(),
+        );
+        let intermediate_a_cert =
+            Cert::from_der(untrusted::Input::from(intermediate_a_der.as_ref())).unwrap();
+
+        let intermediate_c = make_issuer("Intermediate C");
+        let intermediate_c_der = CertificateDer::from(
+            intermediate_c
+                .serialize_der_with_signer(&trust_anchor)
+                .unwrap(),
+        );
+        let intermediate_c_cert =
+            Cert::from_der(untrusted::Input::from(intermediate_c_der.as_ref())).unwrap();
+
+        // Next, create an intermediate that is issued by both of the intermediates above.
+        // Both should share the same subject, and key pair, but will differ in the issuer.
+        let intermediate_b_key = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+        let mut intermediate_b_params = issuer_params("Intermediate");
+        intermediate_b_params.key_pair = Some(intermediate_b_key);
+        let intermediate_b = rcgen::Certificate::from_params(intermediate_b_params).unwrap();
+
+        let intermediate_b_a_der = CertificateDer::from(
+            intermediate_b
+                .serialize_der_with_signer(&intermediate_a)
+                .unwrap(),
+        );
+        let intermediate_b_c_der = CertificateDer::from(
+            intermediate_b
+                .serialize_der_with_signer(&intermediate_c)
+                .unwrap(),
+        );
+
+        let intermediates = &[
+            intermediate_a_der.clone(),
+            intermediate_c_der.clone(),
+            intermediate_b_a_der.clone(),
+            intermediate_b_c_der.clone(),
+        ];
+
+        // Create an end entity certificate signed by the keypair of the intermediates created above.
+        let ee = make_end_entity(&intermediate_b);
+        let ee_cert = &EndEntityCert::try_from(&ee).unwrap();
+
+        // We should be able to create a valid path from EE to trust anchor.
+        let path = verify_chain(trust_anchors, intermediates, ee_cert, None, None).unwrap();
+        let path_intermediates = path.intermediate_certificates().collect::<Vec<_>>();
+
+        // We expect that without applying any additional constraints, that the path will be
+        // EE -> intermediate_b_a -> intermediate_a -> trust_anchor.
+        assert_eq!(path_intermediates.len(), 2);
+        assert_eq!(path_intermediates[0].issuer, intermediate_a_cert.subject);
+        assert_eq!(path_intermediates[1].issuer, trust_anchor_cert.subject);
+
+        // Now, we'll create a function that will reject the intermediate_b_a path.
+        let expected_chain = |path: &VerifiedPath<'_>| {
+            for intermediate in path.intermediate_certificates() {
+                // Reject any intermediates issued by intermediate A.
+                if intermediate.issuer == intermediate_a_cert.subject {
+                    return Err(Error::UnknownIssuer);
+                }
+            }
+
+            Ok(())
+        };
+
+        // We should still be able to build a valid path.
+        let path = verify_chain(
+            trust_anchors,
+            intermediates,
+            ee_cert,
+            Some(&expected_chain),
+            None,
+        )
+        .unwrap();
+        let path_intermediates = path.intermediate_certificates().collect::<Vec<_>>();
+
+        // We expect that the path will now be
+        // EE -> intermediate_b_c -> intermediate_c -> trust_anchor.
+        assert_eq!(path_intermediates.len(), 2);
+        assert_eq!(path_intermediates[0].issuer, intermediate_c_cert.subject);
+        assert_eq!(path_intermediates[1].issuer, trust_anchor_cert.subject);
+    }
+
     fn verify_chain<'a>(
         trust_anchors: &'a [TrustAnchor<'a>],
         intermediate_certs: &'a [CertificateDer<'a>],
