@@ -449,33 +449,35 @@ mod tests {
 
         // Unexpected type
         assert_eq!(
-            Err(Error::TrailingData(DerTypeId::BitString)),
-            bit_string_with_no_unused_bits(&mut bytes_reader(&[0x01, 0x01, 0xff]))
+            bit_string_with_no_unused_bits(&mut bytes_reader(&[0x01, 0x01, 0xff])).unwrap_err(),
+            Error::TrailingData(DerTypeId::BitString),
         );
 
         // Unexpected nonexistent type
         assert_eq!(
-            Err(Error::TrailingData(DerTypeId::BitString)),
-            bit_string_with_no_unused_bits(&mut bytes_reader(&[0x42, 0xff, 0xff])),
+            bit_string_with_no_unused_bits(&mut bytes_reader(&[0x42, 0xff, 0xff])).unwrap_err(),
+            Error::TrailingData(DerTypeId::BitString),
         );
 
         // Unexpected empty input
         assert_eq!(
-            Err(Error::TrailingData(DerTypeId::BitString)),
-            bit_string_with_no_unused_bits(&mut bytes_reader(&[]))
+            bit_string_with_no_unused_bits(&mut bytes_reader(&[])).unwrap_err(),
+            Error::TrailingData(DerTypeId::BitString),
         );
 
         // Valid input with non-zero unused bits
         assert_eq!(
-            Err(Error::BadDer),
             bit_string_with_no_unused_bits(&mut bytes_reader(&[0x03, 0x03, 0x04, 0x12, 0x34]))
+                .unwrap_err(),
+            Error::BadDer,
         );
 
         // Valid input
         assert_eq!(
-            untrusted::Input::from(&[0x12, 0x34]),
             bit_string_with_no_unused_bits(&mut bytes_reader(&[0x03, 0x03, 0x00, 0x12, 0x34]))
                 .unwrap()
+                .as_slice_less_safe(),
+            &[0x12, 0x34],
         );
     }
 
