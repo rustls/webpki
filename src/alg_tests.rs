@@ -107,10 +107,12 @@ fn test_verify_signed_data_signature_outer(file_contents: &[u8], expected_error:
     let tsd = parse_test_signed_data(file_contents);
     let signature = untrusted::Input::from(&tsd.signature);
     assert_eq!(
-        Err(expected_error),
-        signature.read_all(Error::TrailingData(DerTypeId::Signature), |input| {
-            der::bit_string_with_no_unused_bits(input)
-        })
+        signature
+            .read_all(Error::TrailingData(DerTypeId::Signature), |input| {
+                der::bit_string_with_no_unused_bits(input)
+            })
+            .unwrap_err(),
+        expected_error,
     );
 }
 
@@ -128,10 +130,11 @@ fn test_parse_spki_bad_outer(file_contents: &[u8], expected_error: Error) {
     let tsd = parse_test_signed_data(file_contents);
     let spki = untrusted::Input::from(&tsd.spki);
     assert_eq!(
-        Err(expected_error),
         spki.read_all(Error::BadDer, |input| {
             der::expect_tag(input, der::Tag::Sequence)
         })
+        .unwrap_err(),
+        expected_error,
     );
 }
 
