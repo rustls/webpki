@@ -3,6 +3,7 @@ use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 use crate::cert::lenient_certificate_serial_number;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
+use crate::public_values_eq;
 use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode};
@@ -277,7 +278,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             //   This field MUST contain the same algorithm identifier as the
             //   signatureAlgorithm field in the sequence CertificateList
             let signature = der::expect_tag(tbs_cert_list, Tag::Sequence)?;
-            if signature != signed_data.algorithm {
+            if !public_values_eq(signature, signed_data.algorithm) {
                 return Err(Error::SignatureAlgorithmMismatch);
             }
 
