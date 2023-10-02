@@ -17,7 +17,7 @@ use crate::error::{DerTypeId, Error};
 use crate::signed_data::SignedData;
 use crate::subject_name::{GeneralName, NameIterator, WildcardDnsNameRef};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::DnsNameRef;
+use crate::{public_values_eq, DnsNameRef};
 
 /// A parsed X509 certificate.
 pub struct Cert<'a> {
@@ -66,7 +66,7 @@ impl<'a> Cert<'a> {
                 // TODO: In mozilla::pkix, the comparison is done based on the
                 // normalized value (ignoring whether or not there is an optional NULL
                 // parameter for RSA-based algorithms), so this may be too strict.
-                if signature != signed_data.algorithm {
+                if !public_values_eq(signature, signed_data.algorithm) {
                     return Err(Error::SignatureAlgorithmMismatch);
                 }
 

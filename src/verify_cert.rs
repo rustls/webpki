@@ -20,7 +20,7 @@ use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, Uni
 use crate::cert::Cert;
 use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
-use crate::{signed_data, subject_name, Error};
+use crate::{public_values_eq, signed_data, subject_name, Error};
 
 pub(crate) struct ChainOptions<'a> {
     pub(crate) eku: KeyUsage,
@@ -71,7 +71,7 @@ impl<'a> ChainOptions<'a> {
             self.trust_anchors,
             |trust_anchor: &TrustAnchor| {
                 let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
-                if path.cert.issuer != trust_anchor_subject {
+                if !public_values_eq(path.cert.issuer, trust_anchor_subject) {
                     return Err(Error::UnknownIssuer.into());
                 }
 
@@ -97,14 +97,14 @@ impl<'a> ChainOptions<'a> {
 
         loop_while_non_fatal_error(err, self.intermediate_certs, |cert_der| {
             let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
-            if potential_issuer.subject != path.cert.issuer {
+            if !public_values_eq(potential_issuer.subject, path.cert.issuer) {
                 return Err(Error::UnknownIssuer.into());
             }
 
             // Prevent loops; see RFC 4158 section 5.2.
             if path.iter().any(|prev| {
-                potential_issuer.spki == prev.cert.spki
-                    && potential_issuer.subject == prev.cert.subject
+                public_values_eq(potential_issuer.spki, prev.cert.spki)
+                    && public_values_eq(potential_issuer.subject, prev.cert.subject)
             }) {
                 return Err(Error::UnknownIssuer.into());
             }
@@ -396,17 +396,19 @@ impl ExtendedKeyUsage {
     }
 
     fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
-        match self {
-            ExtendedKeyUsage::Required(eku) => *eku,
-            ExtendedKeyUsage::RequiredIfPresent(eku) => *eku,
-        }
-        .oid_value
-            == value
+        public_values_eq(
+            match self {
+                ExtendedKeyUsage::Required(eku) => *eku,
+                ExtendedKeyUsage::RequiredIfPresent(eku) => *eku,
+            }
+            .oid_value,
+            value,
+        )
     }
 }
 
 /// An OID value indicating an Extended Key Usage (EKU) key purpose.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 struct KeyPurposeId {
     oid_value: untrusted::Input<'static>,
 }
@@ -421,6 +423,14 @@ impl KeyPurposeId {
         }
     }
 }
+
+impl PartialEq<Self> for KeyPurposeId {
+    fn eq(&self, other: &Self) -> bool {
+        public_values_eq(self.oid_value, other.oid_value)
+    }
+}
+
+impl Eq for KeyPurposeId {}
 
 // id-pkix            OBJECT IDENTIFIER ::= { 1 3 6 1 5 5 7 }
 // id-kp              OBJECT IDENTIFIER ::= { id-pkix 3 }

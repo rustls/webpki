@@ -14,9 +14,9 @@
 
 use pki_types::SignatureVerificationAlgorithm;
 
-use crate::der;
 use crate::error::Error;
 use crate::verify_cert::{Budget, PathNode};
+use crate::{der, public_values_eq};
 
 use core::fmt::Debug;
 
@@ -113,7 +113,7 @@ impl<'a> RevocationOptions<'a> {
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         budget: &mut Budget,
     ) -> Result<Option<CertNotRevoked>, Error> {
-        assert_eq!(path.cert.issuer, issuer_subject);
+        assert!(public_values_eq(path.cert.issuer, issuer_subject));
 
         // If the policy only specifies checking EndEntity revocation state and we're looking at an
         // issuer certificate, return early without considering the certificate's revocation state.

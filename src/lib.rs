@@ -170,3 +170,7 @@ pub static ALL_VERIFICATION_ALGS: &[&dyn types::SignatureVerificationAlgorithm] 
     #[cfg(feature = "aws_lc_rs")]
     aws_lc_rs::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
 ];
+
+fn public_values_eq(a: untrusted::Input<'_>, b: untrusted::Input<'_>) -> bool {
+    a.as_slice_less_safe() == b.as_slice_less_safe()
+}
