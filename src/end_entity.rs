@@ -76,9 +76,9 @@ impl<'a> EndEntityCert<'a> {
     /// * `supported_sig_algs` is the list of signature algorithms that are
     ///   trusted for use in certificate signatures; the end-entity certificate's
     ///   public key is not validated against this list.
-    /// * `trust_anchors` is the list of root CAs to trust
+    /// * `trust_anchors` is the list of root CAs to trust in the built path.
     /// * `intermediate_certs` is the sequence of intermediate certificates that
-    ///   the server sent in the TLS handshake.
+    ///   a peer sent for the purpose of path building.
     /// * `time` is the time for which the validation is effective (usually the
     ///   current time).
     /// * `usage` is the intended usage of the certificate, indicating what kind
