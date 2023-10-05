@@ -178,19 +178,11 @@ fn critical_extensions() {
     let ee = CertificateDer::from(
         &include_bytes!("critical_extensions/ee-cert-crit-unknown-ext.der")[..],
     );
-    let res = webpki::EndEntityCert::try_from(&ee).and_then(|cert| {
-        cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[ca],
-            time,
-            KeyUsage::server_auth(),
-            None,
-        )
-    });
-    assert_eq!(
-        res,
-        Err(webpki::Error::UnsupportedCriticalExtension),
+    assert!(
+        matches!(
+            webpki::EndEntityCert::try_from(&ee),
+            Err(webpki::Error::UnsupportedCriticalExtension)
+        ),
         "reject critical unknown extension"
     );
 }
