@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::verify_cert::Budget;
-use crate::{der, Error};
+use crate::{der, public_values_eq, Error};
 use ring::signature;
 
 #[cfg(feature = "alloc")]
@@ -377,7 +377,7 @@ struct AlgorithmIdentifier {
 
 impl AlgorithmIdentifier {
     fn matches_algorithm_id_value(&self, encoded: untrusted::Input) -> bool {
-        encoded == self.asn1_id_value
+        public_values_eq(encoded, self.asn1_id_value)
     }
 }
 
