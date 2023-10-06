@@ -42,7 +42,7 @@ jobs:
         with:
           components: clippy
 
-      - run: cargo clippy --all-features --all-targets
+      - run: cargo clippy --all-features --all-targets -- --deny warnings
 
   deny:
     name: Cargo Deny
