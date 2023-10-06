@@ -44,7 +44,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         let mut path = PartialPath::new(end_entity);
         match self.build_chain_inner(&mut path, time, verify_path, 0, &mut Budget::default()) {
             Ok(anchor) => Ok(VerifiedPath::new(end_entity, anchor, path)),
-            Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => return Err(err),
+            Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => Err(err),
         }
     }
 
@@ -249,6 +249,7 @@ impl<'a> DoubleEndedIterator for IntermediateIterator<'a> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum Intermediates<'a> {
     Owned {
         certs: [Option<Cert<'a>>; MAX_SUB_CA_COUNT],
