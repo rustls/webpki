@@ -528,10 +528,12 @@ mod tests {
         let tsd = parse_test_signed_data(file_contents);
         let signature = untrusted::Input::from(&tsd.signature);
         assert_eq!(
-            Err(expected_error),
-            signature.read_all(Error::BadDer, |input| {
-                der::bit_string_with_no_unused_bits(input)
-            })
+            signature
+                .read_all(Error::BadDer, |input| {
+                    der::bit_string_with_no_unused_bits(input)
+                })
+                .unwrap_err(),
+            expected_error
         );
     }
 
@@ -549,10 +551,11 @@ mod tests {
         let tsd = parse_test_signed_data(file_contents);
         let spki = untrusted::Input::from(&tsd.spki);
         assert_eq!(
-            Err(expected_error),
             spki.read_all(Error::BadDer, |input| {
                 der::expect_tag_and_get_value(input, der::Tag::Sequence)
             })
+            .unwrap_err(),
+            expected_error,
         );
     }
 
