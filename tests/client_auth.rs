@@ -16,11 +16,11 @@
 
 use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{extract_trust_anchor, KeyUsage};
+use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 fn check_cert(ee: &[u8], ca: &[u8]) -> Result<(), webpki::Error> {
     let ca = CertificateDer::from(ca);
-    let anchors = &[extract_trust_anchor(&ca).unwrap()];
+    let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let ee = CertificateDer::from(ee);

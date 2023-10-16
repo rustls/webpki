@@ -4,11 +4,29 @@ use crate::cert::{lenient_certificate_serial_number, Cert};
 use crate::der;
 use crate::error::{DerTypeId, Error};
 
-/// Interprets the given DER-encoded certificate as a `TrustAnchor`. The
-/// certificate is not validated. In particular, there is no check that the
-/// certificate is self-signed or even that the certificate has the cA basic
-/// constraint.
-pub fn extract_trust_anchor<'a>(cert: &'a CertificateDer<'a>) -> Result<TrustAnchor<'a>, Error> {
+/// Interprets the given pre-validated DER-encoded certificate as a `TrustAnchor`.
+///
+/// This function extracts the components of a trust anchor (see [RFC 5280 6.1.1]) from
+/// an X.509 certificate obtained from a source trusted to have appropriately validated
+/// the subject name, public key, and name constraints in the certificate, for example your
+/// operating system's trust store.
+///
+/// No additional checks on the content of the certificate, including whether it is self-signed,
+/// or has a basic constraints extension indicating the `cA` boolean is true, will be performed.
+/// [RFC 5280 6.2] notes:
+/// > Implementations that use self-signed certificates to specify trust
+/// > anchor information are free to process or ignore such information.
+///
+/// This function is intended for users constructing `TrustAnchor`'s from existing trust stores
+/// that express trust anchors as X.509 certificates. It should **not** be used to treat an
+/// end-entity certificate as a `TrustAnchor` in an effort to validate the same end-entity
+/// certificate during path building. Webpki has no support for self-signed certificates.
+///
+/// [RFC 5280 6.1.1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-6.1.1>
+/// [RFC 5280 6.2]: <https://www.rfc-editor.org/rfc/rfc5280#section-6.2>
+pub fn anchor_from_trusted_cert<'a>(
+    cert: &'a CertificateDer<'a>,
+) -> Result<TrustAnchor<'a>, Error> {
     let cert_der = untrusted::Input::from(cert.as_ref());
 
     // v1 certificates will result in `Error::BadDer` because `parse_cert` will

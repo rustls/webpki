@@ -17,7 +17,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{extract_trust_anchor, KeyUsage};
+use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -28,7 +28,7 @@ fn netflix() {
     let inter = CertificateDer::from(&include_bytes!("netflix/inter.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
 
-    let anchors = [extract_trust_anchor(&ca).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_492_441_716)); // 2017-04-17T15:08:36Z
 
@@ -56,7 +56,7 @@ fn cloudflare_dns() {
     let ca = CertificateDer::from(&include_bytes!("cloudflare_dns/ca.der")[..]);
 
     let ca_cert = CertificateDer::from(&ca[..]);
-    let anchors = [extract_trust_anchor(&ca_cert).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca_cert).unwrap()];
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_663_495_771));
 
@@ -111,7 +111,7 @@ fn wpt() {
     let ee = CertificateDer::from(&include_bytes!("wpt/ee.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("wpt/ca.der")[..]);
 
-    let anchors = [extract_trust_anchor(&ca).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_619_256_684)); // 2021-04-24T09:31:24Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
@@ -133,7 +133,7 @@ fn ed25519() {
     let ee = CertificateDer::from(&include_bytes!("ed25519/ee.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("ed25519/ca.der")[..]);
 
-    let anchors = [extract_trust_anchor(&ca).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_547_363_522)); // 2019-01-13T07:12:02Z
 
@@ -158,7 +158,7 @@ fn critical_extensions() {
     let ca = CertificateDer::from(&include_bytes!("critical_extensions/ca-cert.der")[..]);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
-    let anchors = [extract_trust_anchor(&root).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&root).unwrap()];
     let intermediates = [ca];
 
     let ee = CertificateDer::from(
@@ -195,13 +195,13 @@ fn critical_extensions() {
 #[test]
 fn read_root_with_zero_serial() {
     let ca = CertificateDer::from(&include_bytes!("misc/serial_zero.der")[..]);
-    extract_trust_anchor(&ca).expect("godaddy cert should parse as anchor");
+    anchor_from_trusted_cert(&ca).expect("godaddy cert should parse as anchor");
 }
 
 #[test]
 fn read_root_with_neg_serial() {
     let ca = CertificateDer::from(&include_bytes!("misc/serial_neg.der")[..]);
-    extract_trust_anchor(&ca).expect("idcat cert should parse as anchor");
+    anchor_from_trusted_cert(&ca).expect("idcat cert should parse as anchor");
 }
 
 #[test]
@@ -210,7 +210,7 @@ fn read_ee_with_neg_serial() {
     let ca = CertificateDer::from(&include_bytes!("misc/serial_neg_ca.der")[..]);
     let ee = CertificateDer::from(&include_bytes!("misc/serial_neg_ee.der")[..]);
 
-    let anchors = [extract_trust_anchor(&ca).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_667_401_500)); // 2022-11-02T15:05:00Z
 

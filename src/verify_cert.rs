@@ -701,7 +701,7 @@ pub(crate) enum Role {
 mod tests {
     use super::*;
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
-    use crate::trust_anchor::extract_trust_anchor;
+    use crate::trust_anchor::anchor_from_trusted_cert;
 
     #[test]
     fn eku_key_purpose_id() {
@@ -746,7 +746,7 @@ mod tests {
         let ee_der = make_end_entity(&issuer);
         let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
         verify_chain(
-            &[extract_trust_anchor(&trust_anchor).unwrap()],
+            &[anchor_from_trusted_cert(&trust_anchor).unwrap()],
             &intermediates,
             &ee_cert,
             None,
@@ -775,7 +775,7 @@ mod tests {
     fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
-        let anchor = extract_trust_anchor(&ca_cert_der).unwrap();
+        let anchor = anchor_from_trusted_cert(&ca_cert_der).unwrap();
         let anchors = &[anchor.clone()];
 
         let mut intermediates = Vec::with_capacity(chain_length);
@@ -859,7 +859,7 @@ mod tests {
         });
         let ca_cert = rcgen::Certificate::from_params(ca_cert_params).unwrap();
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
-        let anchors = &[extract_trust_anchor(&ca_cert_der).unwrap()];
+        let anchors = &[anchor_from_trusted_cert(&ca_cert_der).unwrap()];
 
         // Create a series of intermediate issuers. We'll only use one in the actual built path,
         // helping demonstrate that the name constraint budget is not expended checking certificates
@@ -973,7 +973,7 @@ mod tests {
         let trust_anchor_der = CertificateDer::from(trust_anchor.serialize_der().unwrap());
         let trust_anchor_cert =
             Cert::from_der(untrusted::Input::from(trust_anchor_der.as_ref())).unwrap();
-        let trust_anchors = &[extract_trust_anchor(&trust_anchor_der).unwrap()];
+        let trust_anchors = &[anchor_from_trusted_cert(&trust_anchor_der).unwrap()];
 
         let intermediate_a = make_issuer("Intermediate A");
         let intermediate_a_der = CertificateDer::from(
