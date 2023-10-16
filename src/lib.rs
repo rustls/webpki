@@ -79,7 +79,7 @@ pub use {
         AddrParseError, DnsNameRef, InvalidDnsNameError, InvalidSubjectNameError, IpAddrRef,
         SubjectNameRef,
     },
-    trust_anchor::extract_trust_anchor,
+    trust_anchor::anchor_from_trusted_cert,
     verify_cert::KeyUsage,
 };
 

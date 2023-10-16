@@ -18,7 +18,7 @@ use core::time::Duration;
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{
-    extract_trust_anchor, KeyUsage, RevocationCheckDepth, RevocationOptions,
+    anchor_from_trusted_cert, KeyUsage, RevocationCheckDepth, RevocationOptions,
     RevocationOptionsBuilder, UnknownStatusPolicy,
 };
 
@@ -36,7 +36,7 @@ fn check_cert(
     revocation: Option<RevocationOptions>,
 ) -> Result<(), webpki::Error> {
     let ca = CertificateDer::from(ca);
-    let anchors = &[extract_trust_anchor(&ca).unwrap()];
+    let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));

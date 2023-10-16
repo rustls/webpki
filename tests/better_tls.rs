@@ -10,7 +10,7 @@ use pki_types::UnixTime;
 use serde::Deserialize;
 
 use webpki::types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
-use webpki::{extract_trust_anchor, KeyUsage, SubjectNameRef};
+use webpki::{anchor_from_trusted_cert, KeyUsage, SubjectNameRef};
 
 // All of the BetterTLS testcases use P256 keys.
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -26,7 +26,7 @@ fn path_building() {
     let better_tls = testdata();
     let root_der = &better_tls.root_der();
     let root_der = CertificateDer::from(root_der.as_slice());
-    let roots = &[extract_trust_anchor(&root_der).expect("invalid trust anchor")];
+    let roots = &[anchor_from_trusted_cert(&root_der).expect("invalid trust anchor")];
 
     let suite = "pathbuilding";
     run_testsuite(
@@ -45,7 +45,7 @@ fn name_constraints() {
     let better_tls = testdata();
     let root_der = &better_tls.root_der();
     let root_der = CertificateDer::from(root_der.as_slice());
-    let roots = &[extract_trust_anchor(&root_der).expect("invalid trust anchor")];
+    let roots = &[anchor_from_trusted_cert(&root_der).expect("invalid trust anchor")];
 
     let suite = "nameconstraints";
     run_testsuite(

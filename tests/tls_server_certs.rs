@@ -16,7 +16,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{extract_trust_anchor, KeyUsage};
+use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 fn check_cert(
     ee: &[u8],
@@ -25,7 +25,7 @@ fn check_cert(
     invalid_names: &[&str],
 ) -> Result<(), webpki::Error> {
     let ca_cert_der = CertificateDer::from(ca);
-    let anchors = [extract_trust_anchor(&ca_cert_der).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
 
     let ee_der = CertificateDer::from(ee);
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
