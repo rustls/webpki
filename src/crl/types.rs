@@ -406,7 +406,7 @@ impl<'a> IssuingDistributionPoint<'a> {
         //       to unwrap a Tag::Boolean constructed value.
         fn decode_bool(value: untrusted::Input) -> Result<bool, Error> {
             let mut reader = untrusted::Reader::new(value);
-            let value = reader.read_byte()?;
+            let value = reader.read_byte().map_err(der::end_of_input_err)?;
             if !reader.at_end() {
                 return Err(Error::BadDer);
             }
