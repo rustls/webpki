@@ -149,7 +149,7 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
     input: &mut untrusted::Reader<'a>,
     size_limit: usize,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
-    let tag = input.read_byte()?;
+    let tag = input.read_byte().map_err(end_of_input_err)?;
     if (tag & HIGH_TAG_RANGE_START) == HIGH_TAG_RANGE_START {
         return Err(Error::BadDer); // High tag number form is not allowed.
     }
@@ -157,18 +157,18 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
     // If the high order bit of the first byte is set to zero then the length
     // is encoded in the seven remaining bits of that byte. Otherwise, those
     // seven bits represent the number of bytes used to encode the length.
-    let length = match input.read_byte()? {
+    let length = match input.read_byte().map_err(end_of_input_err)? {
         n if (n & SHORT_FORM_LEN_MAX) == 0 => usize::from(n),
         LONG_FORM_LEN_ONE_BYTE => {
-            let length_byte = input.read_byte()?;
+            let length_byte = input.read_byte().map_err(end_of_input_err)?;
             if length_byte < SHORT_FORM_LEN_MAX {
                 return Err(Error::BadDer); // Not the canonical encoding.
             }
             usize::from(length_byte)
         }
         LONG_FORM_LEN_TWO_BYTES => {
-            let length_byte_one = usize::from(input.read_byte()?);
-            let length_byte_two = usize::from(input.read_byte()?);
+            let length_byte_one = usize::from(input.read_byte().map_err(end_of_input_err)?);
+            let length_byte_two = usize::from(input.read_byte().map_err(end_of_input_err)?);
             let combined = (length_byte_one << 8) | length_byte_two;
             if combined <= LONG_FORM_LEN_ONE_BYTE_MAX {
                 return Err(Error::BadDer); // Not the canonical encoding.
@@ -176,9 +176,9 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
             combined
         }
         LONG_FORM_LEN_THREE_BYTES => {
-            let length_byte_one = usize::from(input.read_byte()?);
-            let length_byte_two = usize::from(input.read_byte()?);
-            let length_byte_three = usize::from(input.read_byte()?);
+            let length_byte_one = usize::from(input.read_byte().map_err(end_of_input_err)?);
+            let length_byte_two = usize::from(input.read_byte().map_err(end_of_input_err)?);
+            let length_byte_three = usize::from(input.read_byte().map_err(end_of_input_err)?);
             let combined = (length_byte_one << 16) | (length_byte_two << 8) | length_byte_three;
             if combined <= LONG_FORM_LEN_TWO_BYTES_MAX {
                 return Err(Error::BadDer); // Not the canonical encoding.
@@ -186,10 +186,10 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
             combined
         }
         LONG_FORM_LEN_FOUR_BYTES => {
-            let length_byte_one = usize::from(input.read_byte()?);
-            let length_byte_two = usize::from(input.read_byte()?);
-            let length_byte_three = usize::from(input.read_byte()?);
-            let length_byte_four = usize::from(input.read_byte()?);
+            let length_byte_one = usize::from(input.read_byte().map_err(end_of_input_err)?);
+            let length_byte_two = usize::from(input.read_byte().map_err(end_of_input_err)?);
+            let length_byte_three = usize::from(input.read_byte().map_err(end_of_input_err)?);
+            let length_byte_four = usize::from(input.read_byte().map_err(end_of_input_err)?);
             let combined = (length_byte_one << 24)
                 | (length_byte_two << 16)
                 | (length_byte_three << 8)
@@ -208,7 +208,7 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
         return Err(Error::BadDer); // The length is larger than the caller accepts.
     }
 
-    let inner = input.read_bytes(length)?;
+    let inner = input.read_bytes(length).map_err(end_of_input_err)?;
     Ok((tag, inner))
 }
 
@@ -384,6 +384,10 @@ pub(crate) fn nonnegative_integer<'a>(
         // Negative value.
         (_, _) => Err(Error::BadDer),
     }
+}
+
+pub(crate) fn end_of_input_err(_: untrusted::EndOfInput) -> Error {
+    Error::BadDer
 }
 
 // Like mozilla::pkix, we accept the nonconformant explicit encoding of

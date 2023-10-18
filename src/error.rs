@@ -292,12 +292,6 @@ impl fmt::Display for Error {
 #[cfg(feature = "std")]
 impl ::std::error::Error for Error {}
 
-impl From<untrusted::EndOfInput> for Error {
-    fn from(_: untrusted::EndOfInput) -> Self {
-        Error::BadDer
-    }
-}
-
 /// Trailing data was found while parsing DER-encoded input for the named type.
 #[allow(missing_docs)]
 #[non_exhaustive]
