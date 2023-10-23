@@ -19,7 +19,7 @@ use core::time::Duration;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{
     extract_trust_anchor, KeyUsage, RevocationCheckDepth, RevocationOptions,
-    RevocationOptionsBuilder,
+    RevocationOptionsBuilder, UnknownStatusPolicy,
 };
 
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -102,7 +102,7 @@ fn no_relevant_crl_ee_depth_allow_unknown() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -128,7 +128,7 @@ fn no_relevant_crl_ee_depth_allow_unknown_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -201,7 +201,7 @@ fn ee_not_revoked_ee_depth() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -226,7 +226,7 @@ fn ee_not_revoked_ee_depth_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -246,7 +246,7 @@ fn ee_not_revoked_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -269,7 +269,7 @@ fn ee_not_revoked_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -291,7 +291,7 @@ fn ee_revoked_badsig_ee_depth() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -319,7 +319,7 @@ fn ee_revoked_badsig_ee_depth_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -344,7 +344,7 @@ fn ee_revoked_wrong_ku_ee_depth() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -372,7 +372,7 @@ fn ee_revoked_wrong_ku_ee_depth_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -398,7 +398,7 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -427,7 +427,7 @@ fn ee_not_revoked_wrong_ku_ee_depth_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -452,7 +452,7 @@ fn ee_revoked_no_ku_ee_depth() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -480,7 +480,7 @@ fn ee_revoked_no_ku_ee_depth_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -505,7 +505,7 @@ fn ee_revoked_crl_ku_ee_depth() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -533,7 +533,7 @@ fn ee_revoked_crl_ku_ee_depth_owned() {
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -582,7 +582,7 @@ fn no_relevant_crl_chain_depth_allow_unknown() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -606,7 +606,7 @@ fn no_relevant_crl_chain_depth_allow_unknown_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -673,7 +673,7 @@ fn int_not_revoked_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -696,7 +696,7 @@ fn int_not_revoked_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -797,7 +797,7 @@ fn int_revoked_badsig_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -823,7 +823,7 @@ fn int_revoked_badsig_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -847,7 +847,7 @@ fn int_revoked_wrong_ku_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -874,7 +874,7 @@ fn int_revoked_wrong_ku_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -897,7 +897,7 @@ fn ee_revoked_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -923,7 +923,7 @@ fn ee_revoked_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -946,7 +946,7 @@ fn int_revoked_no_ku_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -972,7 +972,7 @@ fn int_revoked_no_ku_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -995,7 +995,7 @@ fn int_revoked_crl_ku_chain_depth() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -1021,7 +1021,7 @@ fn int_revoked_crl_ku_chain_depth_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -1045,7 +1045,7 @@ fn ee_with_top_bit_set_serial_revoked() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -1072,7 +1072,7 @@ fn ee_with_top_bit_set_serial_revoked_owned() {
     .unwrap() as &dyn webpki::CertRevocationList];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
-    let builder = builder.allow_unknown_status();
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
