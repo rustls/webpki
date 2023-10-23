@@ -35,7 +35,7 @@ pub struct RevocationOptionsBuilder<'a> {
 
     depth: RevocationCheckDepth,
 
-    status_requirement: UnknownStatusPolicy,
+    status_policy: UnknownStatusPolicy,
 }
 
 impl<'a> RevocationOptionsBuilder<'a> {
@@ -50,7 +50,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
     ///
     /// By default revocation checking will fail if the revocation status of a certificate cannot
     /// be determined. This can be customized using the
-    /// [RevocationOptionsBuilder::allow_unknown_status] method.
+    /// [RevocationOptionsBuilder::with_status_policy] method.
     pub fn new(crls: &'a [&'a dyn CertRevocationList]) -> Result<Self, CrlsRequired> {
         if crls.is_empty() {
             return Err(CrlsRequired(()));
@@ -59,7 +59,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
         Ok(Self {
             crls,
             depth: RevocationCheckDepth::Chain,
-            status_requirement: UnknownStatusPolicy::Deny,
+            status_policy: UnknownStatusPolicy::Deny,
         })
     }
 
@@ -71,16 +71,9 @@ impl<'a> RevocationOptionsBuilder<'a> {
         self
     }
 
-    /// Treat unknown revocation status permissively, acting as if the certificate were not
-    /// revoked.
-    pub fn allow_unknown_status(mut self) -> Self {
-        self.status_requirement = UnknownStatusPolicy::Allow;
-        self
-    }
-
-    /// Treat unknown revocation status strictly, considering it an error condition.
-    pub fn forbid_unknown_status(mut self) -> Self {
-        self.status_requirement = UnknownStatusPolicy::Deny;
+    /// Customize whether unknown revocation status is an error, or permitted.
+    pub fn with_status_policy(mut self, policy: UnknownStatusPolicy) -> Self {
+        self.status_policy = policy;
         self
     }
 
@@ -89,7 +82,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
         RevocationOptions {
             crls: self.crls,
             depth: self.depth,
-            status_requirement: self.status_requirement,
+            status_policy: self.status_policy,
         }
     }
 }
@@ -100,7 +93,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
 pub struct RevocationOptions<'a> {
     pub(crate) crls: &'a [&'a dyn CertRevocationList],
     pub(crate) depth: RevocationCheckDepth,
-    pub(crate) status_requirement: UnknownStatusPolicy,
+    pub(crate) status_policy: UnknownStatusPolicy,
 }
 
 impl<'a> RevocationOptions<'a> {
@@ -127,7 +120,7 @@ impl<'a> RevocationOptions<'a> {
             .find(|candidate_crl| crl_authoritative(**candidate_crl, path));
 
         use UnknownStatusPolicy::*;
-        let crl = match (crl, self.status_requirement) {
+        let crl = match (crl, self.status_policy) {
             (Some(crl), _) => crl,
             // If the policy allows unknown, return Ok(None) to indicate that the certificate
             // was not confirmed as CertNotRevoked, but that this isn't an error condition.
@@ -330,7 +323,7 @@ mod tests {
         }
         let opts = builder.build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
-        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder with custom depth.
@@ -339,37 +332,37 @@ mod tests {
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
-        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder that allows unknown
         // revocation status.
         let opts = RevocationOptionsBuilder::new(&crls[..])
             .unwrap()
-            .allow_unknown_status()
+            .with_status_policy(UnknownStatusPolicy::Allow)
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
-        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Allow);
+        assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
         assert_eq!(opts.crls.len(), 1);
 
-        // It should be possible to specify both depth and unknown status requirements together.
+        // It should be possible to specify both depth and unknown status policy together.
         let opts = RevocationOptionsBuilder::new(&crls[..])
             .unwrap()
-            .allow_unknown_status()
+            .with_status_policy(UnknownStatusPolicy::Allow)
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
-        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Allow);
+        assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
         assert_eq!(opts.crls.len(), 1);
 
         // The same should be true for explicitly forbidding unknown status.
         let opts = RevocationOptionsBuilder::new(&crls[..])
             .unwrap()
-            .forbid_unknown_status()
+            .with_status_policy(UnknownStatusPolicy::Deny)
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
-        assert_eq!(opts.status_requirement, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
         assert_eq!(opts.crls.len(), 1);
 
         // Built revocation options should be debug and clone when alloc is enabled.

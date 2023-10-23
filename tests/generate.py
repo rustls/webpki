@@ -1130,7 +1130,7 @@ def client_auth_revocation(force: bool) -> None:
                     """
                 if policy == StatusRequirement.ALLOW_UNKNOWN:
                     revocation_setup += """
-                    let builder = builder.allow_unknown_status();
+                    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
                     """
                 revocation_setup += "let revocation = Some(builder.build());"
 
