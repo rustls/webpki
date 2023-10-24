@@ -94,6 +94,48 @@ impl<'a> CertRevocationList<'a> {
         .map_err(crl_signature_err)
     }
 
+    /// Returns true if the CRL can be considered authoritative for the given certificate.
+    ///
+    /// A CRL is considered authoritative for a certificate when:
+    ///   * The certificate issuer matches the CRL issuer and,
+    ///     * The certificate has no CRL distribution points, and the CRL has no issuing distribution
+    ///       point extension.
+    ///     * Or, the certificate has no CRL distribution points, but the the CRL has an issuing
+    ///       distribution point extension with a scope that includes the certificate.
+    ///     * Or, the certificate has CRL distribution points, and the CRL has an issuing
+    ///       distribution point extension with a scope that includes the certificate, and at least
+    ///       one distribution point full name is a URI type general name that can also be found in
+    ///       the CRL issuing distribution point full name general name sequence.
+    ///
+    /// In all other circumstances the CRL is not considered authoritative.
+    pub(crate) fn authoritative(&self, path: &PathNode<'_>) -> bool {
+        // In all cases we require that the authoritative CRL have the same issuer
+        // as the certificate. Recall we do not support indirect CRLs.
+        if self.issuer() != path.cert.issuer() {
+            return false;
+        }
+
+        let crl_idp = match (
+            path.cert.crl_distribution_points(),
+            self.issuing_distribution_point(),
+        ) {
+            // If the certificate has no CRL distribution points, and the CRL has no issuing distribution point,
+            // then we can consider this CRL authoritative based on the issuer matching.
+            (cert_dps, None) => return cert_dps.is_none(),
+
+            // If the CRL has an issuing distribution point, parse it so we can consider its scope
+            // and compare against the cert CRL distribution points, if present.
+            (_, Some(crl_idp)) => {
+                match IssuingDistributionPoint::from_der(untrusted::Input::from(crl_idp)) {
+                    Ok(crl_idp) => crl_idp,
+                    Err(_) => return false, // Note: shouldn't happen - we verify IDP at CRL-load.
+                }
+            }
+        };
+
+        crl_idp.authoritative_for(path)
+    }
+
     pub(crate) fn signed_data(&self) -> SignedData {
         match self {
             #[cfg(feature = "alloc")]
@@ -1139,5 +1181,41 @@ mod tests {
         let _crl: CertRevocationList = borrowed_crl.into();
         // And similar for an OwnedCertRevocationList.
         let _crl: CertRevocationList = owned_crl.into();
+    }
+
+    #[test]
+    fn test_crl_authoritative_issuer_mismatch() {
+        let crl = include_bytes!("../../tests/crls/crl.valid.der");
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+
+        let ee = CertificateDer::from(
+            &include_bytes!("../../tests/client_auth_revocation/no_ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
+
+        // The CRL should not be authoritative for an EE issued by a different issuer.
+        assert!(!crl.authoritative(&path.node()));
+    }
+
+    #[test]
+    fn test_crl_authoritative_no_idp_no_cert_dp() {
+        let crl =
+            include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+
+        let ee = CertificateDer::from(
+            &include_bytes!("../../tests/client_auth_revocation/ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
+
+        // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
+        // cert has no CRL DPs.
+        assert!(crl.authoritative(&path.node()));
     }
 }
