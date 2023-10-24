@@ -1,3 +1,9 @@
+#[cfg(feature = "alloc")]
+use alloc::collections::BTreeMap;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+use core::fmt::Debug;
+
 use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::cert::lenient_certificate_serial_number;
@@ -8,12 +14,6 @@ use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode, Role};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-
-#[cfg(feature = "alloc")]
-use alloc::collections::BTreeMap;
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-use core::fmt::Debug;
 
 use super::private::Sealed;
 
