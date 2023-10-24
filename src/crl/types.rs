@@ -168,6 +168,22 @@ pub struct OwnedCertRevocationList {
 
 #[cfg(feature = "alloc")]
 impl OwnedCertRevocationList {
+    /// Try to parse the given bytes as a RFC 5280[^1] profile Certificate Revocation List (CRL).
+    ///
+    /// Webpki does not support:
+    ///   * CRL versions other than version 2.
+    ///   * CRLs missing the next update field.
+    ///   * CRLs missing certificate revocation list extensions.
+    ///   * Delta CRLs.
+    ///   * CRLs larger than (2^32)-1 bytes in size.
+    ///
+    /// See [BorrowedCertRevocationList::from_der] for more details.
+    ///
+    /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
+    pub fn from_der(crl_der: &[u8]) -> Result<Self, Error> {
+        BorrowedCertRevocationList::from_der(crl_der)?.to_owned()
+    }
+
     fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
         // note: this is infallible for the owned representation because we process all
         // revoked certificates at the time of construction to build the `revoked_certs` map,
@@ -1149,10 +1165,9 @@ mod tests {
     // redundant clone, clone_on_copy allowed to verify derived traits.
     #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
     fn test_derived_traits() {
-        let crl = crate::crl::BorrowedCertRevocationList::from_der(include_bytes!(
-            "../../tests/crls/crl.valid.der"
-        ))
-        .unwrap();
+        let crl =
+            BorrowedCertRevocationList::from_der(include_bytes!("../../tests/crls/crl.valid.der"))
+                .unwrap();
         println!("{:?}", crl); // BorrowedCertRevocationList should be debug.
 
         let owned_crl = crl.to_owned().unwrap();
@@ -1217,5 +1232,14 @@ mod tests {
         // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
         // cert has no CRL DPs.
         assert!(crl.authoritative(&path.node()));
+    }
+
+    #[test]
+    fn test_construct_owned_crl() {
+        // It should be possible to construct an owned CRL directly from DER without needing
+        // to build a borrowed representation first.
+        let crl =
+            include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
+        assert!(OwnedCertRevocationList::from_der(crl).is_ok())
     }
 }

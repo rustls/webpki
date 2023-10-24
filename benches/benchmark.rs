@@ -12,7 +12,7 @@ use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 use std::sync::Mutex;
 
-use webpki::{BorrowedCertRevocationList, CertRevocationList};
+use webpki::{BorrowedCertRevocationList, CertRevocationList, OwnedCertRevocationList};
 
 /// Lazy initialized CRL issuer to be used when generating CRL data. Includes
 /// `KeyUsagePurpose::CrlSign` key usage bit.
@@ -104,12 +104,7 @@ fn bench_parse_borrowed_crl_small(c: &mut Bencher) {
 fn bench_parse_owned_crl_small(c: &mut Bencher) {
     let crl_bytes = load_or_generate("./benches/small.crl.der", SMALL_CRL_CERT_COUNT);
 
-    c.iter(|| {
-        BorrowedCertRevocationList::from_der(&crl_bytes)
-            .unwrap()
-            .to_owned()
-            .unwrap()
-    });
+    c.iter(|| OwnedCertRevocationList::from_der(&crl_bytes).unwrap());
 }
 
 /// Benchmark parsing a medium CRL file into a borrowed representation..
@@ -123,12 +118,7 @@ fn bench_parse_borrowed_crl_medium(c: &mut Bencher) {
 fn bench_parse_owned_crl_medium(c: &mut Bencher) {
     let crl_bytes = load_or_generate("./benches/medium.crl.der", MEDIUM_CRL_CERT_COUNT);
 
-    c.iter(|| {
-        BorrowedCertRevocationList::from_der(&crl_bytes)
-            .unwrap()
-            .to_owned()
-            .unwrap()
-    });
+    c.iter(|| OwnedCertRevocationList::from_der(&crl_bytes).unwrap());
 }
 
 /// Benchmark parsing a large CRL file into a borrowed representation..
@@ -142,12 +132,7 @@ fn bench_parse_borrowed_crl_large(c: &mut Bencher) {
 fn bench_parse_owned_crl_large(c: &mut Bencher) {
     let crl_bytes = load_or_generate("./benches/large.crl.der", LARGE_CRL_CERT_COUNT);
 
-    c.iter(|| {
-        BorrowedCertRevocationList::from_der(&crl_bytes)
-            .unwrap()
-            .to_owned()
-            .unwrap()
-    });
+    c.iter(|| BorrowedCertRevocationList::from_der(&crl_bytes).unwrap());
 }
 
 /// Benchmark searching a small CRL file in borrowed representation for a serial that does not
@@ -165,9 +150,7 @@ fn bench_search_borrowed_crl_small(c: &mut Bencher) {
 /// appear. Doesn't include the time it takes to parse the CRL in the benchmark task.
 fn bench_search_owned_crl_small(c: &mut Bencher) {
     let crl_bytes = load_or_generate("./benches/small.crl.der", SMALL_CRL_CERT_COUNT);
-    let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl_bytes)
-        .unwrap()
-        .to_owned()
+    let crl: CertRevocationList = OwnedCertRevocationList::from_der(&crl_bytes)
         .unwrap()
         .into();
 
@@ -189,9 +172,7 @@ fn bench_search_borrowed_crl_medium(c: &mut Bencher) {
 /// appear. Doesn't include the time it takes to parse the CRL in the benchmark task.
 fn bench_search_owned_crl_medium(c: &mut Bencher) {
     let crl_bytes = load_or_generate("./benches/medium.crl.der", MEDIUM_CRL_CERT_COUNT);
-    let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl_bytes)
-        .unwrap()
-        .to_owned()
+    let crl: CertRevocationList = OwnedCertRevocationList::from_der(&crl_bytes)
         .unwrap()
         .into();
 
@@ -213,9 +194,7 @@ fn bench_search_borrowed_crl_large(c: &mut Bencher) {
 /// appear. Doesn't include the time it takes to parse the CRL in the benchmark task.
 fn bench_search_owned_crl_large(c: &mut Bencher) {
     let crl_bytes = load_or_generate("./benches/large.crl.der", LARGE_CRL_CERT_COUNT);
-    let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl_bytes)
-        .unwrap()
-        .to_owned()
+    let crl: CertRevocationList = OwnedCertRevocationList::from_der(&crl_bytes)
         .unwrap()
         .into();
 
