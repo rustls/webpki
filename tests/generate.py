@@ -1104,18 +1104,33 @@ def client_auth_revocation(force: bool) -> None:
 
             test_name = test_name if not owned else test_name + "_owned"
 
-            owned_convert: str = ".to_owned().unwrap()" if owned else ""
-            crl_includes: str = "\n".join(
-                [
-                    f"""
-                    &webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
-                    .unwrap()
-                    {owned_convert}
-                    as &dyn webpki::CertRevocationList,
-                    """
-                    for path in crl_paths
-                ]
-            )
+            crl_includes: str = ""
+            if not owned:
+                crl_includes = "\n".join(
+                    [
+                        f"""
+                        &webpki::CertRevocationList::Borrowed(
+                          webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
+                          .unwrap()
+                        ),
+                        """
+                        for path in crl_paths
+                    ]
+                )
+            else:
+                crl_includes = "\n".join(
+                    [
+                        f"""
+                        &webpki::CertRevocationList::Owned(
+                          webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
+                          .unwrap()
+                          .to_owned()
+                          .unwrap()
+                        ),
+                        """
+                        for path in crl_paths
+                    ]
+                )
 
             if len(crl_paths) == 0:
                 revocation_setup = "let revocation = None;"

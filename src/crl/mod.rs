@@ -31,7 +31,7 @@ pub use types::{OwnedCertRevocationList, OwnedRevokedCert};
 /// Builds a RevocationOptions instance to control how revocation checking is performed.
 #[derive(Debug, Copy, Clone)]
 pub struct RevocationOptionsBuilder<'a> {
-    crls: &'a [&'a dyn CertRevocationList],
+    crls: &'a [&'a CertRevocationList<'a>],
 
     depth: RevocationCheckDepth,
 
@@ -51,7 +51,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
     /// By default revocation checking will fail if the revocation status of a certificate cannot
     /// be determined. This can be customized using the
     /// [RevocationOptionsBuilder::with_status_policy] method.
-    pub fn new(crls: &'a [&'a dyn CertRevocationList]) -> Result<Self, CrlsRequired> {
+    pub fn new(crls: &'a [&'a CertRevocationList<'a>]) -> Result<Self, CrlsRequired> {
         if crls.is_empty() {
             return Err(CrlsRequired(()));
         }
@@ -91,7 +91,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
 /// [RevocationOptionsBuilder] instance.
 #[derive(Debug, Copy, Clone)]
 pub struct RevocationOptions<'a> {
-    pub(crate) crls: &'a [&'a dyn CertRevocationList],
+    pub(crate) crls: &'a [&'a CertRevocationList<'a>],
     pub(crate) depth: RevocationCheckDepth,
     pub(crate) status_policy: UnknownStatusPolicy,
 }
@@ -117,7 +117,7 @@ impl<'a> RevocationOptions<'a> {
         let crl = self
             .crls
             .iter()
-            .find(|candidate_crl| crl_authoritative(**candidate_crl, path));
+            .find(|candidate_crl| crl_authoritative(candidate_crl, path));
 
         use UnknownStatusPolicy::*;
         let crl = match (crl, self.status_policy) {
@@ -203,7 +203,7 @@ impl KeyUsageMode {
 ///       the CRL issuing distribution point full name general name sequence.
 ///
 /// In all other circumstances the CRL is not considered authoritative.
-fn crl_authoritative(crl: &dyn CertRevocationList, path: &PathNode<'_>) -> bool {
+fn crl_authoritative(crl: &CertRevocationList<'_>, path: &PathNode<'_>) -> bool {
     // In all cases we require that the authoritative CRL have the same issuer
     // as the certificate. Recall we do not support indirect CRLs.
     if crl.issuer() != path.cert.issuer() {
@@ -281,10 +281,6 @@ impl CertNotRevoked {
 /// [RevocationOptions] instance.
 pub struct CrlsRequired(pub(crate) ());
 
-mod private {
-    pub trait Sealed {}
-}
-
 #[cfg(test)]
 mod tests {
     use pki_types::CertificateDer;
@@ -294,9 +290,8 @@ mod tests {
     use crate::verify_cert::PartialPath;
 
     #[test]
-    // safe to convert BorrowedCertRevocationList to CertRevocationList.
     // redundant clone, clone_on_copy allowed to verify derived traits.
-    #[allow(clippy::as_conversions, clippy::redundant_clone, clippy::clone_on_copy)]
+    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
     fn test_revocation_opts_builder() {
         // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
         let result = RevocationOptionsBuilder::new(&[]);
@@ -311,10 +306,11 @@ mod tests {
 
         // It should be possible to build a revocation options builder with defaults.
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl =
-            &BorrowedCertRevocationList::from_der(&crl[..]).unwrap() as &dyn CertRevocationList;
-        let crls = [crl];
-        let builder = RevocationOptionsBuilder::new(&crls[..]).unwrap();
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+        let crls = [&crl];
+        let builder = RevocationOptionsBuilder::new(&crls).unwrap();
         #[cfg(feature = "alloc")]
         {
             // The builder should be debug, and clone when alloc is enabled
@@ -327,7 +323,7 @@ mod tests {
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder with custom depth.
-        let opts = RevocationOptionsBuilder::new(&crls[..])
+        let opts = RevocationOptionsBuilder::new(&crls)
             .unwrap()
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
@@ -337,7 +333,7 @@ mod tests {
 
         // It should be possible to build a revocation options builder that allows unknown
         // revocation status.
-        let opts = RevocationOptionsBuilder::new(&crls[..])
+        let opts = RevocationOptionsBuilder::new(&crls)
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Allow)
             .build();
@@ -346,7 +342,7 @@ mod tests {
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to specify both depth and unknown status policy together.
-        let opts = RevocationOptionsBuilder::new(&crls[..])
+        let opts = RevocationOptionsBuilder::new(&crls)
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Allow)
             .with_depth(RevocationCheckDepth::EndEntity)
@@ -356,7 +352,7 @@ mod tests {
         assert_eq!(opts.crls.len(), 1);
 
         // The same should be true for explicitly forbidding unknown status.
-        let opts = RevocationOptionsBuilder::new(&crls[..])
+        let opts = RevocationOptionsBuilder::new(&crls)
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Deny)
             .with_depth(RevocationCheckDepth::EndEntity)
@@ -375,7 +371,9 @@ mod tests {
     #[test]
     fn test_crl_authoritative_issuer_mismatch() {
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
 
         let ee = CertificateDer::from(
             &include_bytes!("../../tests/client_auth_revocation/no_ku_chain.ee.der")[..],
@@ -391,7 +389,9 @@ mod tests {
     fn test_crl_authoritative_no_idp_no_cert_dp() {
         let crl =
             include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
-        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
 
         let ee = CertificateDer::from(
             &include_bytes!("../../tests/client_auth_revocation/ku_chain.ee.der")[..],
