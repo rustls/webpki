@@ -1122,9 +1122,7 @@ def client_auth_revocation(force: bool) -> None:
                     [
                         f"""
                         &webpki::CertRevocationList::Owned(
-                          webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
-                          .unwrap()
-                          .to_owned()
+                          webpki::OwnedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
                           .unwrap()
                         ),
                         """
