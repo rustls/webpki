@@ -93,11 +93,13 @@ fn no_relevant_crl_ee_depth_allow_unknown() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth_allow_unknown.crl.der")
-            .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth_allow_unknown.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -117,13 +119,15 @@ fn no_relevant_crl_ee_depth_allow_unknown_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth_allow_unknown.crl.der")
-            .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth_allow_unknown.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -142,11 +146,15 @@ fn no_relevant_crl_ee_depth_forbid_unknown() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth_forbid_unknown.crl.der")
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!(
+                "client_auth_revocation/no_relevant_crl_ee_depth_forbid_unknown.crl.der"
+            )
             .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -167,13 +175,17 @@ fn no_relevant_crl_ee_depth_forbid_unknown_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_ee_depth_forbid_unknown.crl.der")
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!(
+                "client_auth_revocation/no_relevant_crl_ee_depth_forbid_unknown.crl.der"
+            )
             .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -193,10 +205,12 @@ fn ee_not_revoked_ee_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_not_revoked_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_not_revoked_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -216,12 +230,14 @@ fn ee_not_revoked_ee_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_not_revoked_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_not_revoked_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -240,10 +256,12 @@ fn ee_not_revoked_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_not_revoked_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_not_revoked_chain_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -261,12 +279,14 @@ fn ee_not_revoked_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_not_revoked_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_not_revoked_chain_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -283,10 +303,12 @@ fn ee_revoked_badsig_ee_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_badsig_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_badsig_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -309,12 +331,14 @@ fn ee_revoked_badsig_ee_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_badsig_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_badsig_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -336,10 +360,13 @@ fn ee_revoked_wrong_ku_ee_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_wrong_ku_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_wrong_ku_ee_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -362,12 +389,15 @@ fn ee_revoked_wrong_ku_ee_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_wrong_ku_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_wrong_ku_ee_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -389,11 +419,13 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_not_revoked_wrong_ku_ee_depth.crl.der")
-            .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_not_revoked_wrong_ku_ee_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -416,13 +448,15 @@ fn ee_not_revoked_wrong_ku_ee_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_not_revoked_wrong_ku_ee_depth.crl.der")
-            .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_not_revoked_wrong_ku_ee_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -444,10 +478,12 @@ fn ee_revoked_no_ku_ee_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_no_ku_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_no_ku_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -470,12 +506,14 @@ fn ee_revoked_no_ku_ee_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_no_ku_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_no_ku_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -497,10 +535,12 @@ fn ee_revoked_crl_ku_ee_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -523,12 +563,14 @@ fn ee_revoked_crl_ku_ee_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -575,11 +617,15 @@ fn no_relevant_crl_chain_depth_allow_unknown() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_chain_depth_allow_unknown.crl.der")
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!(
+                "client_auth_revocation/no_relevant_crl_chain_depth_allow_unknown.crl.der"
+            )
             .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -597,13 +643,17 @@ fn no_relevant_crl_chain_depth_allow_unknown_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_chain_depth_allow_unknown.crl.der")
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!(
+                "client_auth_revocation/no_relevant_crl_chain_depth_allow_unknown.crl.der"
+            )
             .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -620,11 +670,15 @@ fn no_relevant_crl_chain_depth_forbid_unknown() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_chain_depth_forbid_unknown.crl.der")
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!(
+                "client_auth_revocation/no_relevant_crl_chain_depth_forbid_unknown.crl.der"
+            )
             .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
     let revocation = Some(builder.build());
     assert_eq!(
@@ -643,13 +697,17 @@ fn no_relevant_crl_chain_depth_forbid_unknown_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/no_relevant_crl_chain_depth_forbid_unknown.crl.der")
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!(
+                "client_auth_revocation/no_relevant_crl_chain_depth_forbid_unknown.crl.der"
+            )
             .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
     let revocation = Some(builder.build());
     assert_eq!(
@@ -667,10 +725,12 @@ fn int_not_revoked_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_not_revoked_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_not_revoked_chain_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -688,12 +748,14 @@ fn int_not_revoked_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_not_revoked_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_not_revoked_chain_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -711,27 +773,33 @@ fn int_not_revoked_chain_depth_forbid_unknown() {
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
     let crls = &[
-        &webpki::BorrowedCertRevocationList::from_der(
-            include_bytes!(
-                "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_ee.crl.der"
+        &webpki::CertRevocationList::Borrowed(
+            webpki::BorrowedCertRevocationList::from_der(
+                include_bytes!(
+                    "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_ee.crl.der"
+                )
+                .as_slice(),
             )
-            .as_slice(),
-        )
-        .unwrap() as &dyn webpki::CertRevocationList,
-        &webpki::BorrowedCertRevocationList::from_der(
-            include_bytes!(
-                "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown.crl.der"
+            .unwrap(),
+        ),
+        &webpki::CertRevocationList::Borrowed(
+            webpki::BorrowedCertRevocationList::from_der(
+                include_bytes!(
+                    "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown.crl.der"
+                )
+                .as_slice(),
             )
-            .as_slice(),
-        )
-        .unwrap() as &dyn webpki::CertRevocationList,
-        &webpki::BorrowedCertRevocationList::from_der(
-            include_bytes!(
-                "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_b.crl.der"
+            .unwrap(),
+        ),
+        &webpki::CertRevocationList::Borrowed(
+            webpki::BorrowedCertRevocationList::from_der(
+                include_bytes!(
+                    "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_b.crl.der"
+                )
+                .as_slice(),
             )
-            .as_slice(),
-        )
-        .unwrap() as &dyn webpki::CertRevocationList,
+            .unwrap(),
+        ),
     ];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
     let revocation = Some(builder.build());
@@ -749,33 +817,39 @@ fn int_not_revoked_chain_depth_forbid_unknown_owned() {
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
     let crls = &[
-        &webpki::BorrowedCertRevocationList::from_der(
-            include_bytes!(
-                "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_ee.crl.der"
+        &webpki::CertRevocationList::Owned(
+            webpki::BorrowedCertRevocationList::from_der(
+                include_bytes!(
+                    "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_ee.crl.der"
+                )
+                .as_slice(),
             )
-            .as_slice(),
-        )
-        .unwrap()
-        .to_owned()
-        .unwrap() as &dyn webpki::CertRevocationList,
-        &webpki::BorrowedCertRevocationList::from_der(
-            include_bytes!(
-                "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown.crl.der"
+            .unwrap()
+            .to_owned()
+            .unwrap(),
+        ),
+        &webpki::CertRevocationList::Owned(
+            webpki::BorrowedCertRevocationList::from_der(
+                include_bytes!(
+                    "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown.crl.der"
+                )
+                .as_slice(),
             )
-            .as_slice(),
-        )
-        .unwrap()
-        .to_owned()
-        .unwrap() as &dyn webpki::CertRevocationList,
-        &webpki::BorrowedCertRevocationList::from_der(
-            include_bytes!(
-                "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_b.crl.der"
+            .unwrap()
+            .to_owned()
+            .unwrap(),
+        ),
+        &webpki::CertRevocationList::Owned(
+            webpki::BorrowedCertRevocationList::from_der(
+                include_bytes!(
+                    "client_auth_revocation/int_not_revoked_chain_depth_forbid_unknown_b.crl.der"
+                )
+                .as_slice(),
             )
-            .as_slice(),
-        )
-        .unwrap()
-        .to_owned()
-        .unwrap() as &dyn webpki::CertRevocationList,
+            .unwrap()
+            .to_owned()
+            .unwrap(),
+        ),
     ];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
     let revocation = Some(builder.build());
@@ -791,10 +865,13 @@ fn int_revoked_badsig_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_badsig_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_badsig_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -815,12 +892,15 @@ fn int_revoked_badsig_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_badsig_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_badsig_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -840,11 +920,13 @@ fn int_revoked_wrong_ku_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_wrong_ku_chain_depth.crl.der")
-            .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_wrong_ku_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -865,13 +947,15 @@ fn int_revoked_wrong_ku_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_crl_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_wrong_ku_chain_depth.crl.der")
-            .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_wrong_ku_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -891,10 +975,12 @@ fn ee_revoked_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_chain_depth.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -915,12 +1001,14 @@ fn ee_revoked_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_revoked_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_revoked_chain_depth.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -940,10 +1028,13 @@ fn int_revoked_no_ku_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_no_ku_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_no_ku_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -964,12 +1055,15 @@ fn int_revoked_no_ku_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_no_ku_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_no_ku_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -989,10 +1083,13 @@ fn int_revoked_crl_ku_chain_depth() {
     ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_crl_ku_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_crl_ku_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -1013,12 +1110,15 @@ fn int_revoked_crl_ku_chain_depth_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/int_revoked_crl_ku_chain_depth.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/int_revoked_crl_ku_chain_depth.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -1038,11 +1138,13 @@ fn ee_with_top_bit_set_serial_revoked() {
     ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_with_top_bit_set_serial_revoked.crl.der")
-            .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_with_top_bit_set_serial_revoked.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -1063,13 +1165,15 @@ fn ee_with_top_bit_set_serial_revoked_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_with_top_bit_set_serial_revoked.crl.der")
-            .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_with_top_bit_set_serial_revoked.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
@@ -1089,10 +1193,12 @@ fn ee_no_dp_crl_idp() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_no_dp_crl_idp.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_no_dp_crl_idp.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1110,12 +1216,14 @@ fn ee_no_dp_crl_idp_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_no_dp_crl_idp.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_no_dp_crl_idp.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1132,10 +1240,13 @@ fn ee_crl_no_idp_unknown_status() {
     ];
     let ca = include_bytes!("client_auth_revocation/dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_crl_no_idp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_crl_no_idp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1156,12 +1267,15 @@ fn ee_crl_no_idp_unknown_status_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_crl_no_idp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_crl_no_idp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1181,11 +1295,13 @@ fn ee_crl_mismatched_idp_unknown_status() {
     ];
     let ca = include_bytes!("client_auth_revocation/dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_crl_mismatched_idp_unknown_status.crl.der")
-            .as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_crl_mismatched_idp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1206,13 +1322,15 @@ fn ee_crl_mismatched_idp_unknown_status_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_crl_mismatched_idp_unknown_status.crl.der")
-            .as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_crl_mismatched_idp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1232,10 +1350,13 @@ fn ee_indirect_dp_unknown_status() {
     ];
     let ca = include_bytes!("client_auth_revocation/indirect_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_indirect_dp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_indirect_dp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1256,12 +1377,15 @@ fn ee_indirect_dp_unknown_status_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/indirect_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_indirect_dp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_indirect_dp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1281,10 +1405,13 @@ fn ee_reasons_dp_unknown_status() {
     ];
     let ca = include_bytes!("client_auth_revocation/reasons_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_reasons_dp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_reasons_dp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1305,12 +1432,15 @@ fn ee_reasons_dp_unknown_status_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/reasons_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_reasons_dp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_reasons_dp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1330,10 +1460,13 @@ fn ee_nofullname_dp_unknown_status() {
     ];
     let ca = include_bytes!("client_auth_revocation/nofullname_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_nofullname_dp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_nofullname_dp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1354,12 +1487,15 @@ fn ee_nofullname_dp_unknown_status_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/nofullname_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_nofullname_dp_unknown_status.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_nofullname_dp_unknown_status.crl.der")
+                .as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1379,10 +1515,12 @@ fn ee_dp_idp_match() {
     ];
     let ca = include_bytes!("client_auth_revocation/dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_dp_idp_match.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_dp_idp_match.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1400,12 +1538,14 @@ fn ee_dp_idp_match_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_dp_idp_match.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_dp_idp_match.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1422,10 +1562,12 @@ fn ee_dp_invalid() {
     ];
     let ca = include_bytes!("client_auth_revocation/invalid_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_dp_invalid.crl.der").as_slice(),
-    )
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_dp_invalid.crl.der").as_slice(),
+        )
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
@@ -1446,12 +1588,14 @@ fn ee_dp_invalid_owned() {
     ];
     let ca = include_bytes!("client_auth_revocation/invalid_dp_chain.root.ca.der");
 
-    let crls = &[&webpki::BorrowedCertRevocationList::from_der(
-        include_bytes!("client_auth_revocation/ee_dp_invalid.crl.der").as_slice(),
-    )
-    .unwrap()
-    .to_owned()
-    .unwrap() as &dyn webpki::CertRevocationList];
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/ee_dp_invalid.crl.der").as_slice(),
+        )
+        .unwrap()
+        .to_owned()
+        .unwrap(),
+    )];
     let builder = RevocationOptionsBuilder::new(crls).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);

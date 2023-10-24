@@ -7,6 +7,7 @@ use core::fmt::Debug;
 use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::cert::lenient_certificate_serial_number;
+use crate::crl::crl_signature_err;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
@@ -15,31 +16,95 @@ use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode, Role};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 
-use super::private::Sealed;
-
-/// Operations over a RFC 5280[^1] profile Certificate Revocation List (CRL) required
-/// for revocation checking. Implemented by [`OwnedCertRevocationList`] and
-/// [`BorrowedCertRevocationList`].
+/// A RFC 5280[^1] profile Certificate Revocation List (CRL).
+///
+/// May be either an owned, or a borrowed representation.
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-pub trait CertRevocationList: Sealed + Debug {
+#[derive(Debug)]
+pub enum CertRevocationList<'a> {
+    /// An owned representation of a CRL.
+    #[cfg(feature = "alloc")]
+    Owned(OwnedCertRevocationList),
+    /// A borrowed representation of a CRL.
+    Borrowed(BorrowedCertRevocationList<'a>),
+}
+
+#[cfg(feature = "alloc")]
+impl From<OwnedCertRevocationList> for CertRevocationList<'_> {
+    fn from(crl: OwnedCertRevocationList) -> Self {
+        Self::Owned(crl)
+    }
+}
+
+impl<'a> From<BorrowedCertRevocationList<'a>> for CertRevocationList<'a> {
+    fn from(crl: BorrowedCertRevocationList<'a>) -> Self {
+        Self::Borrowed(crl)
+    }
+}
+
+impl<'a> CertRevocationList<'a> {
     /// Return the DER encoded issuer of the CRL.
-    fn issuer(&self) -> &[u8];
+    pub fn issuer(&self) -> &[u8] {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.issuer.as_ref(),
+            CertRevocationList::Borrowed(crl) => crl.issuer.as_slice_less_safe(),
+        }
+    }
 
     /// Return the DER encoded issuing distribution point of the CRL, if any.
-    fn issuing_distribution_point(&self) -> Option<&[u8]>;
+    pub fn issuing_distribution_point(&self) -> Option<&[u8]> {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.issuing_distribution_point.as_deref(),
+            CertRevocationList::Borrowed(crl) => crl
+                .issuing_distribution_point
+                .map(|idp| idp.as_slice_less_safe()),
+        }
+    }
 
     /// Try to find a revoked certificate in the CRL by DER encoded serial number. This
     /// may yield an error if the CRL has malformed revoked certificates.
-    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error>;
+    pub fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.find_serial(serial),
+            CertRevocationList::Borrowed(crl) => crl.find_serial(serial),
+        }
+    }
 
-    /// Verify the CRL signature using the issuer's subject public key information (SPKI)
-    /// and a list of supported signature verification algorithms.
-    fn verify_signature(
+    /// Verify the CRL signature using the issuer certificate and a list of supported signature
+    /// verification algorithms.
+    ///
+    /// This is appropriate for one-off validation of CRL signatures and shouldn't be used in
+    /// a context where the overall number of signature validation operations is budgeted (e.g.
+    /// during path building).
+    pub fn verify_signature(
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         issuer_spki: &[u8],
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error> {
+        signed_data::verify_signed_data(
+            supported_sig_algs,
+            untrusted::Input::from(issuer_spki),
+            &self.signed_data(),
+            &mut Budget::default(),
+        )
+        .map_err(crl_signature_err)
+    }
+
+    pub(crate) fn signed_data(&self) -> SignedData {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.signed_data.borrow(),
+            CertRevocationList::Borrowed(crl) => SignedData {
+                data: crl.signed_data.data,
+                algorithm: crl.signed_data.algorithm,
+                signature: crl.signed_data.signature,
+            },
+        }
+    }
 }
 
 /// Owned representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
@@ -60,18 +125,7 @@ pub struct OwnedCertRevocationList {
 }
 
 #[cfg(feature = "alloc")]
-impl Sealed for OwnedCertRevocationList {}
-
-#[cfg(feature = "alloc")]
-impl CertRevocationList for OwnedCertRevocationList {
-    fn issuer(&self) -> &[u8] {
-        &self.issuer
-    }
-
-    fn issuing_distribution_point(&self) -> Option<&[u8]> {
-        self.issuing_distribution_point.as_deref()
-    }
-
+impl OwnedCertRevocationList {
     fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
         // note: this is infallible for the owned representation because we process all
         // revoked certificates at the time of construction to build the `revoked_certs` map,
@@ -80,19 +134,6 @@ impl CertRevocationList for OwnedCertRevocationList {
             .revoked_certs
             .get(serial)
             .map(|owned_revoked_cert| owned_revoked_cert.borrow()))
-    }
-
-    fn verify_signature(
-        &self,
-        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        issuer_spki: &[u8],
-    ) -> Result<(), Error> {
-        signed_data::verify_signed_data(
-            supported_sig_algs,
-            untrusted::Input::from(issuer_spki),
-            &self.signed_data.borrow(),
-            &mut Budget::default(),
-        )
     }
 }
 
@@ -196,19 +237,6 @@ impl<'a> BorrowedCertRevocationList<'a> {
             }
         })
     }
-}
-
-impl Sealed for BorrowedCertRevocationList<'_> {}
-
-impl CertRevocationList for BorrowedCertRevocationList<'_> {
-    fn issuer(&self) -> &[u8] {
-        self.issuer.as_slice_less_safe()
-    }
-
-    fn issuing_distribution_point(&self) -> Option<&[u8]> {
-        self.issuing_distribution_point
-            .map(|der| der.as_slice_less_safe())
-    }
 
     fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
         for revoked_cert_result in self {
@@ -223,19 +251,6 @@ impl CertRevocationList for BorrowedCertRevocationList<'_> {
         }
 
         Ok(None)
-    }
-
-    fn verify_signature(
-        &self,
-        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        issuer_spki: &[u8],
-    ) -> Result<(), Error> {
-        signed_data::verify_signed_data(
-            supported_sig_algs,
-            untrusted::Input::from(issuer_spki),
-            &self.signed_data,
-            &mut Budget::default(),
-        )
     }
 }
 
@@ -847,7 +862,7 @@ mod tests {
 
         // We should be able to parse the issuing distribution point extension.
         let crl_issuing_dp = crl
-            .issuing_distribution_point()
+            .issuing_distribution_point
             .expect("missing crl distribution point DER");
 
         #[cfg(feature = "alloc")]
@@ -855,12 +870,13 @@ mod tests {
             // We should also be able to find the distribution point extensions bytes from
             // an owned representation of the CRL.
             let owned_crl = crl.to_owned().unwrap();
-            assert!(owned_crl.issuing_distribution_point().is_some());
+            assert!(owned_crl.issuing_distribution_point.is_some());
         }
 
-        let crl_issuing_dp =
-            IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp))
-                .expect("failed to parse issuing distribution point DER");
+        let crl_issuing_dp = IssuingDistributionPoint::from_der(untrusted::Input::from(
+            crl_issuing_dp.as_slice_less_safe(),
+        ))
+        .expect("failed to parse issuing distribution point DER");
 
         // We don't expect any of the bool fields to have been set true.
         assert!(!crl_issuing_dp.only_contains_user_certs);
@@ -899,11 +915,10 @@ mod tests {
 
         // We should be able to parse the issuing distribution point extension.
         let crl_issuing_dp = crl
-            .issuing_distribution_point()
+            .issuing_distribution_point
             .expect("missing crl distribution point DER");
-        let crl_issuing_dp =
-            IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp))
-                .expect("failed to parse issuing distribution point DER");
+        let crl_issuing_dp = IssuingDistributionPoint::from_der(crl_issuing_dp)
+            .expect("failed to parse issuing distribution point DER");
 
         // We should find the expected bool state.
         assert!(crl_issuing_dp.only_contains_user_certs);
@@ -929,11 +944,10 @@ mod tests {
 
         // We should be able to parse the issuing distribution point extension.
         let crl_issuing_dp = crl
-            .issuing_distribution_point()
+            .issuing_distribution_point
             .expect("missing crl distribution point DER");
-        let crl_issuing_dp =
-            IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp))
-                .expect("failed to parse issuing distribution point DER");
+        let crl_issuing_dp = IssuingDistributionPoint::from_der(crl_issuing_dp)
+            .expect("failed to parse issuing distribution point DER");
 
         // We should find the expected bool state.
         assert!(crl_issuing_dp.only_contains_ca_certs);
@@ -997,9 +1011,9 @@ mod tests {
 
         // We should be able to parse the issuing distribution point extension.
         let crl_issuing_dp = crl
-            .issuing_distribution_point()
+            .issuing_distribution_point
             .expect("missing crl distribution point DER");
-        assert!(IssuingDistributionPoint::from_der(untrusted::Input::from(crl_issuing_dp)).is_ok());
+        assert!(IssuingDistributionPoint::from_der(crl_issuing_dp).is_ok());
     }
 
     #[test]
@@ -1112,5 +1126,18 @@ mod tests {
         let owned_revoked_cert = revoked_cert.to_owned();
         println!("{:?}", owned_revoked_cert); // OwnedRevokedCert should be debug.
         let _ = owned_revoked_cert.clone(); // OwnedRevokedCert should be clone.
+    }
+
+    #[test]
+    fn test_enum_conversions() {
+        let crl =
+            include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
+        let borrowed_crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+        let owned_crl = borrowed_crl.to_owned().unwrap();
+
+        // It should be possible to convert a BorrowedCertRevocationList to a CertRevocationList.
+        let _crl: CertRevocationList = borrowed_crl.into();
+        // And similar for an OwnedCertRevocationList.
+        let _crl: CertRevocationList = owned_crl.into();
     }
 }
