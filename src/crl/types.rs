@@ -74,26 +74,6 @@ impl<'a> CertRevocationList<'a> {
         }
     }
 
-    /// Verify the CRL signature using the issuer certificate and a list of supported signature
-    /// verification algorithms.
-    ///
-    /// This is appropriate for one-off validation of CRL signatures and shouldn't be used in
-    /// a context where the overall number of signature validation operations is budgeted (e.g.
-    /// during path building).
-    pub fn verify_signature(
-        &self,
-        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        issuer_spki: &[u8],
-    ) -> Result<(), Error> {
-        signed_data::verify_signed_data(
-            supported_sig_algs,
-            untrusted::Input::from(issuer_spki),
-            &self.signed_data(),
-            &mut Budget::default(),
-        )
-        .map_err(crl_signature_err)
-    }
-
     /// Returns true if the CRL can be considered authoritative for the given certificate.
     ///
     /// A CRL is considered authoritative for a certificate when:
@@ -136,16 +116,29 @@ impl<'a> CertRevocationList<'a> {
         crl_idp.authoritative_for(path)
     }
 
-    pub(crate) fn signed_data(&self) -> SignedData {
-        match self {
-            #[cfg(feature = "alloc")]
-            CertRevocationList::Owned(crl) => crl.signed_data.borrow(),
-            CertRevocationList::Borrowed(crl) => SignedData {
-                data: crl.signed_data.data,
-                algorithm: crl.signed_data.algorithm,
-                signature: crl.signed_data.signature,
+    /// Verify the CRL signature using the issuer certificate and a list of supported signature
+    /// verification algorithms, consuming signature operations from the [`Budget`].
+    pub(crate) fn verify_signature(
+        &self,
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
+        issuer_spki: untrusted::Input,
+        budget: &mut Budget,
+    ) -> Result<(), Error> {
+        signed_data::verify_signed_data(
+            supported_sig_algs,
+            issuer_spki,
+            &match self {
+                #[cfg(feature = "alloc")]
+                CertRevocationList::Owned(crl) => crl.signed_data.borrow(),
+                CertRevocationList::Borrowed(crl) => SignedData {
+                    data: crl.signed_data.data,
+                    algorithm: crl.signed_data.algorithm,
+                    signature: crl.signed_data.signature,
+                },
             },
-        }
+            budget,
+        )
+        .map_err(crl_signature_err)
     }
 }
 
