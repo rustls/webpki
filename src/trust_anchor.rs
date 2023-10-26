@@ -11,10 +11,6 @@ use crate::error::{DerTypeId, Error};
 pub fn extract_trust_anchor<'a>(cert: &'a CertificateDer<'a>) -> Result<TrustAnchor<'a>, Error> {
     let cert_der = untrusted::Input::from(cert.as_ref());
 
-    // XXX: `EndEntityOrCA::EndEntity` is used instead of `EndEntityOrCA::CA`
-    // because we don't have a reference to a child cert, which is needed for
-    // `EndEntityOrCA::CA`. For this purpose, it doesn't matter.
-    //
     // v1 certificates will result in `Error::BadDer` because `parse_cert` will
     // expect a version field that isn't there. In that case, try to parse the
     // certificate using a special parser for v1 certificates. Notably, that
