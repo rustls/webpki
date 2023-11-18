@@ -250,3 +250,20 @@ impl<'a> IntoIterator for &'a BorrowedCertRevocationList<'a> {
         DerIterator::new(self.revoked_certs)
     }
 }
+
+#[cfg(feature = "alloc")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    // redundant clone, clone_on_copy allowed to verify derived traits.
+    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
+    fn test_derived_traits() {
+        let crl = BorrowedCertRevocationList::from_der(include_bytes!(
+            "../../../tests/crls/crl.valid.der"
+        ))
+        .unwrap();
+        println!("{:?}", crl); // BorrowedCertRevocationList should be debug.
+    }
+}

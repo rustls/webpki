@@ -39,3 +39,23 @@ impl OwnedRevokedCert {
         }
     }
 }
+
+#[cfg(feature = "alloc")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    // redundant clone, clone_on_copy allowed to verify derived traits.
+    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
+    fn test_derived_traits() {
+        let crl = BorrowedCertRevocationList::from_der(include_bytes!(
+            "../../../tests/crls/crl.valid.der"
+        ))
+        .unwrap();
+
+        let owned_revoked_cert = crl.into_iter().next().unwrap().unwrap().to_owned();
+        println!("{:?}", owned_revoked_cert); // OwnedRevokedCert should be debug.
+        let _ = owned_revoked_cert.clone(); // OwnedRevokedCert should be clone.
+    }
+}

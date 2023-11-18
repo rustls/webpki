@@ -76,3 +76,51 @@ impl TryFrom<u8> for RevocationReason {
         }
     }
 }
+
+#[cfg(feature = "alloc")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn revocation_reasons() {
+        // Test that we can convert the allowed u8 revocation reason code values into the expected
+        // revocation reason variant.
+        let testcases: Vec<(u8, RevocationReason)> = vec![
+            (0, RevocationReason::Unspecified),
+            (1, RevocationReason::KeyCompromise),
+            (2, RevocationReason::CaCompromise),
+            (3, RevocationReason::AffiliationChanged),
+            (4, RevocationReason::Superseded),
+            (5, RevocationReason::CessationOfOperation),
+            (6, RevocationReason::CertificateHold),
+            // Note: 7 is unused.
+            (8, RevocationReason::RemoveFromCrl),
+            (9, RevocationReason::PrivilegeWithdrawn),
+            (10, RevocationReason::AaCompromise),
+        ];
+        for tc in testcases.iter() {
+            let (id, expected) = tc;
+            let actual = <u8 as TryInto<RevocationReason>>::try_into(*id)
+                .expect("unexpected reason code conversion error");
+            assert_eq!(actual, *expected);
+            #[cfg(feature = "alloc")]
+            {
+                // revocation reasons should be Debug.
+                println!("{:?}", actual);
+            }
+        }
+
+        // Unsupported/unknown revocation reason codes should produce an error.
+        let res = <u8 as TryInto<RevocationReason>>::try_into(7);
+        assert!(matches!(res, Err(Error::UnsupportedRevocationReason)));
+
+        // The iterator should produce all possible revocation reason variants.
+        let expected = testcases
+            .iter()
+            .map(|(_, reason)| *reason)
+            .collect::<Vec<_>>();
+        let actual = RevocationReason::iter().collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+    }
+}

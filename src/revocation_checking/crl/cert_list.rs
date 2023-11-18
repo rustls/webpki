@@ -124,3 +124,65 @@ impl<'a> CertRevocationList<'a> {
         )
     }
 }
+
+#[cfg(feature = "alloc")]
+#[cfg(test)]
+mod tests {
+    use pki_types::CertificateDer;
+
+    use crate::end_entity::EndEntityCert;
+    use crate::verify_cert::PartialPath;
+
+    use super::*;
+
+    #[test]
+    fn test_enum_conversions() {
+        let crl = include_bytes!(
+            "../../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der"
+        );
+        let borrowed_crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+        let owned_crl = borrowed_crl.to_owned().unwrap();
+
+        // It should be possible to convert a BorrowedCertRevocationList to a CertRevocationList.
+        let _crl: CertRevocationList = borrowed_crl.into();
+        // And similar for an OwnedCertRevocationList.
+        let _crl: CertRevocationList = owned_crl.into();
+    }
+
+    #[test]
+    fn test_crl_authoritative_issuer_mismatch() {
+        let crl = include_bytes!("../../../tests/crls/crl.valid.der");
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+
+        let ee = CertificateDer::from(
+            &include_bytes!("../../../tests/client_auth_revocation/no_ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
+
+        // The CRL should not be authoritative for an EE issued by a different issuer.
+        assert!(!crl.authoritative(&path.node()));
+    }
+
+    #[test]
+    fn test_crl_authoritative_no_idp_no_cert_dp() {
+        let crl = include_bytes!(
+            "../../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der"
+        );
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+
+        let ee = CertificateDer::from(
+            &include_bytes!("../../../tests/client_auth_revocation/ku_chain.ee.der")[..],
+        );
+        let ee = EndEntityCert::try_from(&ee).unwrap();
+        let path = PartialPath::new(&ee);
+
+        // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
+        // cert has no CRL DPs.
+        assert!(crl.authoritative(&path.node()));
+    }
+}

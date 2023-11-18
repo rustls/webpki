@@ -138,3 +138,25 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
 
     const TYPE_ID: DerTypeId = DerTypeId::RevokedCertificate;
 }
+
+#[cfg(feature = "alloc")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    // redundant clone, clone_on_copy allowed to verify derived traits.
+    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
+    fn test_derived_traits() {
+        let crl = BorrowedCertRevocationList::from_der(include_bytes!(
+            "../../../tests/crls/crl.valid.der"
+        ))
+        .unwrap();
+
+        let mut revoked_certs = crl.into_iter();
+        println!("{:?}", revoked_certs); // RevokedCert should be debug.
+
+        let revoked_cert = revoked_certs.next().unwrap().unwrap();
+        println!("{:?}", revoked_cert); // BorrowedRevokedCert should be debug.
+    }
+}

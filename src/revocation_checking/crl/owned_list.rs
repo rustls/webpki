@@ -40,3 +40,31 @@ impl OwnedCertRevocationList {
             .map(|owned_revoked_cert| owned_revoked_cert.borrow()))
     }
 }
+
+#[cfg(feature = "alloc")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_construct_owned_crl() {
+        // It should be possible to construct an owned CRL directly from DER without needing
+        // to build a borrowed representation first.
+        assert!(OwnedCertRevocationList::from_der(include_bytes!(
+            "../../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der"
+        ))
+        .is_ok())
+    }
+
+    #[test]
+    // redundant clone, clone_on_copy allowed to verify derived traits.
+    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
+    fn test_derived_traits() {
+        let owned_crl =
+            OwnedCertRevocationList::from_der(include_bytes!("../../../tests/crls/crl.valid.der"))
+                .unwrap();
+
+        println!("{:?}", owned_crl); // OwnedCertRevocationList should be debug.
+        let _ = owned_crl.clone(); // OwnedCertRevocationList should be clone.
+    }
+}
