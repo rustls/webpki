@@ -153,10 +153,13 @@ mod tests {
         ))
         .unwrap();
 
+        // BorrowedRevokedCert is iterable.
         let mut revoked_certs = crl.into_iter();
-        println!("{:?}", revoked_certs); // RevokedCert should be debug.
+        // DerIterator implements debug.
+        println!("{:?}", revoked_certs);
 
         let revoked_cert = revoked_certs.next().unwrap().unwrap();
-        println!("{:?}", revoked_cert); // BorrowedRevokedCert should be debug.
+        // BorrowedRevokedCert should be debug.
+        println!("{:?}", revoked_cert);
     }
 }
