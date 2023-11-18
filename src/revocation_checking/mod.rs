@@ -20,12 +20,12 @@ use crate::{der, public_values_eq};
 
 use core::fmt::Debug;
 
-mod types;
-pub use types::{
+mod crl;
+pub use crl::{
     BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationReason,
 };
 #[cfg(feature = "alloc")]
-pub use types::{OwnedCertRevocationList, OwnedRevokedCert};
+pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 
 pub struct RevocationParameters<'a> {
     depth: &'a RevocationCheckDepth,
