@@ -37,7 +37,7 @@ pub struct RevocationParameters<'a> {
 }
 
 pub trait RevocationStrategy: Debug {
-    fn can_check(&self) -> Result<AdequateStrategy, InadequateStrategy>;
+    fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy>;
     fn check_revoced(
         &self,
         revocation_parameters: &RevocationParameters,
@@ -71,7 +71,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
     /// be determined. This can be customized using the
     /// [RevocationOptionsBuilder::with_status_policy] method.
     pub fn new(strategy: &'a impl RevocationStrategy) -> Result<Self, InadequateStrategy> {
-        strategy.can_check()?;
+        strategy.verify_adequacy()?;
 
         Ok(Self {
             strategy,
@@ -222,7 +222,7 @@ mod tests {
     }
 
     impl RevocationStrategy for MockRevocationStrategy {
-        fn can_check(&self) -> Result<AdequateStrategy, InadequateStrategy> {
+        fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy> {
             match self.inadequate_strategy {
                 true => Err(InadequateStrategy("")),
                 false => Ok(AdequateStrategy(())),

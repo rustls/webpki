@@ -1,7 +1,7 @@
 use crate::{revocation_checking::*, verify_cert::Role};
 
 impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for T {
-    fn can_check(&self) -> Result<AdequateStrategy, InadequateStrategy> {
+    fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy> {
         match self.as_ref().is_empty() {
             true => Err(InadequateStrategy("at least one crl is required")),
             false => Ok(AdequateStrategy(())),
