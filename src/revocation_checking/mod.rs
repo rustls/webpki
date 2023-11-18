@@ -15,7 +15,7 @@
 use pki_types::SignatureVerificationAlgorithm;
 
 use crate::error::Error;
-use crate::verify_cert::{Budget, PathNode};
+use crate::verify_cert::{Budget, PathNode, Role};
 use crate::{der, public_values_eq};
 
 use core::fmt::Debug;
@@ -28,7 +28,6 @@ pub use crl::{
 pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 
 pub struct RevocationParameters<'a> {
-    depth: &'a RevocationCheckDepth,
     status_policy: &'a UnknownStatusPolicy,
     path: &'a PathNode<'a>,
     issuer_spki: untrusted::Input<'a>,
@@ -126,13 +125,18 @@ impl<'a> RevocationOptions<'a> {
         assert!(public_values_eq(path.cert.issuer, issuer_subject));
 
         let revocation_parameters = RevocationParameters {
-            depth: &self.depth,
             status_policy: &self.status_policy,
             path,
             issuer_spki,
             issuer_ku,
             supported_sig_algs,
         };
+
+        // If the policy only specifies checking EndEntity revocation state and we're looking at an
+        // issuer certificate, return early without considering the certificate's revocation state.
+        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.depth, path.role()) {
+            return Ok(None);
+        }
 
         self.strategy.check_revoced(&revocation_parameters, budget)
     }

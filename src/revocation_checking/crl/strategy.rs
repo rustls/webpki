@@ -1,4 +1,4 @@
-use crate::{revocation_checking::*, verify_cert::Role};
+use crate::revocation_checking::*;
 
 impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for T {
     fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy> {
@@ -14,19 +14,12 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
         budget: &mut Budget,
     ) -> Result<Option<CertNotRevoked>, Error> {
         let RevocationParameters {
-            depth,
             status_policy,
             path,
             issuer_spki,
             issuer_ku,
             supported_sig_algs,
         } = revocation_parameters;
-
-        // If the policy only specifies checking EndEntity revocation state and we're looking at an
-        // issuer certificate, return early without considering the certificate's revocation state.
-        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (depth, path.role()) {
-            return Ok(None);
-        }
 
         let crl = self
             .as_ref()
