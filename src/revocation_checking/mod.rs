@@ -107,9 +107,9 @@ impl<'a> RevocationOptionsBuilder<'a> {
 /// [RevocationOptionsBuilder] instance.
 #[derive(Debug, Copy, Clone)]
 pub struct RevocationOptions<'a> {
-    pub(crate) strategy: &'a dyn RevocationStrategy,
-    pub(crate) check_depth: RevocationCheckDepth,
-    pub(crate) status_policy: UnknownStatusPolicy,
+    strategy: &'a dyn RevocationStrategy,
+    check_depth: RevocationCheckDepth,
+    status_policy: UnknownStatusPolicy,
 }
 
 impl<'a> RevocationOptions<'a> {
