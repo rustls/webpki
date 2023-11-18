@@ -97,7 +97,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
     pub fn build(self) -> RevocationOptions<'a> {
         RevocationOptions {
             strategy: self.strategy,
-            depth: self.depth,
+            check_depth: self.depth,
             status_policy: self.status_policy,
         }
     }
@@ -108,7 +108,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
 #[derive(Debug, Copy, Clone)]
 pub struct RevocationOptions<'a> {
     pub(crate) strategy: &'a dyn RevocationStrategy,
-    pub(crate) depth: RevocationCheckDepth,
+    pub(crate) check_depth: RevocationCheckDepth,
     pub(crate) status_policy: UnknownStatusPolicy,
 }
 
@@ -134,7 +134,7 @@ impl<'a> RevocationOptions<'a> {
 
         // If the policy only specifies checking EndEntity revocation state and we're looking at an
         // issuer certificate, return early without considering the certificate's revocation state.
-        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.depth, path.role()) {
+        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.check_depth, path.role()) {
             return Ok(None);
         }
 
@@ -270,7 +270,7 @@ mod tests {
             _ = builder.clone();
         }
         let opts = builder.build();
-        assert_eq!(opts.depth, RevocationCheckDepth::Chain);
+        assert_eq!(opts.check_depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
 
         // It should be possible to build a revocation options builder with custom depth.
@@ -278,7 +278,7 @@ mod tests {
             .unwrap()
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
-        assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
+        assert_eq!(opts.check_depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
 
         // It should be possible to build a revocation options builder that allows unknown
@@ -287,7 +287,7 @@ mod tests {
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Allow)
             .build();
-        assert_eq!(opts.depth, RevocationCheckDepth::Chain);
+        assert_eq!(opts.check_depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
 
         // It should be possible to specify both depth and unknown status policy together.
@@ -296,7 +296,7 @@ mod tests {
             .with_status_policy(UnknownStatusPolicy::Allow)
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
-        assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
+        assert_eq!(opts.check_depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
 
         // The same should be true for explicitly forbidding unknown status.
@@ -305,7 +305,7 @@ mod tests {
             .with_status_policy(UnknownStatusPolicy::Deny)
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
-        assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
+        assert_eq!(opts.check_depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
 
         // Built revocation options should be debug and clone when alloc is enabled.
