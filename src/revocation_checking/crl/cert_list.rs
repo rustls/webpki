@@ -122,6 +122,5 @@ impl<'a> CertRevocationList<'a> {
             },
             budget,
         )
-        .map_err(crl_signature_err)
     }
 }

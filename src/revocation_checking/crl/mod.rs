@@ -92,24 +92,24 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
 
         // Try to find the cert serial in the verified CRL contents.
         let cert_serial = path.cert.serial.as_slice_less_safe();
-        match crl.find_serial(cert_serial)? {
+        return match crl.find_serial(cert_serial)? {
             None => Ok(Some(CertNotRevoked(()))),
             Some(_) => Err(Error::CertRevoked),
-        }
-    }
-}
+        };
 
-// When verifying CRL signed data we want to disambiguate the context of possible errors by mapping
-// them to CRL specific variants that a consumer can use to tell the issue was with the CRL's
-// signature, not a certificate.
-fn crl_signature_err(err: Error) -> Error {
-    match err {
-        Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
-        Error::UnsupportedSignatureAlgorithmForPublicKey => {
-            Error::UnsupportedCrlSignatureAlgorithmForPublicKey
+        // When verifying CRL signed data we want to disambiguate the context of possible errors by mapping
+        // them to CRL specific variants that a consumer can use to tell the issue was with the CRL's
+        // signature, not a certificate.
+        fn crl_signature_err(err: Error) -> Error {
+            match err {
+                Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
+                Error::UnsupportedSignatureAlgorithmForPublicKey => {
+                    Error::UnsupportedCrlSignatureAlgorithmForPublicKey
+                }
+                Error::InvalidSignatureForPublicKey => Error::InvalidCrlSignatureForPublicKey,
+                _ => err,
+            }
         }
-        Error::InvalidSignatureForPublicKey => Error::InvalidCrlSignatureForPublicKey,
-        _ => err,
     }
 }
 
