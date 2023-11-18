@@ -18,8 +18,8 @@ use pki_types::{
     CertificateDer, ServerName, SignatureVerificationAlgorithm, TrustAnchor, UnixTime,
 };
 
-use crate::crl::RevocationOptions;
 use crate::error::Error;
+use crate::revocation_checking::RevocationOptions;
 use crate::subject_name::{verify_dns_names, verify_ip_address_names, NameIterator};
 use crate::verify_cert::{self, KeyUsage, VerifiedPath};
 use crate::{cert, signed_data};

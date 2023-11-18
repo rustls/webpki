@@ -342,9 +342,9 @@ impl<'a> FromDer<'a> for CrlDistributionPoint<'a> {
 mod tests {
     use super::*;
     #[cfg(feature = "alloc")]
-    use crate::crl::RevocationReason;
-    #[cfg(feature = "alloc")]
     use crate::error::Error;
+    #[cfg(feature = "alloc")]
+    use crate::revocation_checking::RevocationReason;
     #[cfg(feature = "alloc")]
     use crate::subject_name::GeneralName;
 

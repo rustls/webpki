@@ -18,10 +18,10 @@ use core::ops::ControlFlow;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::cert::Cert;
-use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
 use crate::end_entity::EndEntityCert;
 use crate::error::Error;
+use crate::revocation_checking::RevocationOptions;
 use crate::{public_values_eq, signed_data, subject_name};
 
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of

@@ -7,10 +7,10 @@ use core::fmt::Debug;
 use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::cert::lenient_certificate_serial_number;
-use crate::crl::crl_signature_err;
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
+use crate::revocation_checking::crl_signature_err;
 use crate::signed_data::{self, SignedData};
 use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode, Role};

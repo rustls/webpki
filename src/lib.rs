@@ -59,7 +59,7 @@ mod subject_name;
 mod time;
 mod trust_anchor;
 
-mod crl;
+mod revocation_checking;
 mod verify_cert;
 mod x509;
 
@@ -68,12 +68,12 @@ pub(crate) mod test_utils;
 
 pub use {
     cert::Cert,
-    crl::{
+    end_entity::EndEntityCert,
+    error::{DerTypeId, Error},
+    revocation_checking::{
         BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationCheckDepth,
         RevocationOptions, RevocationOptionsBuilder, RevocationReason, UnknownStatusPolicy,
     },
-    end_entity::EndEntityCert,
-    error::{DerTypeId, Error},
     signed_data::alg_id,
     trust_anchor::anchor_from_trusted_cert,
     verify_cert::KeyUsage,
@@ -82,7 +82,7 @@ pub use {
 pub use pki_types as types;
 
 #[cfg(feature = "alloc")]
-pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
+pub use revocation_checking::{OwnedCertRevocationList, OwnedRevokedCert};
 
 #[cfg(feature = "ring")]
 /// Signature verification algorithm implementations using the *ring* crypto library.
