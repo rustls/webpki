@@ -28,7 +28,6 @@ pub use crl::{
 pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 
 pub struct RevocationParameters<'a> {
-    status_policy: &'a UnknownStatusPolicy,
     path: &'a PathNode<'a>,
     issuer_spki: untrusted::Input<'a>,
     issuer_ku: Option<untrusted::Input<'a>>,
@@ -37,7 +36,22 @@ pub struct RevocationParameters<'a> {
 
 pub trait RevocationStrategy: Debug {
     fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy>;
-    fn check_revoced(
+
+    // Workaround for not being able to utilize associated types together with
+    // dyn dispatch for revocation strategy. Used to centralize handling of
+    // unknown revocation status based on the status policy.
+    //
+    // One downside of doing things like this is the need to be attentive
+    // against using the found `RevocationVerifier` with other params than those
+    // used to find it.
+    fn find_verifier(
+        &self,
+        revocation_parameters: &RevocationParameters,
+    ) -> Result<Option<&dyn RevocationVerifier>, Error>;
+}
+
+pub trait RevocationVerifier {
+    fn verify(
         &self,
         revocation_parameters: &RevocationParameters,
         budget: &mut Budget,
@@ -125,7 +139,6 @@ impl<'a> RevocationOptions<'a> {
         assert!(public_values_eq(path.cert.issuer, issuer_subject));
 
         let revocation_parameters = RevocationParameters {
-            status_policy: &self.status_policy,
             path,
             issuer_spki,
             issuer_ku,
@@ -138,7 +151,14 @@ impl<'a> RevocationOptions<'a> {
             return Ok(RevocationStatus::Skipped(()));
         }
 
-        self.strategy.check_revoced(&revocation_parameters, budget)
+        let Some(verifier) = self.strategy.find_verifier(&revocation_parameters)? else {
+            return match self.status_policy {
+                UnknownStatusPolicy::Allow => Ok(RevocationStatus::Skipped(())),
+                UnknownStatusPolicy::Deny => Err(Error::UnknownRevocationStatus),
+            };
+        };
+
+        verifier.verify(&revocation_parameters, budget)
     }
 }
 
@@ -234,12 +254,12 @@ mod tests {
             }
         }
 
-        fn check_revoced(
+        fn find_verifier(
             &self,
             _revocation_parameters: &RevocationParameters,
-            _budget: &mut Budget,
-        ) -> Result<RevocationStatus, Error> {
-            Ok(RevocationStatus::NotRevoked(()))
+        ) -> Result<Option<&dyn RevocationVerifier>, Error> {
+            // TODO:
+            Ok(None)
         }
     }
 

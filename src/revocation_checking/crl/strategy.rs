@@ -1,46 +1,23 @@
 use crate::revocation_checking::*;
 
-impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for T {
-    fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy> {
-        match self.as_ref().is_empty() {
-            true => Err(InadequateStrategy("at least one crl is required")),
-            false => Ok(AdequateStrategy(())),
-        }
-    }
-
-    fn check_revoced(
+impl<'a> RevocationVerifier for &'a CertRevocationList<'a> {
+    fn verify(
         &self,
         revocation_parameters: &RevocationParameters,
         budget: &mut Budget,
     ) -> Result<RevocationStatus, Error> {
         let RevocationParameters {
-            status_policy,
             path,
             issuer_spki,
             issuer_ku,
             supported_sig_algs,
         } = revocation_parameters;
 
-        let crl = self
-            .as_ref()
-            .iter()
-            .find(|candidate_crl| candidate_crl.authoritative(path));
-
-        use UnknownStatusPolicy::*;
-        let crl = match (crl, status_policy) {
-            (Some(crl), _) => crl,
-            // If the policy allows unknown, return Ok(None) to indicate that the certificate
-            // was not confirmed as CertNotRevoked, but that this isn't an error condition.
-            (None, Allow) => return Ok(RevocationStatus::Skipped(())),
-            // Otherwise, this is an error condition based on the provided policy.
-            (None, _) => return Err(Error::UnknownRevocationStatus),
-        };
-
         // Verify the CRL signature with the issuer SPKI.
         // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
         //            of per-lookup.
         //            https://github.com/rustls/webpki/issues/81
-        crl.verify_signature(supported_sig_algs, *issuer_spki, budget)
+        self.verify_signature(supported_sig_algs, *issuer_spki, budget)
             .map_err(crl_signature_err)?;
 
         // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
@@ -48,7 +25,7 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
 
         // Try to find the cert serial in the verified CRL contents.
         let cert_serial = path.cert.serial.as_slice_less_safe();
-        return match crl.find_serial(cert_serial)? {
+        return match self.find_serial(cert_serial)? {
             None => Ok(RevocationStatus::NotRevoked(())),
             Some(_) => Err(Error::CertRevoked),
         };
@@ -66,6 +43,26 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
                 _ => err,
             }
         }
+    }
+}
+
+impl<'a> RevocationStrategy for &'a [&'a CertRevocationList<'a>] {
+    fn verify_adequacy(&self) -> Result<AdequateStrategy, InadequateStrategy> {
+        match self.is_empty() {
+            true => Err(InadequateStrategy("at least one crl is required")),
+            false => Ok(AdequateStrategy(())),
+        }
+    }
+
+    fn find_verifier(
+        &self,
+        revocation_parameters: &RevocationParameters,
+    ) -> Result<Option<&dyn RevocationVerifier>, Error> {
+        #[allow(clippy::as_conversions)]
+        Ok(self
+            .iter()
+            .find(|candidate_crl| candidate_crl.authoritative(revocation_parameters.path))
+            .map(|crl| crl as &dyn RevocationVerifier))
     }
 }
 

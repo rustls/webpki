@@ -100,7 +100,8 @@ fn no_relevant_crl_ee_depth_allow_unknown() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -126,7 +127,8 @@ fn no_relevant_crl_ee_depth_allow_unknown_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -153,7 +155,8 @@ fn no_relevant_crl_ee_depth_forbid_unknown() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -182,7 +185,8 @@ fn no_relevant_crl_ee_depth_forbid_unknown_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -207,7 +211,8 @@ fn ee_not_revoked_ee_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -232,7 +237,8 @@ fn ee_not_revoked_ee_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -256,7 +262,8 @@ fn ee_not_revoked_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -279,7 +286,8 @@ fn ee_not_revoked_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -301,7 +309,8 @@ fn ee_revoked_badsig_ee_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -329,7 +338,8 @@ fn ee_revoked_badsig_ee_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -357,7 +367,8 @@ fn ee_revoked_wrong_ku_ee_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -386,7 +397,8 @@ fn ee_revoked_wrong_ku_ee_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -414,7 +426,8 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -443,7 +456,8 @@ fn ee_not_revoked_wrong_ku_ee_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -470,7 +484,8 @@ fn ee_revoked_no_ku_ee_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -498,7 +513,8 @@ fn ee_revoked_no_ku_ee_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -525,7 +541,8 @@ fn ee_revoked_crl_ku_ee_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -553,7 +570,8 @@ fn ee_revoked_crl_ku_ee_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
 
@@ -608,7 +626,8 @@ fn no_relevant_crl_chain_depth_allow_unknown() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -634,7 +653,8 @@ fn no_relevant_crl_chain_depth_allow_unknown_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -659,7 +679,8 @@ fn no_relevant_crl_chain_depth_forbid_unknown() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -686,7 +707,8 @@ fn no_relevant_crl_chain_depth_forbid_unknown_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
@@ -709,7 +731,8 @@ fn int_not_revoked_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -732,7 +755,8 @@ fn int_not_revoked_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -777,7 +801,8 @@ fn int_not_revoked_chain_depth_forbid_unknown() {
             .unwrap(),
         ),
     ];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -821,7 +846,8 @@ fn int_not_revoked_chain_depth_forbid_unknown_owned() {
             .unwrap(),
         ),
     ];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
     let revocation = Some(builder.build());
     assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
 }
@@ -842,7 +868,8 @@ fn int_revoked_badsig_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -869,7 +896,8 @@ fn int_revoked_badsig_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -895,7 +923,8 @@ fn int_revoked_wrong_ku_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -922,7 +951,8 @@ fn int_revoked_wrong_ku_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -947,7 +977,8 @@ fn ee_revoked_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -973,7 +1004,8 @@ fn ee_revoked_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -999,7 +1031,8 @@ fn int_revoked_no_ku_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -1026,7 +1059,8 @@ fn int_revoked_no_ku_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -1052,7 +1086,8 @@ fn int_revoked_crl_ku_chain_depth() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -1079,7 +1114,8 @@ fn int_revoked_crl_ku_chain_depth_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -1105,7 +1141,8 @@ fn ee_with_top_bit_set_serial_revoked() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -1132,7 +1169,8 @@ fn ee_with_top_bit_set_serial_revoked_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
     let revocation = Some(builder.build());
@@ -1157,7 +1195,8 @@ fn ee_no_dp_crl_idp() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1180,7 +1219,8 @@ fn ee_no_dp_crl_idp_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1203,7 +1243,8 @@ fn ee_crl_no_idp_unknown_status() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1230,7 +1271,8 @@ fn ee_crl_no_idp_unknown_status_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1256,7 +1298,8 @@ fn ee_crl_mismatched_idp_unknown_status() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1283,7 +1326,8 @@ fn ee_crl_mismatched_idp_unknown_status_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1309,7 +1353,8 @@ fn ee_indirect_dp_unknown_status() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1336,7 +1381,8 @@ fn ee_indirect_dp_unknown_status_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1362,7 +1408,8 @@ fn ee_reasons_dp_unknown_status() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1389,7 +1436,8 @@ fn ee_reasons_dp_unknown_status_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1415,7 +1463,8 @@ fn ee_nofullname_dp_unknown_status() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1442,7 +1491,8 @@ fn ee_nofullname_dp_unknown_status_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1467,7 +1517,8 @@ fn ee_dp_idp_match() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1490,7 +1541,8 @@ fn ee_dp_idp_match_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1512,7 +1564,8 @@ fn ee_dp_invalid() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
@@ -1538,7 +1591,8 @@ fn ee_dp_invalid_owned() {
         )
         .unwrap(),
     )];
-    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+    let crls_slice = crls.as_slice();
+    let builder = RevocationOptionsBuilder::new(&crls_slice).unwrap();
 
     let builder = builder.with_depth(RevocationCheckDepth::EndEntity);
     let revocation = Some(builder.build());
