@@ -1312,4 +1312,12 @@ mod tests {
             include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
         assert!(OwnedCertRevocationList::from_der(crl).is_ok())
     }
+
+    #[test]
+    fn dissallows_empty_crls_revocation_strategy() {
+        // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
+        let empty_crl: &[&CertRevocationList] = &[];
+        let result = RevocationOptionsBuilder::new(&empty_crl);
+        assert!(matches!(result, Err(InadequateStrategy(_))));
+    }
 }

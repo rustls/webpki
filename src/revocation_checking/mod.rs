@@ -216,32 +216,52 @@ pub struct InadequateStrategy(&'static str);
 mod tests {
     use super::*;
 
+    #[derive(Debug, Default)]
+    struct MockRevocationStrategy {
+        inadequate_strategy: bool,
+    }
+
+    impl RevocationStrategy for MockRevocationStrategy {
+        fn can_check(&self) -> Result<AdequateStrategy, InadequateStrategy> {
+            match self.inadequate_strategy {
+                true => Err(InadequateStrategy("")),
+                false => Ok(AdequateStrategy(())),
+            }
+        }
+
+        fn check_revoced(
+            &self,
+            _revocation_parameters: &RevocationParameters,
+            _budget: &mut Budget,
+        ) -> Result<Option<CertNotRevoked>, Error> {
+            Ok(Some(CertNotRevoked(())))
+        }
+    }
+
     #[test]
     // redundant clone, clone_on_copy allowed to verify derived traits.
     #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
-    fn test_revocation_opts_builder_with_crl_strategy() {
-        // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
-        let empty_crl: &[&CertRevocationList] = &[];
-        let result = RevocationOptionsBuilder::new(&empty_crl);
+    fn test_revocation_opts_builder() {
+        // Failed check should error initialization.
+        let result = RevocationOptionsBuilder::new(&MockRevocationStrategy {
+            inadequate_strategy: true,
+        });
         assert!(matches!(result, Err(InadequateStrategy(_))));
 
-        // The CrlsRequired error should be debug and clone when alloc is enabled.
+        // The InadequateStrategy error should be debug and clone when alloc is enabled.
         #[cfg(feature = "alloc")]
         {
             let err = result.unwrap_err();
             println!("{:?}", err.clone());
         }
 
+        let mock_strategy = MockRevocationStrategy::default();
+
         // It should be possible to build a revocation options builder with defaults.
-        let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
-            .unwrap()
-            .into();
-        let crls = [&crl];
-        let builder = RevocationOptionsBuilder::new(&crls).unwrap();
+        let builder = RevocationOptionsBuilder::new(&mock_strategy).unwrap();
         #[cfg(feature = "alloc")]
         {
-            // The builder should be debug, and clone when alloc is enabled
+            // The builder should be debug, and clone when alloc is enabled.
             println!("{:?}", builder);
             _ = builder.clone();
         }
@@ -250,7 +270,7 @@ mod tests {
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
 
         // It should be possible to build a revocation options builder with custom depth.
-        let opts = RevocationOptionsBuilder::new(&crls)
+        let opts = RevocationOptionsBuilder::new(&mock_strategy)
             .unwrap()
             .with_depth(RevocationCheckDepth::EndEntity)
             .build();
@@ -259,7 +279,7 @@ mod tests {
 
         // It should be possible to build a revocation options builder that allows unknown
         // revocation status.
-        let opts = RevocationOptionsBuilder::new(&crls)
+        let opts = RevocationOptionsBuilder::new(&mock_strategy)
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Allow)
             .build();
@@ -267,7 +287,7 @@ mod tests {
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
 
         // It should be possible to specify both depth and unknown status policy together.
-        let opts = RevocationOptionsBuilder::new(&crls)
+        let opts = RevocationOptionsBuilder::new(&mock_strategy)
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Allow)
             .with_depth(RevocationCheckDepth::EndEntity)
@@ -276,7 +296,7 @@ mod tests {
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
 
         // The same should be true for explicitly forbidding unknown status.
-        let opts = RevocationOptionsBuilder::new(&crls)
+        let opts = RevocationOptionsBuilder::new(&mock_strategy)
             .unwrap()
             .with_status_policy(UnknownStatusPolicy::Deny)
             .with_depth(RevocationCheckDepth::EndEntity)
