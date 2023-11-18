@@ -618,7 +618,7 @@ mod tests {
         // There should be two distribution points present.
         let (point_a, point_b): (&CrlDistributionPoint, &CrlDistributionPoint) = (
             crl_distribution_points
-                .get(0)
+                .first()
                 .expect("missing first distribution point"),
             crl_distribution_points
                 .get(1)
