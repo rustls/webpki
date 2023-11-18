@@ -41,7 +41,7 @@ pub trait RevocationStrategy: Debug {
         &self,
         revocation_parameters: &RevocationParameters,
         budget: &mut Budget,
-    ) -> Result<Option<CertNotRevoked>, Error>;
+    ) -> Result<RevocationStatus, Error>;
 }
 
 /// Builds a RevocationOptions instance to control how revocation checking is performed.
@@ -121,7 +121,7 @@ impl<'a> RevocationOptions<'a> {
         issuer_ku: Option<untrusted::Input>,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         budget: &mut Budget,
-    ) -> Result<Option<CertNotRevoked>, Error> {
+    ) -> Result<RevocationStatus, Error> {
         assert!(public_values_eq(path.cert.issuer, issuer_subject));
 
         let revocation_parameters = RevocationParameters {
@@ -135,7 +135,7 @@ impl<'a> RevocationOptions<'a> {
         // If the policy only specifies checking EndEntity revocation state and we're looking at an
         // issuer certificate, return early without considering the certificate's revocation state.
         if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.check_depth, path.role()) {
-            return Ok(None);
+            return Ok(RevocationStatus::Skipped(()));
         }
 
         self.strategy.check_revoced(&revocation_parameters, budget)
@@ -203,9 +203,10 @@ pub enum UnknownStatusPolicy {
     Ok markers
 */
 
-// Represents a positive assertion that revocation status was checked
-// for a certificate and the result was that the certificate is not revoked.
-pub struct CertNotRevoked(());
+pub enum RevocationStatus {
+    Skipped(()),
+    NotRevoked(()),
+}
 
 pub struct AdequateStrategy(());
 
@@ -237,8 +238,8 @@ mod tests {
             &self,
             _revocation_parameters: &RevocationParameters,
             _budget: &mut Budget,
-        ) -> Result<Option<CertNotRevoked>, Error> {
-            Ok(Some(CertNotRevoked(())))
+        ) -> Result<RevocationStatus, Error> {
+            Ok(RevocationStatus::NotRevoked(()))
         }
     }
 

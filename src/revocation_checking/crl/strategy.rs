@@ -12,7 +12,7 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
         &self,
         revocation_parameters: &RevocationParameters,
         budget: &mut Budget,
-    ) -> Result<Option<CertNotRevoked>, Error> {
+    ) -> Result<RevocationStatus, Error> {
         let RevocationParameters {
             status_policy,
             path,
@@ -31,7 +31,7 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
             (Some(crl), _) => crl,
             // If the policy allows unknown, return Ok(None) to indicate that the certificate
             // was not confirmed as CertNotRevoked, but that this isn't an error condition.
-            (None, Allow) => return Ok(None),
+            (None, Allow) => return Ok(RevocationStatus::Skipped(())),
             // Otherwise, this is an error condition based on the provided policy.
             (None, _) => return Err(Error::UnknownRevocationStatus),
         };
@@ -49,7 +49,7 @@ impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for 
         // Try to find the cert serial in the verified CRL contents.
         let cert_serial = path.cert.serial.as_slice_less_safe();
         return match crl.find_serial(cert_serial)? {
-            None => Ok(Some(CertNotRevoked(()))),
+            None => Ok(RevocationStatus::NotRevoked(())),
             Some(_) => Err(Error::CertRevoked),
         };
 
