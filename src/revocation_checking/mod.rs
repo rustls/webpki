@@ -27,10 +27,90 @@ pub use types::{
 #[cfg(feature = "alloc")]
 pub use types::{OwnedCertRevocationList, OwnedRevokedCert};
 
+pub struct RevocationParameters<'a> {
+    depth: &'a RevocationCheckDepth,
+    status_policy: &'a UnknownStatusPolicy,
+    path: &'a PathNode<'a>,
+    issuer_spki: untrusted::Input<'a>,
+    issuer_ku: Option<untrusted::Input<'a>>,
+    supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
+}
+
+pub trait RevocationStrategy: Debug {
+    fn can_check(&self) -> Result<AdequateStrategy, InadequateStrategy>;
+    fn check_revoced(
+        &self,
+        revocation_parameters: &RevocationParameters,
+        budget: &mut Budget,
+    ) -> Result<Option<CertNotRevoked>, Error>;
+}
+
+impl<'a, T: AsRef<[&'a CertRevocationList<'a>]> + Debug> RevocationStrategy for T {
+    fn can_check(&self) -> Result<AdequateStrategy, InadequateStrategy> {
+        match self.as_ref().is_empty() {
+            true => Err(InadequateStrategy("at least one crl is required")),
+            false => Ok(AdequateStrategy(())),
+        }
+    }
+
+    fn check_revoced(
+        &self,
+        revocation_parameters: &RevocationParameters,
+        budget: &mut Budget,
+    ) -> Result<Option<CertNotRevoked>, Error> {
+        let RevocationParameters {
+            depth,
+            status_policy,
+            path,
+            issuer_spki,
+            issuer_ku,
+            supported_sig_algs,
+        } = revocation_parameters;
+
+        // If the policy only specifies checking EndEntity revocation state and we're looking at an
+        // issuer certificate, return early without considering the certificate's revocation state.
+        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (depth, path.role()) {
+            return Ok(None);
+        }
+
+        let crl = self
+            .as_ref()
+            .iter()
+            .find(|candidate_crl| candidate_crl.authoritative(path));
+
+        use UnknownStatusPolicy::*;
+        let crl = match (crl, status_policy) {
+            (Some(crl), _) => crl,
+            // If the policy allows unknown, return Ok(None) to indicate that the certificate
+            // was not confirmed as CertNotRevoked, but that this isn't an error condition.
+            (None, Allow) => return Ok(None),
+            // Otherwise, this is an error condition based on the provided policy.
+            (None, _) => return Err(Error::UnknownRevocationStatus),
+        };
+
+        // Verify the CRL signature with the issuer SPKI.
+        // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
+        //            of per-lookup.
+        //            https://github.com/rustls/webpki/issues/81
+        crl.verify_signature(supported_sig_algs, *issuer_spki, budget)
+            .map_err(crl_signature_err)?;
+
+        // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
+        KeyUsageMode::CrlSign.check(*issuer_ku)?;
+
+        // Try to find the cert serial in the verified CRL contents.
+        let cert_serial = path.cert.serial.as_slice_less_safe();
+        match crl.find_serial(cert_serial)? {
+            None => Ok(Some(CertNotRevoked(()))),
+            Some(_) => Err(Error::CertRevoked),
+        }
+    }
+}
+
 /// Builds a RevocationOptions instance to control how revocation checking is performed.
 #[derive(Debug, Copy, Clone)]
 pub struct RevocationOptionsBuilder<'a> {
-    crls: &'a [&'a CertRevocationList<'a>],
+    strategy: &'a dyn RevocationStrategy,
 
     depth: RevocationCheckDepth,
 
@@ -38,8 +118,10 @@ pub struct RevocationOptionsBuilder<'a> {
 }
 
 impl<'a> RevocationOptionsBuilder<'a> {
-    /// Create a builder that will perform revocation checking using the provided certificate
-    /// revocation lists (CRLs). At least one CRL must be provided.
+    /// Create a builder that will perform revocation checking using the provided stategy.
+    ///
+    /// The constructor checks whether or not the provided strategy is adequate for revocation checking.
+    /// E.g. making sure that a passed slice of CRLs is not empty.
     ///
     /// Use [RevocationOptionsBuilder::build] to create a [RevocationOptions] instance.
     ///
@@ -50,13 +132,11 @@ impl<'a> RevocationOptionsBuilder<'a> {
     /// By default revocation checking will fail if the revocation status of a certificate cannot
     /// be determined. This can be customized using the
     /// [RevocationOptionsBuilder::with_status_policy] method.
-    pub fn new(crls: &'a [&'a CertRevocationList<'a>]) -> Result<Self, CrlsRequired> {
-        if crls.is_empty() {
-            return Err(CrlsRequired(()));
-        }
+    pub fn new(strategy: &'a impl RevocationStrategy) -> Result<Self, InadequateStrategy> {
+        strategy.can_check()?;
 
         Ok(Self {
-            crls,
+            strategy,
             depth: RevocationCheckDepth::Chain,
             status_policy: UnknownStatusPolicy::Deny,
         })
@@ -79,7 +159,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
     /// Construct a [RevocationOptions] instance based on the builder's configuration.
     pub fn build(self) -> RevocationOptions<'a> {
         RevocationOptions {
-            crls: self.crls,
+            strategy: self.strategy,
             depth: self.depth,
             status_policy: self.status_policy,
         }
@@ -90,7 +170,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
 /// [RevocationOptionsBuilder] instance.
 #[derive(Debug, Copy, Clone)]
 pub struct RevocationOptions<'a> {
-    pub(crate) crls: &'a [&'a CertRevocationList<'a>],
+    pub(crate) strategy: &'a dyn RevocationStrategy,
     pub(crate) depth: RevocationCheckDepth,
     pub(crate) status_policy: UnknownStatusPolicy,
 }
@@ -107,43 +187,16 @@ impl<'a> RevocationOptions<'a> {
     ) -> Result<Option<CertNotRevoked>, Error> {
         assert!(public_values_eq(path.cert.issuer, issuer_subject));
 
-        // If the policy only specifies checking EndEntity revocation state and we're looking at an
-        // issuer certificate, return early without considering the certificate's revocation state.
-        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.depth, path.role()) {
-            return Ok(None);
-        }
-
-        let crl = self
-            .crls
-            .iter()
-            .find(|candidate_crl| candidate_crl.authoritative(path));
-
-        use UnknownStatusPolicy::*;
-        let crl = match (crl, self.status_policy) {
-            (Some(crl), _) => crl,
-            // If the policy allows unknown, return Ok(None) to indicate that the certificate
-            // was not confirmed as CertNotRevoked, but that this isn't an error condition.
-            (None, Allow) => return Ok(None),
-            // Otherwise, this is an error condition based on the provided policy.
-            (None, _) => return Err(Error::UnknownRevocationStatus),
+        let revocation_parameters = RevocationParameters {
+            depth: &self.depth,
+            status_policy: &self.status_policy,
+            path,
+            issuer_spki,
+            issuer_ku,
+            supported_sig_algs,
         };
 
-        // Verify the CRL signature with the issuer SPKI.
-        // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
-        //            of per-lookup.
-        //            https://github.com/rustls/webpki/issues/81
-        crl.verify_signature(supported_sig_algs, issuer_spki, budget)
-            .map_err(crl_signature_err)?;
-
-        // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
-        KeyUsageMode::CrlSign.check(issuer_ku)?;
-
-        // Try to find the cert serial in the verified CRL contents.
-        let cert_serial = path.cert.serial.as_slice_less_safe();
-        match crl.find_serial(cert_serial)? {
-            None => Ok(Some(CertNotRevoked::assertion())),
-            Some(_) => Err(Error::CertRevoked),
-        }
+        self.strategy.check_revoced(&revocation_parameters, budget)
     }
 }
 
@@ -218,21 +271,22 @@ pub enum UnknownStatusPolicy {
     Deny,
 }
 
-// Zero-sized marker type representing positive assertion that revocation status was checked
+/*
+    Ok markers
+*/
+
+// Represents a positive assertion that revocation status was checked
 // for a certificate and the result was that the certificate is not revoked.
-pub(crate) struct CertNotRevoked(());
+pub struct CertNotRevoked(());
 
-impl CertNotRevoked {
-    // Construct a CertNotRevoked marker.
-    fn assertion() -> Self {
-        Self(())
-    }
-}
+pub struct AdequateStrategy(());
 
-#[derive(Debug, Copy, Clone)]
-/// An opaque error indicating the caller must provide at least one CRL when building a
-/// [RevocationOptions] instance.
-pub struct CrlsRequired(pub(crate) ());
+/*
+    Error markers
+*/
+
+#[derive(Debug, Clone)]
+pub struct InadequateStrategy(&'static str);
 
 #[cfg(test)]
 mod tests {
@@ -241,10 +295,11 @@ mod tests {
     #[test]
     // redundant clone, clone_on_copy allowed to verify derived traits.
     #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
-    fn test_revocation_opts_builder() {
+    fn test_revocation_opts_builder_with_crl_strategy() {
         // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
-        let result = RevocationOptionsBuilder::new(&[]);
-        assert!(matches!(result, Err(CrlsRequired(_))));
+        let empty_crl: &[&CertRevocationList] = &[];
+        let result = RevocationOptionsBuilder::new(&empty_crl);
+        assert!(matches!(result, Err(InadequateStrategy(_))));
 
         // The CrlsRequired error should be debug and clone when alloc is enabled.
         #[cfg(feature = "alloc")]
@@ -269,7 +324,6 @@ mod tests {
         let opts = builder.build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
-        assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder with custom depth.
         let opts = RevocationOptionsBuilder::new(&crls)
@@ -278,7 +332,6 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
-        assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder that allows unknown
         // revocation status.
@@ -288,7 +341,6 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
-        assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to specify both depth and unknown status policy together.
         let opts = RevocationOptionsBuilder::new(&crls)
@@ -298,7 +350,6 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
-        assert_eq!(opts.crls.len(), 1);
 
         // The same should be true for explicitly forbidding unknown status.
         let opts = RevocationOptionsBuilder::new(&crls)
@@ -308,7 +359,6 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
-        assert_eq!(opts.crls.len(), 1);
 
         // Built revocation options should be debug and clone when alloc is enabled.
         #[cfg(feature = "alloc")]
