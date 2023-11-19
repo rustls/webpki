@@ -122,6 +122,14 @@ impl<'a> CertRevocationList<'a> {
             },
             budget,
         )
+        .map_err(|err| match err {
+            Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
+            Error::UnsupportedSignatureAlgorithmForPublicKey => {
+                Error::UnsupportedCrlSignatureAlgorithmForPublicKey
+            }
+            Error::InvalidSignatureForPublicKey => Error::InvalidCrlSignatureForPublicKey,
+            _ => err,
+        })
     }
 }
 

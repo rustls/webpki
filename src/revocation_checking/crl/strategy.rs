@@ -17,31 +17,16 @@ impl<'a> RevocationVerifier for &'a CertRevocationList<'a> {
         // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
         //            of per-lookup.
         //            https://github.com/rustls/webpki/issues/81
-        self.verify_signature(supported_sig_algs, *issuer_spki, budget)
-            .map_err(crl_signature_err)?;
+        self.verify_signature(supported_sig_algs, *issuer_spki, budget)?;
 
         // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
         KeyUsageMode::CrlSign.check(*issuer_ku)?;
 
         // Try to find the cert serial in the verified CRL contents.
         let cert_serial = path.cert.serial.as_slice_less_safe();
-        return match self.find_serial(cert_serial)? {
+        match self.find_serial(cert_serial)? {
             None => Ok(RevocationStatus::NotRevoked(())),
             Some(_) => Err(Error::CertRevoked),
-        };
-
-        // When verifying CRL signed data we want to disambiguate the context of possible errors by mapping
-        // them to CRL specific variants that a consumer can use to tell the issue was with the CRL's
-        // signature, not a certificate.
-        fn crl_signature_err(err: Error) -> Error {
-            match err {
-                Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
-                Error::UnsupportedSignatureAlgorithmForPublicKey => {
-                    Error::UnsupportedCrlSignatureAlgorithmForPublicKey
-                }
-                Error::InvalidSignatureForPublicKey => Error::InvalidCrlSignatureForPublicKey,
-                _ => err,
-            }
         }
     }
 }
