@@ -107,6 +107,39 @@ fn cloudflare_dns() {
     check_addr("2606:4700:4700:0000:0000:0000:0000:6400");
 }
 
+/* This is notable because it contains non-any certificate policies extensions
+ * marked as critical.
+ * The test fixtures were taken from `core::tests::test_win_hello_attest_tpm`
+ * of [`webauthn-rs`](https://docs.rs/webauthn-rs/latest/webauthn_rs/).
+ */
+#[cfg(feature = "alloc")]
+#[test]
+pub fn win_hello_attest_tpm() {
+    let ee: &[u8] = include_bytes!("win_hello_attest_tpm/ee.der");
+    let inter = CertificateDer::from(&include_bytes!("win_hello_attest_tpm/inter.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("win_hello_attest_tpm/ca.der")[..]);
+
+    let key_usage = KeyUsage::required(&[(40 * 2) + 23, 0x81, 5, 8, 3]); // tcg-kp-AIKCertificate = 2.23.133.8.3
+
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_619_256_684)); // 2021-04-24T09:31:24Z
+
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    assert!(cert
+        .verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            &anchors,
+            &[inter],
+            time,
+            key_usage,
+            None,
+            None,
+        )
+        .is_ok());
+}
+
 #[cfg(feature = "alloc")]
 #[test]
 fn wpt() {
