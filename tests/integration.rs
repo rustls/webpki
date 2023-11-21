@@ -51,6 +51,8 @@ fn netflix() {
 #[cfg(feature = "alloc")]
 #[test]
 fn cloudflare_dns() {
+    use pki_types::ServerName;
+
     let ee: &[u8] = include_bytes!("cloudflare_dns/ee.der");
     let inter = CertificateDer::from(&include_bytes!("cloudflare_dns/inter.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("cloudflare_dns/ca.der")[..]);
@@ -75,19 +77,19 @@ fn cloudflare_dns() {
         .is_ok());
 
     let check_name = |name: &str| {
-        let subject_name_ref = webpki::SubjectNameRef::try_from_ascii_str(name).unwrap();
+        let subject_name_ref = ServerName::try_from(name).unwrap();
         assert_eq!(
             Ok(()),
-            cert.verify_is_valid_for_subject_name(subject_name_ref)
+            cert.verify_is_valid_for_subject_name(&subject_name_ref)
         );
         println!("{:?} ok as name", name);
     };
 
     let check_addr = |addr: &str| {
-        let subject_name_ref = webpki::SubjectNameRef::try_from_ascii(addr.as_bytes()).unwrap();
+        let subject_name_ref = ServerName::try_from(addr.as_bytes()).unwrap();
         assert_eq!(
             Ok(()),
-            cert.verify_is_valid_for_subject_name(subject_name_ref)
+            cert.verify_is_valid_for_subject_name(&subject_name_ref)
         );
         println!("{:?} ok as address", addr);
     };

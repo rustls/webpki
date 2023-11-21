@@ -6,11 +6,11 @@ use std::fs::File;
 
 use base64::{engine::general_purpose, Engine as _};
 use bzip2::read::BzDecoder;
-use pki_types::UnixTime;
+use pki_types::{ServerName, UnixTime};
 use serde::Deserialize;
 
 use webpki::types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
-use webpki::{anchor_from_trusted_cert, KeyUsage, SubjectNameRef};
+use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 // All of the BetterTLS testcases use P256 keys.
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -87,7 +87,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
             )
             .and_then(|_| {
                 ee_cert.verify_is_valid_for_subject_name(
-                    SubjectNameRef::try_from_ascii_str(&testcase.hostname)
+                    &ServerName::try_from(testcase.hostname.as_str())
                         .expect("invalid testcase hostname"),
                 )
             });

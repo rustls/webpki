@@ -12,130 +12,37 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#[cfg(feature = "alloc")]
-use alloc::string::String;
 use core::fmt::Write;
+
+use pki_types::{DnsName, InvalidDnsNameError};
 
 use super::verify::{GeneralName, NameIterator};
 use crate::Error;
 
-/// A DNS Name suitable for use in the TLS Server Name Indication (SNI)
-/// extension and/or for use as the reference hostname for which to verify a
-/// certificate.
-///
-/// A `DnsName` is guaranteed to be syntactically valid. The validity rules are
-/// specified in [RFC 5280 Section 7.2], except that underscores are also
-/// allowed. `DnsName`s do not include wildcard labels.
-///
-/// `DnsName` stores a copy of the input it was constructed from in a `String`
-/// and so it is only available when the `alloc` default feature is enabled.
-///
-/// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct DnsName(String);
+pub(crate) fn verify_dns_names(
+    reference: &DnsName<'_>,
+    mut names: NameIterator<'_>,
+) -> Result<(), Error> {
+    let dns_name = untrusted::Input::from(reference.as_ref().as_bytes());
+    names
+        .find_map(|result| {
+            let name = match result {
+                Ok(name) => name,
+                Err(err) => return Some(Err(err)),
+            };
 
-#[cfg(feature = "alloc")]
-impl DnsName {
-    /// Returns a `DnsNameRef` that refers to this `DnsName`.
-    pub fn as_ref(&self) -> DnsNameRef {
-        DnsNameRef(self.0.as_bytes())
-    }
-}
+            let presented_id = match name {
+                GeneralName::DnsName(presented) => presented,
+                _ => return None,
+            };
 
-#[cfg(feature = "alloc")]
-impl AsRef<str> for DnsName {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-/// A reference to a DNS Name suitable for use in the TLS Server Name Indication
-/// (SNI) extension and/or for use as the reference hostname for which to verify
-/// a certificate.
-///
-/// A `DnsNameRef` is guaranteed to be syntactically valid. The validity rules
-/// are specified in [RFC 5280 Section 7.2], except that underscores are also
-/// allowed. `DnsNameRef`s do not include wildcard labels.
-///
-/// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub struct DnsNameRef<'a>(pub(crate) &'a [u8]);
-
-impl<'a> DnsNameRef<'a> {
-    /// Constructs a `DnsNameRef` from the given input if the input is a
-    /// syntactically-valid DNS name.
-    pub fn try_from_ascii(dns_name: &'a [u8]) -> Result<Self, InvalidDnsNameError> {
-        if !is_valid_dns_id(
-            untrusted::Input::from(dns_name),
-            IdRole::Reference,
-            Wildcards::Deny,
-        ) {
-            return Err(InvalidDnsNameError);
-        }
-
-        Ok(Self(dns_name))
-    }
-
-    /// Constructs a `DnsNameRef` from the given input if the input is a
-    /// syntactically-valid DNS name.
-    pub fn try_from_ascii_str(dns_name: &'a str) -> Result<Self, InvalidDnsNameError> {
-        Self::try_from_ascii(dns_name.as_bytes())
-    }
-
-    pub(crate) fn verify_dns_names(&self, mut names: NameIterator<'_>) -> Result<(), Error> {
-        let dns_name = untrusted::Input::from(self.as_str().as_bytes());
-        names
-            .find_map(|result| {
-                let name = match result {
-                    Ok(name) => name,
-                    Err(err) => return Some(Err(err)),
-                };
-
-                let presented_id = match name {
-                    GeneralName::DnsName(presented) => presented,
-                    _ => return None,
-                };
-
-                match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
-                    Ok(true) => Some(Ok(())),
-                    Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
-                    Err(e) => Some(Err(e)),
-                }
-            })
-            .unwrap_or(Err(Error::CertNotValidForName))
-    }
-
-    /// Constructs a `DnsName` from this `DnsNameRef`
-    #[cfg(feature = "alloc")]
-    pub fn to_owned(&self) -> DnsName {
-        // DnsNameRef is already guaranteed to be valid ASCII, which is subset of UTF-8.
-        DnsName(self.as_str().to_ascii_lowercase())
-    }
-
-    /// Yields a reference to the DNS name as a `&str`.
-    pub fn as_str(&self) -> &'a str {
-        // The unwrap won't fail because `DnsNameRef` values are guaranteed to be ASCII and ASCII
-        // is a subset of UTF-8.
-        core::str::from_utf8(self.0).unwrap()
-    }
-}
-
-impl core::fmt::Debug for DnsNameRef<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-        f.write_str("DnsNameRef(\"")?;
-
-        // Convert each byte of the underlying ASCII string to a `char` and
-        // downcase it prior to formatting it. We avoid self.clone().to_owned()
-        // since it requires allocation.
-        for &ch in self.0 {
-            f.write_char(char::from(ch).to_ascii_lowercase())?;
-        }
-
-        f.write_str("\")")
-    }
+            match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
+                Ok(true) => Some(Ok(())),
+                Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
+                Err(e) => Some(Err(e)),
+            }
+        })
+        .unwrap_or(Err(Error::CertNotValidForName))
 }
 
 /// A reference to a DNS Name presented by a server that may include a wildcard.
@@ -190,20 +97,6 @@ impl core::fmt::Debug for WildcardDnsNameRef<'_> {
         f.write_str("\")")
     }
 }
-
-/// An error indicating that a `DnsNameRef` could not built because the input
-/// is not a syntactically-valid DNS Name.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InvalidDnsNameError;
-
-impl core::fmt::Display for InvalidDnsNameError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[cfg(feature = "std")]
-impl ::std::error::Error for InvalidDnsNameError {}
 
 // We assume that both presented_dns_id and reference_dns_id are encoded in
 // such a way that US-ASCII (7-bit) characters are encoded in one byte and no
