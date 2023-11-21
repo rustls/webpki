@@ -15,7 +15,7 @@
 
 use core::time::Duration;
 
-use pki_types::{CertificateDer, UnixTime};
+use pki_types::{CertificateDer, ServerName, UnixTime};
 use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 fn check_cert(
@@ -41,14 +41,14 @@ fn check_cert(
     )?;
 
     for valid in valid_names {
-        let name = webpki::SubjectNameRef::try_from_ascii_str(valid).unwrap();
-        assert_eq!(cert.verify_is_valid_for_subject_name(name), Ok(()));
+        let name = ServerName::try_from(*valid).unwrap();
+        assert_eq!(cert.verify_is_valid_for_subject_name(&name), Ok(()));
     }
 
     for invalid in invalid_names {
-        let name = webpki::SubjectNameRef::try_from_ascii_str(invalid).unwrap();
+        let name = ServerName::try_from(*invalid).unwrap();
         assert_eq!(
-            cert.verify_is_valid_for_subject_name(name),
+            cert.verify_is_valid_for_subject_name(&name),
             Err(webpki::Error::CertNotValidForName)
         );
     }

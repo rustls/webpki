@@ -12,14 +12,14 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use pki_types::CertificateDer;
+use pki_types::{CertificateDer, DnsName};
 
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
+use crate::public_values_eq;
 use crate::signed_data::SignedData;
 use crate::subject_name::{GeneralName, NameIterator, WildcardDnsNameRef};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
-use crate::{public_values_eq, DnsNameRef};
 
 /// A parsed X509 certificate.
 pub struct Cert<'a> {
@@ -145,8 +145,9 @@ impl<'a> Cert<'a> {
 
             // if the name could be converted to a DNS name, return it; otherwise,
             // keep going.
-            match DnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
-                Ok(dns_name) => Some(dns_name.as_str()),
+            let dns_str = core::str::from_utf8(presented_id.as_slice_less_safe()).ok()?;
+            match DnsName::try_from(dns_str) {
+                Ok(_) => Some(dns_str),
                 Err(_) => {
                     match WildcardDnsNameRef::try_from_ascii(presented_id.as_slice_less_safe()) {
                         Ok(wildcard_dns_name) => Some(wildcard_dns_name.as_str()),

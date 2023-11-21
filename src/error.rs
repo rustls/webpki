@@ -156,6 +156,9 @@ pub enum Error {
     /// The CRL contains unsupported "indirect" entries.
     UnsupportedIndirectCrl,
 
+    /// The `ServerName` contained an unsupported type of value.
+    UnsupportedNameType,
+
     /// The revocation reason is not in the set of supported revocation reasons.
     UnsupportedRevocationReason,
 
@@ -234,6 +237,7 @@ impl Error {
             Error::UnsupportedCrlVersion => 120,
             Error::UnsupportedDeltaCrl => 110,
             Error::UnsupportedIndirectCrl => 100,
+            Error::UnsupportedNameType => 95,
             Error::UnsupportedRevocationReason => 90,
             Error::UnsupportedRevocationReasonsPartitioning => 80,
             Error::UnsupportedCrlIssuingDistributionPoint => 70,

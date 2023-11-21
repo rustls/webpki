@@ -14,11 +14,13 @@
 
 use core::ops::Deref;
 
-use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
+use pki_types::{
+    CertificateDer, ServerName, SignatureVerificationAlgorithm, TrustAnchor, UnixTime,
+};
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
-use crate::subject_name::{NameIterator, SubjectNameRef};
+use crate::subject_name::{verify_dns_names, verify_ip_address_names, NameIterator};
 use crate::verify_cert::{self, KeyUsage, VerifiedPath};
 use crate::{cert, signed_data};
 
@@ -119,17 +121,20 @@ impl<'a> EndEntityCert<'a> {
     /// Verifies that the certificate is valid for the given Subject Name.
     pub fn verify_is_valid_for_subject_name(
         &self,
-        subject_name: SubjectNameRef,
+        server_name: &ServerName<'_>,
     ) -> Result<(), Error> {
-        match subject_name {
-            SubjectNameRef::DnsName(dns_name) => dns_name.verify_dns_names(NameIterator::new(
-                Some(self.inner.subject),
-                self.inner.subject_alt_name,
-            )),
+        match server_name {
+            ServerName::DnsName(dns_name) => verify_dns_names(
+                dns_name,
+                NameIterator::new(Some(self.inner.subject), self.inner.subject_alt_name),
+            ),
             // IP addresses are not compared against the subject field;
             // only against Subject Alternative Names.
-            SubjectNameRef::IpAddress(ip_address) => ip_address
-                .verify_ip_address_names(NameIterator::new(None, self.inner.subject_alt_name)),
+            ServerName::IpAddress(ip_address) => verify_ip_address_names(
+                ip_address,
+                NameIterator::new(None, self.inner.subject_alt_name),
+            ),
+            _ => Err(Error::UnsupportedNameType),
         }
     }
 
