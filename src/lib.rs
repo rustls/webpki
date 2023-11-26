@@ -77,6 +77,7 @@ pub use {
     signed_data::alg_id,
     trust_anchor::anchor_from_trusted_cert,
     verify_cert::KeyUsage,
+    verify_cert::VerifiedPath,
 };
 
 pub use pki_types as types;
