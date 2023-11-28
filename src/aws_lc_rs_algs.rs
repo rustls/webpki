@@ -7,6 +7,7 @@ use crate::signed_data::alg_id;
 // so this is very similar to ring_algs.rs.
 
 /// A `SignatureVerificationAlgorithm` implemented using aws-lc-rs.
+#[derive(Debug)]
 struct AwsLcRsAlgorithm {
     public_key_alg_id: AlgorithmIdentifier,
     signature_alg_id: AlgorithmIdentifier,
