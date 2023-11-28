@@ -18,6 +18,7 @@ use ring::signature;
 use crate::signed_data::alg_id;
 
 /// A `SignatureVerificationAlgorithm` implemented using *ring*.
+#[derive(Debug)]
 struct RingAlgorithm {
     public_key_alg_id: AlgorithmIdentifier,
     signature_alg_id: AlgorithmIdentifier,
