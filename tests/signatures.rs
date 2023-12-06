@@ -28,8 +28,8 @@ use webpki::ring::{
 
 #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
 use webpki::aws_lc_rs::{
-    ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
-    RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
+    ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ECDSA_P521_SHA512,
+    ED25519, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
     RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
     RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
 };
@@ -75,6 +75,8 @@ fn ed25519_key_and_ed25519_detects_bad_signature() {
 fn ed25519_key_rejected_by_other_algorithms() {
     let ee = include_bytes!("signatures/ed25519.ee.der");
     for algorithm in &[
+        #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+        ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
         ECDSA_P384_SHA256,
@@ -147,6 +149,8 @@ fn ecdsa_p256_key_and_ecdsa_p256_sha256_detects_bad_signature() {
 fn ecdsa_p256_key_rejected_by_other_algorithms() {
     let ee = include_bytes!("signatures/ecdsa_p256.ee.der");
     for algorithm in &[
+        #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+        ECDSA_P521_SHA512,
         ECDSA_P384_SHA256,
         ECDSA_P384_SHA384,
         ED25519,
@@ -218,8 +222,59 @@ fn ecdsa_p384_key_and_ecdsa_p384_sha256_detects_bad_signature() {
 fn ecdsa_p384_key_rejected_by_other_algorithms() {
     let ee = include_bytes!("signatures/ecdsa_p384.ee.der");
     for algorithm in &[
+        #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+        ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
+        ED25519,
+        RSA_PKCS1_2048_8192_SHA256,
+        RSA_PKCS1_2048_8192_SHA384,
+        RSA_PKCS1_2048_8192_SHA512,
+        RSA_PKCS1_3072_8192_SHA384,
+        RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+        RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+    ] {
+        assert_eq!(
+            check_sig(ee, *algorithm, b"", b""),
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
+        );
+    }
+}
+
+#[test]
+#[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+fn ecdsa_p521_key_and_ecdsa_p521_sha512_good_signature() {
+    let ee = include_bytes!("signatures/ecdsa_p521.ee.der");
+    let message = include_bytes!("signatures/message.bin");
+    let signature =
+        include_bytes!("signatures/ecdsa_p521_key_and_ecdsa_p521_sha512_good_signature.sig.bin");
+    assert_eq!(check_sig(ee, ECDSA_P521_SHA512, message, signature), Ok(()));
+}
+
+#[test]
+#[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+fn ecdsa_p521_key_and_ecdsa_p521_sha512_detects_bad_signature() {
+    let ee = include_bytes!("signatures/ecdsa_p521.ee.der");
+    let message = include_bytes!("signatures/message.bin");
+    let signature = include_bytes!(
+        "signatures/ecdsa_p521_key_and_ecdsa_p521_sha512_detects_bad_signature.sig.bin"
+    );
+    assert_eq!(
+        check_sig(ee, ECDSA_P521_SHA512, message, signature),
+        Err(webpki::Error::InvalidSignatureForPublicKey)
+    );
+}
+
+#[test]
+#[cfg(feature = "alloc")]
+fn ecdsa_p521_key_rejected_by_other_algorithms() {
+    let ee = include_bytes!("signatures/ecdsa_p521.ee.der");
+    for algorithm in &[
+        ECDSA_P256_SHA256,
+        ECDSA_P256_SHA384,
+        ECDSA_P384_SHA256,
+        ECDSA_P384_SHA384,
         ED25519,
         RSA_PKCS1_2048_8192_SHA256,
         RSA_PKCS1_2048_8192_SHA384,
@@ -403,6 +458,8 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() 
 fn rsa_2048_key_rejected_by_other_algorithms() {
     let ee = include_bytes!("signatures/rsa_2048.ee.der");
     for algorithm in &[
+        #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+        ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
         ECDSA_P384_SHA256,
@@ -611,6 +668,8 @@ fn rsa_3072_key_and_rsa_pkcs1_3072_8192_sha384_detects_bad_signature() {
 fn rsa_3072_key_rejected_by_other_algorithms() {
     let ee = include_bytes!("signatures/rsa_3072.ee.der");
     for algorithm in &[
+        #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+        ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
         ECDSA_P384_SHA256,
@@ -819,6 +878,8 @@ fn rsa_4096_key_and_rsa_pkcs1_3072_8192_sha384_detects_bad_signature() {
 fn rsa_4096_key_rejected_by_other_algorithms() {
     let ee = include_bytes!("signatures/rsa_4096.ee.der");
     for algorithm in &[
+        #[cfg(all(not(feature = "ring"), feature = "aws_lc_rs"))]
+        ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
         ECDSA_P384_SHA256,
