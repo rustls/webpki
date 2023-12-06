@@ -267,6 +267,10 @@ pub mod alg_id {
     pub const ECDSA_P384: AlgorithmIdentifier =
         AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-p384.der"));
 
+    /// AlgorithmIdentifier for `id-ecPublicKey` with named curve `secp521r1`.
+    pub const ECDSA_P521: AlgorithmIdentifier =
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-p521.der"));
+
     /// AlgorithmIdentifier for `ecdsa-with-SHA256`.
     pub const ECDSA_SHA256: AlgorithmIdentifier =
         AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-sha256.der"));
@@ -274,6 +278,10 @@ pub mod alg_id {
     /// AlgorithmIdentifier for `ecdsa-with-SHA384`.
     pub const ECDSA_SHA384: AlgorithmIdentifier =
         AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-sha384.der"));
+
+    /// AlgorithmIdentifier for `ecdsa-with-SHA512`.
+    pub const ECDSA_SHA512: AlgorithmIdentifier =
+        AlgorithmIdentifier::from_slice(include_bytes!("data/alg-ecdsa-sha512.der"));
 
     /// AlgorithmIdentifier for `rsaEncryption`.
     pub const RSA_ENCRYPTION: AlgorithmIdentifier =

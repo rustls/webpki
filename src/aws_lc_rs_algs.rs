@@ -63,6 +63,13 @@ pub static ECDSA_P384_SHA384: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgo
     verification_alg: &signature::ECDSA_P384_SHA384_ASN1,
 };
 
+/// ECDSA signatures using the P-521 curve and SHA-512.
+pub static ECDSA_P521_SHA512: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ECDSA_P521,
+    signature_alg_id: alg_id::ECDSA_SHA512,
+    verification_alg: &signature::ECDSA_P521_SHA512_ASN1,
+};
+
 /// RSA PKCS#1 1.5 signatures using SHA-256 for keys of 2048-8192 bits.
 pub static RSA_PKCS1_2048_8192_SHA256: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
     public_key_alg_id: alg_id::RSA_ENCRYPTION,
@@ -140,6 +147,7 @@ mod tests {
         // Reasonable algorithms.
         super::ECDSA_P256_SHA256,
         super::ECDSA_P384_SHA384,
+        super::ECDSA_P521_SHA512,
         super::ED25519,
         super::RSA_PKCS1_2048_8192_SHA256,
         super::RSA_PKCS1_2048_8192_SHA384,
@@ -154,6 +162,9 @@ mod tests {
     ];
 
     const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error =
+        Error::UnsupportedSignatureAlgorithmForPublicKey;
+
+    const UNSUPPORTED_ECDSA_SHA512_SIGNATURE: Error =
         Error::UnsupportedSignatureAlgorithmForPublicKey;
 
     const INVALID_SIGNATURE_FOR_RSA_KEY: Error = Error::InvalidSignatureForPublicKey;

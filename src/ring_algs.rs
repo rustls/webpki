@@ -184,6 +184,8 @@ mod tests {
         Error::UnsupportedSignatureAlgorithm
     };
 
+    const UNSUPPORTED_ECDSA_SHA512_SIGNATURE: Error = Error::UnsupportedSignatureAlgorithm;
+
     const INVALID_SIGNATURE_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
         Error::InvalidSignatureForPublicKey
     } else {

@@ -23,7 +23,7 @@ use alloc::{string::String, vec::Vec};
 
 use super::{
     INVALID_SIGNATURE_FOR_RSA_KEY, OK_IF_RSA_AVAILABLE, SUPPORTED_ALGORITHMS_IN_TESTS,
-    UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY,
+    UNSUPPORTED_ECDSA_SHA512_SIGNATURE, UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY,
 };
 
 macro_rules! test_file_bytes {
@@ -145,7 +145,7 @@ fn test_parse_spki_bad_outer(file_contents: &[u8], expected_error: Error) {
 test_verify_signed_data!(
     test_ecdsa_prime256v1_sha512_spki_params_null,
     "ecdsa-prime256v1-sha512-spki-params-null.pem",
-    Err(Error::UnsupportedSignatureAlgorithm)
+    Err(UNSUPPORTED_ECDSA_SHA512_SIGNATURE)
 );
 test_verify_signed_data_signature_outer!(
     test_ecdsa_prime256v1_sha512_unused_bits_signature,
@@ -157,14 +157,14 @@ test_verify_signed_data_signature_outer!(
 test_verify_signed_data!(
     test_ecdsa_prime256v1_sha512_using_ecdh_key,
     "ecdsa-prime256v1-sha512-using-ecdh-key.pem",
-    Err(Error::UnsupportedSignatureAlgorithm)
+    Err(UNSUPPORTED_ECDSA_SHA512_SIGNATURE)
 );
 // XXX: We should have a variant of this test with a SHA-256 digest that gives
 // `Error::UnsupportedSignatureAlgorithmForPublicKey`.
 test_verify_signed_data!(
     test_ecdsa_prime256v1_sha512_using_ecmqv_key,
     "ecdsa-prime256v1-sha512-using-ecmqv-key.pem",
-    Err(Error::UnsupportedSignatureAlgorithm)
+    Err(UNSUPPORTED_ECDSA_SHA512_SIGNATURE)
 );
 test_verify_signed_data!(
     test_ecdsa_prime256v1_sha512_using_rsa_algorithm,
@@ -176,13 +176,13 @@ test_verify_signed_data!(
 test_verify_signed_data!(
     test_ecdsa_prime256v1_sha512_wrong_signature_format,
     "ecdsa-prime256v1-sha512-wrong-signature-format.pem",
-    Err(Error::UnsupportedSignatureAlgorithm)
+    Err(UNSUPPORTED_ECDSA_SHA512_SIGNATURE)
 );
 // Differs from Chromium because we don't support P-256 with SHA-512.
 test_verify_signed_data!(
     test_ecdsa_prime256v1_sha512,
     "ecdsa-prime256v1-sha512.pem",
-    Err(Error::UnsupportedSignatureAlgorithm)
+    Err(UNSUPPORTED_ECDSA_SHA512_SIGNATURE)
 );
 test_verify_signed_data!(
     test_ecdsa_secp384r1_sha256_corrupted_data,

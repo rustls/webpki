@@ -550,13 +550,17 @@ def signatures(force: bool) -> None:
         "ed25519": ed25519.Ed25519PrivateKey.generate(),
         "ecdsa_p256": ec.generate_private_key(ec.SECP256R1(), backend),
         "ecdsa_p384": ec.generate_private_key(ec.SECP384R1(), backend),
-        "ecdsa_p521_not_supported": ec.generate_private_key(ec.SECP521R1(), backend),
+        "ecdsa_p521": ec.generate_private_key(ec.SECP521R1(), backend),
         "rsa_1024_not_supported": rsa.generate_private_key(
             rsa_pub_exponent, 1024, backend
         ),
         "rsa_2048": rsa.generate_private_key(rsa_pub_exponent, 2048, backend),
         "rsa_3072": rsa.generate_private_key(rsa_pub_exponent, 3072, backend),
         "rsa_4096": rsa.generate_private_key(rsa_pub_exponent, 4096, backend),
+    }
+
+    feature_gates = {
+        "ECDSA_P521_SHA512": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
     }
 
     rsa_types: list[str] = [
@@ -572,6 +576,7 @@ def signatures(force: bool) -> None:
         "ed25519": ["ED25519"],
         "ecdsa_p256": ["ECDSA_P256_SHA384", "ECDSA_P256_SHA256"],
         "ecdsa_p384": ["ECDSA_P384_SHA384", "ECDSA_P384_SHA256"],
+        "ecdsa_p521": ["ECDSA_P521_SHA512"],
         "rsa_2048": rsa_types,
         "rsa_3072": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
         "rsa_4096": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
@@ -600,6 +605,9 @@ def signatures(force: bool) -> None:
         ),
         "ECDSA_P384_SHA384": lambda key, message: key.sign(
             message, ec.ECDSA(hashes.SHA384())
+        ),
+        "ECDSA_P521_SHA512": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA512())
         ),
         "RSA_PKCS1_2048_8192_SHA256": lambda key, message: key.sign(
             message, padding.PKCS1v15(), hashes.SHA256()
@@ -659,11 +667,12 @@ def signatures(force: bool) -> None:
 
         sig_path: str = os.path.join(output_dir, f"{lower_test_name}.sig.bin")
         write_der(sig_path, signature, force)
+        feature_gate = feature_gates.get(algorithm, 'feature = "alloc"')
 
         print(
             """
 #[test]
-#[cfg(feature = "alloc")]
+#[cfg(%(feature_gate)s)]
 fn %(lower_test_name)s() {
     let ee = include_bytes!("%(cert_path)s");
     let message = include_bytes!("%(message_path)s");
@@ -759,6 +768,15 @@ fn %(test_name_lower)s() {
             # special case: tested separately below
             if type == "rsa_2048":
                 unusable_algs.remove("RSA_PKCS1_3072_8192_SHA384")
+
+            unusable_algs = {
+                (
+                    "#[cfg(%s)] %s" % (feature_gates[alg], alg)
+                    if alg in feature_gates
+                    else alg
+                )
+                for alg in unusable_algs
+            }
 
             bad_algorithms_for_key(
                 type + "_key_rejected_by_other_algorithms",
