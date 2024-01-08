@@ -538,7 +538,7 @@ impl<'a> IssuingDistributionPoint<'a> {
         use DistributionPointName::*;
         match result.names() {
             Ok(Some(FullName(_))) => Ok(result),
-            Ok(Some(NameRelativeToCrlIssuer(_))) | Ok(None) => {
+            Ok(Some(NameRelativeToCrlIssuer)) | Ok(None) => {
                 Err(Error::UnsupportedCrlIssuingDistributionPoint)
             }
             Err(_) => Err(Error::MalformedExtensions),
@@ -944,7 +944,7 @@ mod tests {
             .expect("failed to parse distribution point names")
             .expect("missing distribution point name");
         let uri = match dp_name {
-            DistributionPointName::NameRelativeToCrlIssuer(_) => {
+            DistributionPointName::NameRelativeToCrlIssuer => {
                 panic!("unexpected relative dp name")
             }
             DistributionPointName::FullName(general_names) => {

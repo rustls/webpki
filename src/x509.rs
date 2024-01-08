@@ -86,7 +86,7 @@ pub(crate) fn remember_extension(
 /// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
 pub(crate) enum DistributionPointName<'a> {
     /// The distribution point name is a relative distinguished name, relative to the CRL issuer.
-    NameRelativeToCrlIssuer(untrusted::Input<'a>),
+    NameRelativeToCrlIssuer,
     /// The distribution point name is a sequence of [GeneralName] items.
     FullName(DerIterator<'a, GeneralName<'a>>),
 }
@@ -102,9 +102,7 @@ impl<'a> FromDer<'a> for DistributionPointName<'a> {
         let (tag, value) = der::read_tag_and_get_value(reader)?;
         match tag {
             FULL_NAME_TAG => Ok(DistributionPointName::FullName(DerIterator::new(value))),
-            NAME_RELATIVE_TO_CRL_ISSUER_TAG => {
-                Ok(DistributionPointName::NameRelativeToCrlIssuer(value))
-            }
+            NAME_RELATIVE_TO_CRL_ISSUER_TAG => Ok(DistributionPointName::NameRelativeToCrlIssuer),
             _ => Err(Error::BadDer),
         }
     }
