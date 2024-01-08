@@ -111,7 +111,7 @@ fn check_presented_id_conforms_to_constraints(
                     dns_name::presented_id_matches_reference_id(name, IdRole::NameConstraint, base)
                 }
 
-                (GeneralName::DirectoryName(_), GeneralName::DirectoryName(_)) => Ok(
+                (GeneralName::DirectoryName, GeneralName::DirectoryName) => Ok(
                     // Reject any uses of directory name constraints; we don't implement this.
                     //
                     // Rejecting everything technically confirms to RFC5280:
@@ -237,8 +237,8 @@ impl<'a> Iterator for NameIterator<'a> {
             }
         }
 
-        if let Some(subject_directory_name) = self.subject_directory_name.take() {
-            return Some(Ok(GeneralName::DirectoryName(subject_directory_name)));
+        if self.subject_directory_name.take().is_some() {
+            return Some(Ok(GeneralName::DirectoryName));
         }
 
         None
@@ -253,7 +253,7 @@ impl<'a> Iterator for NameIterator<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum GeneralName<'a> {
     DnsName(untrusted::Input<'a>),
-    DirectoryName(untrusted::Input<'a>),
+    DirectoryName,
     IpAddress(untrusted::Input<'a>),
     UniformResourceIdentifier(untrusted::Input<'a>),
 
@@ -282,7 +282,7 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
         let (tag, value) = der::read_tag_and_get_value(reader)?;
         Ok(match tag {
             DNS_NAME_TAG => DnsName(value),
-            DIRECTORY_NAME_TAG => DirectoryName(value),
+            DIRECTORY_NAME_TAG => DirectoryName,
             IP_ADDRESS_TAG => IpAddress(value),
             UNIFORM_RESOURCE_IDENTIFIER_TAG => UniformResourceIdentifier(value),
 
