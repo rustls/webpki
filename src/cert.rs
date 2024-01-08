@@ -408,7 +408,7 @@ mod tests {
         // We expect the distribution point name to be a sequence of GeneralNames, not a name
         // relative to the CRL issuer.
         let names = match distribution_point_name {
-            DistributionPointName::NameRelativeToCrlIssuer(_) => {
+            DistributionPointName::NameRelativeToCrlIssuer => {
                 panic!("unexpected name relative to crl issuer")
             }
             DistributionPointName::FullName(names) => names,
@@ -566,12 +566,10 @@ mod tests {
             .expect("missing distribution point name");
 
         // We expect the distribution point name to be a name relative to the CRL issuer.
-        match distribution_point_name {
-            DistributionPointName::NameRelativeToCrlIssuer(name) => {
-                assert!(!name.is_empty());
-            }
-            DistributionPointName::FullName(_) => panic!("unexpected full name sequence"),
-        };
+        assert!(matches!(
+            distribution_point_name,
+            DistributionPointName::NameRelativeToCrlIssuer
+        ));
     }
 
     #[test]
@@ -633,7 +631,7 @@ mod tests {
                 .expect("failed to parse distribution point names")
                 .expect("missing distribution point name")
             {
-                DistributionPointName::NameRelativeToCrlIssuer(_) => {
+                DistributionPointName::NameRelativeToCrlIssuer => {
                     panic!("unexpected relative name")
                 }
                 DistributionPointName::FullName(names) => names,
