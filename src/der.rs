@@ -271,10 +271,10 @@ pub(crate) fn nested_of_mut<'a>(
 ) -> Result<(), Error> {
     nested(input, outer_tag, error, |outer| {
         loop {
-            nested(outer, inner_tag, error, |inner| decoder(inner))?;
             if outer.at_end() {
                 break;
             }
+            nested(outer, inner_tag, error, |inner| decoder(inner))?;
         }
         Ok(())
     })
