@@ -1,4 +1,4 @@
-use aws_lc_rs::signature;
+use aws_lc_rs::{signature, try_fips_mode};
 use pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 
 use crate::signed_data::alg_id;
@@ -32,6 +32,10 @@ impl SignatureVerificationAlgorithm for AwsLcRsAlgorithm {
         signature::UnparsedPublicKey::new(self.verification_alg, public_key)
             .verify(message, signature)
             .map_err(|_| InvalidSignature)
+    }
+
+    fn fips(&self) -> bool {
+        try_fips_mode().is_ok()
     }
 }
 
