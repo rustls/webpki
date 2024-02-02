@@ -53,6 +53,7 @@ mod der;
 #[cfg(feature = "aws_lc_rs")]
 mod aws_lc_rs_algs;
 mod cert;
+mod cert_policy;
 mod end_entity;
 mod error;
 #[cfg(feature = "ring")]
@@ -71,6 +72,7 @@ pub(crate) mod test_utils;
 
 pub use {
     cert::Cert,
+    cert_policy::validate_policy_tree_paths,
     crl::{
         BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationCheckDepth,
         RevocationOptions, RevocationOptionsBuilder, RevocationReason, UnknownStatusPolicy,

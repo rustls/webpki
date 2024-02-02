@@ -32,6 +32,7 @@ include = [
     "src/aws_lc_rs_algs.rs",
     "src/calendar.rs",
     "src/cert.rs",
+    "src/cert_policy.rs",
     "src/crl/mod.rs",
     "src/crl/types.rs",
     "src/der.rs",

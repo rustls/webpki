@@ -42,6 +42,12 @@ pub enum Error {
     /// The certificate, or one of its issuers, has been revoked.
     CertRevoked,
 
+    /// Duplicate certificate policy OID.
+    DuplicateCertificatePolicyOid,
+
+    /// Empty certificate policies extension.
+    EmptyCertificatePolicies,
+
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 
@@ -74,6 +80,9 @@ pub enum Error {
 
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
+
+    /// The policy tree is invalid for given acceptable policies.
+    InvalidPolicyTree,
 
     /// A CRL was signed by an issuer that has a KeyUsage bitstring that does not include
     /// the cRLSign key usage bit.
@@ -125,6 +134,9 @@ pub enum Error {
 
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
+
+    /// Unknown certificate policy qualifier.
+    UnknownPolicyQualifier,
 
     /// The certificate's revocation status could not be determined.
     UnknownRevocationStatus,
@@ -221,12 +233,16 @@ impl Error {
             Error::PathLenConstraintViolated => 220,
             Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 210,
             Error::IssuerNotCrlSigner => 200,
+            Error::InvalidPolicyTree => 195,
 
             // Errors related to supported features used in an invalid way.
             Error::InvalidCertValidity => 190,
             Error::InvalidNetworkMaskConstraint => 180,
             Error::InvalidSerialNumber => 170,
             Error::InvalidCrlNumber => 160,
+            Error::EmptyCertificatePolicies => 157,
+            Error::DuplicateCertificatePolicyOid => 155,
+            Error::UnknownPolicyQualifier => 152,
 
             // Errors related to unsupported features.
             Error::UnsupportedCrlSignatureAlgorithmForPublicKey
@@ -305,15 +321,20 @@ pub enum DerTypeId {
     Bool,
     Certificate,
     CertificateExtensions,
+    CertificatePolicy,
     CertificateTbsCertificate,
     CertRevocationList,
     CertRevocationListExtension,
+    CPSuri,
     CrlDistributionPoint,
     CommonNameInner,
     CommonNameOuter,
+    DisplayText,
     DistributionPointName,
     Extension,
     GeneralName,
+    NoticeReference,
+    PolicyQualifierInfo,
     RevocationReason,
     Signature,
     SignatureAlgorithm,
@@ -323,6 +344,7 @@ pub enum DerTypeId {
     TrustAnchorV1,
     TrustAnchorV1TbsCertificate,
     U8,
+    UserNotice,
     RevokedCertificate,
     RevokedCertificateExtension,
     RevokedCertEntry,

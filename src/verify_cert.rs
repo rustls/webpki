@@ -17,6 +17,7 @@ use core::ops::ControlFlow;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::cert::Cert;
+use crate::cert_policy::check_certificate_policies;
 use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
 use crate::end_entity::EndEntityCert;
@@ -75,6 +76,8 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                 let node = path.node();
                 self.check_signed_chain(&node, trust_anchor, budget)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
+
+                check_certificate_policies(&node)?;
 
                 let verify = match verify_path {
                     Some(verify) => verify,
@@ -217,6 +220,7 @@ impl<'p> VerifiedPath<'p> {
 /// Iterator over a path's intermediate certificates.
 ///
 /// Implements [`DoubleEndedIterator`] so it can be traversed in both directions.
+#[derive(Clone)]
 pub struct IntermediateIterator<'a> {
     /// Invariant: all of these `Option`s are `Some`.
     intermediates: &'a [Option<Cert<'a>>],
