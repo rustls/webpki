@@ -42,6 +42,10 @@ pub enum Error {
     /// The certificate, or one of its issuers, has been revoked.
     CertRevoked,
 
+    /// The CRL is expired; i.e. the verification time is not before the time
+    /// in the CRL nextUpdate field.
+    CrlExpired,
+
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 
@@ -213,7 +217,7 @@ impl Error {
             // Errors related to certificate validity
             Error::CertNotValidYet | Error::CertExpired => 290,
             Error::CertNotValidForName => 280,
-            Error::CertRevoked | Error::UnknownRevocationStatus => 270,
+            Error::CertRevoked | Error::UnknownRevocationStatus | Error::CrlExpired => 270,
             Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 260,
             Error::SignatureAlgorithmMismatch => 250,
             Error::RequiredEkuNotFound => 240,

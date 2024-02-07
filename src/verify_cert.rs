@@ -74,7 +74,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                 // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
 
                 let node = path.node();
-                self.check_signed_chain(&node, trust_anchor, budget)?;
+                self.check_signed_chain(&node, trust_anchor, budget, time)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
 
                 let verify = match verify_path {
@@ -140,6 +140,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         path: &PathNode<'_>,
         trust_anchor: &TrustAnchor,
         budget: &mut Budget,
+        time: UnixTime,
     ) -> Result<(), ControlFlow<Error, Error>> {
         let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
         let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
@@ -160,6 +161,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                     issuer_key_usage,
                     self.supported_sig_algs,
                     budget,
+                    time,
                 )?;
             }
 

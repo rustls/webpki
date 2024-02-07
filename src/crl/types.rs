@@ -140,6 +140,21 @@ impl<'a> CertRevocationList<'a> {
         )
         .map_err(crl_signature_err)
     }
+
+    /// Checks the verification time is before the time in the CRL nextUpdate field.
+    pub(crate) fn check_expiration(&self, time: UnixTime) -> Result<(), Error> {
+        let next_update = match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.next_update,
+            CertRevocationList::Borrowed(crl) => crl.next_update,
+        };
+
+        if time >= next_update {
+            return Err(Error::CrlExpired);
+        }
+
+        Ok(())
+    }
 }
 
 /// Owned representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
@@ -157,6 +172,8 @@ pub struct OwnedCertRevocationList {
     issuing_distribution_point: Option<Vec<u8>>,
 
     signed_data: signed_data::OwnedSignedData,
+
+    next_update: UnixTime,
 }
 
 #[cfg(feature = "alloc")]
@@ -205,6 +222,8 @@ pub struct BorrowedCertRevocationList<'a> {
 
     /// List of certificates revoked by the issuer in this CRL.
     revoked_certs: untrusted::Input<'a>,
+
+    next_update: UnixTime,
 }
 
 impl<'a> BorrowedCertRevocationList<'a> {
@@ -242,6 +261,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 .issuing_distribution_point
                 .map(|idp| idp.as_slice_less_safe().to_vec()),
             revoked_certs,
+            next_update: self.next_update,
         })
     }
 
@@ -363,7 +383,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            UnixTime::from_der(tbs_cert_list)?;
+            let next_update = UnixTime::from_der(tbs_cert_list)?;
 
             // RFC 5280 §5.1.2.6:
             //   When there are no revoked certificates, the revoked certificates list
@@ -384,6 +404,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
                 issuer,
                 revoked_certs,
                 issuing_distribution_point: None,
+                next_update,
             };
 
             // RFC 5280 §5.1.2.7:
@@ -899,6 +920,8 @@ impl TryFrom<u8> for RevocationReason {
 #[cfg(feature = "alloc")]
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use pki_types::CertificateDer;
 
     use super::*;
@@ -1225,6 +1248,29 @@ mod tests {
         // The CRL should be considered authoritative, the issuers match, the CRL has no IDP and the
         // cert has no CRL DPs.
         assert!(crl.authoritative(&path.node()));
+    }
+
+    #[test]
+    fn test_crl_expired() {
+        let crl = include_bytes!("../../tests/crls/crl.valid.der");
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(1706905579));
+
+        assert!(matches!(crl.check_expiration(time), Err(Error::CrlExpired)));
+    }
+
+    #[test]
+    fn test_crl_not_expired() {
+        let crl = include_bytes!("../../tests/crls/crl.valid.der");
+        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+            .unwrap()
+            .into();
+        let expiration_time = 1666210326;
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(expiration_time - 1000));
+
+        assert!(matches!(crl.check_expiration(time), Ok(())));
     }
 
     #[test]
