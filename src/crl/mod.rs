@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use pki_types::SignatureVerificationAlgorithm;
+use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::error::Error;
 use crate::verify_cert::{Budget, PathNode, Role};
@@ -35,6 +35,8 @@ pub struct RevocationOptionsBuilder<'a> {
     depth: RevocationCheckDepth,
 
     status_policy: UnknownStatusPolicy,
+
+    expiration_policy: ExpirationPolicy,
 }
 
 impl<'a> RevocationOptionsBuilder<'a> {
@@ -50,6 +52,10 @@ impl<'a> RevocationOptionsBuilder<'a> {
     /// By default revocation checking will fail if the revocation status of a certificate cannot
     /// be determined. This can be customized using the
     /// [RevocationOptionsBuilder::with_status_policy] method.
+    ///
+    /// By default revocation checking will *not* fail if the verification time is beyond the time
+    /// in the CRL nextUpdate field. This can be customized using the
+    /// [RevocationOptionsBuilder::with_expiration_policy] method.
     pub fn new(crls: &'a [&'a CertRevocationList<'a>]) -> Result<Self, CrlsRequired> {
         if crls.is_empty() {
             return Err(CrlsRequired(()));
@@ -59,6 +65,7 @@ impl<'a> RevocationOptionsBuilder<'a> {
             crls,
             depth: RevocationCheckDepth::Chain,
             status_policy: UnknownStatusPolicy::Deny,
+            expiration_policy: ExpirationPolicy::Ignore,
         })
     }
 
@@ -76,12 +83,19 @@ impl<'a> RevocationOptionsBuilder<'a> {
         self
     }
 
+    /// Customize whether the CRL nextUpdate field (i.e. expiration) is enforced.
+    pub fn with_expiration_policy(mut self, policy: ExpirationPolicy) -> Self {
+        self.expiration_policy = policy;
+        self
+    }
+
     /// Construct a [RevocationOptions] instance based on the builder's configuration.
     pub fn build(self) -> RevocationOptions<'a> {
         RevocationOptions {
             crls: self.crls,
             depth: self.depth,
             status_policy: self.status_policy,
+            expiration_policy: self.expiration_policy,
         }
     }
 }
@@ -93,6 +107,7 @@ pub struct RevocationOptions<'a> {
     pub(crate) crls: &'a [&'a CertRevocationList<'a>],
     pub(crate) depth: RevocationCheckDepth,
     pub(crate) status_policy: UnknownStatusPolicy,
+    pub(crate) expiration_policy: ExpirationPolicy,
 }
 
 impl<'a> RevocationOptions<'a> {
@@ -104,6 +119,7 @@ impl<'a> RevocationOptions<'a> {
         issuer_ku: Option<untrusted::Input>,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         budget: &mut Budget,
+        time: UnixTime,
     ) -> Result<Option<CertNotRevoked>, Error> {
         assert!(public_values_eq(path.cert.issuer, issuer_subject));
 
@@ -127,6 +143,10 @@ impl<'a> RevocationOptions<'a> {
             // Otherwise, this is an error condition based on the provided policy.
             (None, _) => return Err(Error::UnknownRevocationStatus),
         };
+
+        if self.expiration_policy == ExpirationPolicy::Enforce {
+            crl.check_expiration(time)?;
+        }
 
         // Verify the CRL signature with the issuer SPKI.
         // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
@@ -218,6 +238,16 @@ pub enum UnknownStatusPolicy {
     Deny,
 }
 
+/// Describes how to handle the nextUpdate field of the CRL (i.e. expiration).
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ExpirationPolicy {
+    /// Enforce the verification time is before the time in the nextUpdate field.
+    /// Treats an expired CRL as an error condition yielding [Error::CrlExpired].
+    Enforce,
+    /// Ignore the CRL nextUpdate field.
+    Ignore,
+}
+
 // Zero-sized marker type representing positive assertion that revocation status was checked
 // for a certificate and the result was that the certificate is not revoked.
 pub(crate) struct CertNotRevoked(());
@@ -269,6 +299,7 @@ mod tests {
         let opts = builder.build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.expiration_policy, ExpirationPolicy::Ignore);
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder with custom depth.
@@ -278,6 +309,7 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.expiration_policy, ExpirationPolicy::Ignore);
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to build a revocation options builder that allows unknown
@@ -288,6 +320,7 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
+        assert_eq!(opts.expiration_policy, ExpirationPolicy::Ignore);
         assert_eq!(opts.crls.len(), 1);
 
         // It should be possible to specify both depth and unknown status policy together.
@@ -298,6 +331,7 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Allow);
+        assert_eq!(opts.expiration_policy, ExpirationPolicy::Ignore);
         assert_eq!(opts.crls.len(), 1);
 
         // The same should be true for explicitly forbidding unknown status.
@@ -308,6 +342,18 @@ mod tests {
             .build();
         assert_eq!(opts.depth, RevocationCheckDepth::EndEntity);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.expiration_policy, ExpirationPolicy::Ignore);
+        assert_eq!(opts.crls.len(), 1);
+
+        // It should be possible to build a revocation options builder that allows unknown
+        // revocation status.
+        let opts = RevocationOptionsBuilder::new(&crls)
+            .unwrap()
+            .with_expiration_policy(ExpirationPolicy::Enforce)
+            .build();
+        assert_eq!(opts.depth, RevocationCheckDepth::Chain);
+        assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
+        assert_eq!(opts.expiration_policy, ExpirationPolicy::Enforce);
         assert_eq!(opts.crls.len(), 1);
 
         // Built revocation options should be debug and clone when alloc is enabled.
