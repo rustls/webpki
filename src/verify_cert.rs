@@ -466,6 +466,13 @@ impl KeyUsage {
             inner: ExtendedKeyUsage::Required(KeyPurposeId::new(oid)),
         }
     }
+
+    /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID, if the certificate has EKUs.
+    pub const fn required_if_present(oid: &'static [u8]) -> Self {
+        Self {
+            inner: ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(oid)),
+        }
+    }
 }
 
 /// Extended Key Usage (EKU) of a certificate.
