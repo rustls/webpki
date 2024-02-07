@@ -111,6 +111,7 @@ pub struct RevocationOptions<'a> {
 }
 
 impl<'a> RevocationOptions<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn check(
         &self,
         path: &PathNode<'_>,
