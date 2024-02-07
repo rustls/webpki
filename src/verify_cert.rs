@@ -708,8 +708,10 @@ mod tests {
 
     #[test]
     fn eku_key_purpose_id() {
-        assert!(ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH))
-            .key_purpose_id_equals(KeyPurposeId::new(EKU_SERVER_AUTH).oid_value))
+        assert!(
+            ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH))
+                .key_purpose_id_equals(KeyPurposeId::new(EKU_SERVER_AUTH).oid_value)
+        )
     }
 
     #[cfg(feature = "alloc")]
