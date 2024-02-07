@@ -446,18 +446,14 @@ impl KeyUsage {
     ///
     /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not require the certificate to specify the eKU extension.
     pub const fn server_auth() -> Self {
-        Self {
-            inner: ExtendedKeyUsage::RequiredIfPresent(EKU_SERVER_AUTH),
-        }
+        KeyUsage::required_if_present(EKU_SERVER_AUTH)
     }
 
     /// Construct a new [`KeyUsage`] as appropriate for client certificate authentication.
     ///
     /// As specified in <>, this does not require the certificate to specify the eKU extension.
     pub const fn client_auth() -> Self {
-        Self {
-            inner: ExtendedKeyUsage::RequiredIfPresent(EKU_CLIENT_AUTH),
-        }
+        KeyUsage::required_if_present(EKU_CLIENT_AUTH)
     }
 
     /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID.
@@ -550,10 +546,10 @@ impl Eq for KeyPurposeId {}
 // id-kp              OBJECT IDENTIFIER ::= { id-pkix 3 }
 
 // id-kp-serverAuth   OBJECT IDENTIFIER ::= { id-kp 1 }
-const EKU_SERVER_AUTH: KeyPurposeId = KeyPurposeId::new(&oid!(1, 3, 6, 1, 5, 5, 7, 3, 1));
+const EKU_SERVER_AUTH: &[u8] = &oid!(1, 3, 6, 1, 5, 5, 7, 3, 1);
 
 // id-kp-clientAuth   OBJECT IDENTIFIER ::= { id-kp 2 }
-const EKU_CLIENT_AUTH: KeyPurposeId = KeyPurposeId::new(&oid!(1, 3, 6, 1, 5, 5, 7, 3, 2));
+const EKU_CLIENT_AUTH: &[u8] = &oid!(1, 3, 6, 1, 5, 5, 7, 3, 2);
 
 fn loop_while_non_fatal_error<'a, V: 'a>(
     default_error: Error,
@@ -712,8 +708,8 @@ mod tests {
 
     #[test]
     fn eku_key_purpose_id() {
-        assert!(ExtendedKeyUsage::RequiredIfPresent(EKU_SERVER_AUTH)
-            .key_purpose_id_equals(EKU_SERVER_AUTH.oid_value))
+        assert!(ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH))
+            .key_purpose_id_equals(KeyPurposeId::new(EKU_SERVER_AUTH).oid_value))
     }
 
     #[cfg(feature = "alloc")]
