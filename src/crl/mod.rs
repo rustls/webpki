@@ -145,16 +145,16 @@ impl<'a> RevocationOptions<'a> {
             (None, _) => return Err(Error::UnknownRevocationStatus),
         };
 
-        if self.expiration_policy == ExpirationPolicy::Enforce {
-            crl.check_expiration(time)?;
-        }
-
         // Verify the CRL signature with the issuer SPKI.
         // TODO(XXX): consider whether we can refactor so this happens once up-front, instead
         //            of per-lookup.
         //            https://github.com/rustls/webpki/issues/81
         crl.verify_signature(supported_sig_algs, issuer_spki, budget)
             .map_err(crl_signature_err)?;
+
+        if self.expiration_policy == ExpirationPolicy::Enforce {
+            crl.check_expiration(time)?;
+        }
 
         // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
         KeyUsageMode::CrlSign.check(issuer_ku)?;
