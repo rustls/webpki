@@ -311,10 +311,9 @@ jobs:
       - name: Report to codecov.io
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./lcov.info
-          fail_ci_if_error: true
-          verbose: true
+          fail_ci_if_error: false
 
   nostd:
     name: Verify that no-std modes do not rely on libstd
