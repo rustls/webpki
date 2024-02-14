@@ -40,6 +40,7 @@ pub struct Cert<'a> {
     pub(crate) name_constraints: Option<untrusted::Input<'a>>,
     pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
     pub(crate) crl_distribution_points: Option<untrusted::Input<'a>>,
+    #[cfg(feature = "cert_policy")]
     pub(crate) certificate_policies: Option<untrusted::Input<'a>>,
 
     der: CertificateDer<'a>,
@@ -99,6 +100,7 @@ impl<'a> Cert<'a> {
                     name_constraints: None,
                     subject_alt_name: None,
                     crl_distribution_points: None,
+                    #[cfg(feature = "cert_policy")]
                     certificate_policies: None,
 
                     der: CertificateDer::from(cert_der.as_slice_less_safe()),
@@ -248,6 +250,7 @@ fn remember_cert_extension<'a>(
             31 => &mut cert.crl_distribution_points,
 
             // id-ce-certificatePolicies 2.5.29.32
+            #[cfg(feature = "cert_policy")]
             32 => &mut cert.certificate_policies,
 
             // id-ce-extKeyUsage 2.5.29.37

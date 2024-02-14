@@ -17,7 +17,9 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{anchor_from_trusted_cert, validate_policy_tree_paths, KeyUsage};
+#[cfg(feature = "cert_policy")]
+use webpki::validate_policy_tree_paths;
+use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -112,7 +114,7 @@ fn cloudflare_dns() {
  * The test fixtures were taken from `core::tests::test_win_hello_attest_tpm`
  * of [`webauthn-rs`](https://docs.rs/webauthn-rs/latest/webauthn_rs/).
  */
-#[cfg(feature = "alloc")]
+#[cfg(all(feature = "alloc", feature = "cert_policy"))]
 #[test]
 pub fn win_hello_attest_tpm() {
     let ee: &[u8] = include_bytes!("win_hello_attest_tpm/ee.der");
@@ -212,7 +214,7 @@ pub fn win_hello_attest_tpm() {
  * netflix's cert policy tree has no reachable leaves; i.e., we get a NULL
  * policy tree from the chain.
  */
-#[cfg(feature = "alloc")]
+#[cfg(all(feature = "alloc", feature = "cert_policy"))]
 #[test]
 fn netflix_invalid_policy_tree() {
     let ee: &[u8] = include_bytes!("netflix/ee.der");

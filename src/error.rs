@@ -43,9 +43,15 @@ pub enum Error {
     CertRevoked,
 
     /// Duplicate certificate policy OID.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
     DuplicateCertificatePolicyOid,
 
     /// Empty certificate policies extension.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
     EmptyCertificatePolicies,
 
     /// An end-entity certificate is being used as a CA certificate.
@@ -82,6 +88,9 @@ pub enum Error {
     InvalidSignatureForPublicKey,
 
     /// The policy tree is invalid for given acceptable policies.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
     InvalidPolicyTree,
 
     /// A CRL was signed by an issuer that has a KeyUsage bitstring that does not include
@@ -136,6 +145,9 @@ pub enum Error {
     UnknownIssuer,
 
     /// Unknown certificate policy qualifier.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
     UnknownPolicyQualifier,
 
     /// The certificate's revocation status could not be determined.
@@ -233,6 +245,7 @@ impl Error {
             Error::PathLenConstraintViolated => 220,
             Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 210,
             Error::IssuerNotCrlSigner => 200,
+            #[cfg(feature = "cert_policy")]
             Error::InvalidPolicyTree => 195,
 
             // Errors related to supported features used in an invalid way.
@@ -240,8 +253,11 @@ impl Error {
             Error::InvalidNetworkMaskConstraint => 180,
             Error::InvalidSerialNumber => 170,
             Error::InvalidCrlNumber => 160,
+            #[cfg(feature = "cert_policy")]
             Error::EmptyCertificatePolicies => 157,
+            #[cfg(feature = "cert_policy")]
             Error::DuplicateCertificatePolicyOid => 155,
+            #[cfg(feature = "cert_policy")]
             Error::UnknownPolicyQualifier => 152,
 
             // Errors related to unsupported features.
@@ -321,19 +337,24 @@ pub enum DerTypeId {
     Bool,
     Certificate,
     CertificateExtensions,
+    #[cfg(feature = "cert_policy")]
     CertificatePolicy,
     CertificateTbsCertificate,
     CertRevocationList,
     CertRevocationListExtension,
+    #[cfg(feature = "cert_policy")]
     CPSuri,
     CrlDistributionPoint,
     CommonNameInner,
     CommonNameOuter,
+    #[cfg(feature = "cert_policy")]
     DisplayText,
     DistributionPointName,
     Extension,
     GeneralName,
+    #[cfg(feature = "cert_policy")]
     NoticeReference,
+    #[cfg(feature = "cert_policy")]
     PolicyQualifierInfo,
     RevocationReason,
     Signature,
@@ -344,6 +365,7 @@ pub enum DerTypeId {
     TrustAnchorV1,
     TrustAnchorV1TbsCertificate,
     U8,
+    #[cfg(feature = "cert_policy")]
     UserNotice,
     RevokedCertificate,
     RevokedCertificateExtension,

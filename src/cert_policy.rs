@@ -1,3 +1,5 @@
+#![cfg(feature = "cert_policy")]
+
 use core::ops::ControlFlow;
 
 use crate::cert::Cert;
@@ -6,6 +8,8 @@ use crate::error::{DerTypeId, Error};
 use crate::verify_cert::{IntermediateIterator, PathNode, VerifiedPath};
 
 /// Validates the certificate policy tree formed by a given certificate path.
+///
+/// The feature `cert_policy` is required.
 ///
 /// ### Remarks
 ///

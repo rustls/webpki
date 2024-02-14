@@ -63,6 +63,7 @@ pub(crate) enum Tag {
     OID = 0x06,
     Enum = 0x0A,
     Sequence = CONSTRUCTED | 0x10, // 0x30
+    #[cfg(feature = "cert_policy")]
     IA5String = 0x16,
     UTCTime = 0x17,
     GeneralizedTime = 0x18,

@@ -53,6 +53,7 @@ mod der;
 #[cfg(feature = "aws_lc_rs")]
 mod aws_lc_rs_algs;
 mod cert;
+#[cfg(feature = "cert_policy")]
 mod cert_policy;
 mod end_entity;
 mod error;
@@ -72,7 +73,6 @@ pub(crate) mod test_utils;
 
 pub use {
     cert::Cert,
-    cert_policy::validate_policy_tree_paths,
     crl::{
         BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationCheckDepth,
         RevocationOptions, RevocationOptionsBuilder, RevocationReason, UnknownStatusPolicy,
@@ -116,6 +116,9 @@ pub mod aws_lc_rs {
         RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     };
 }
+
+#[cfg(feature = "cert_policy")]
+pub use cert_policy::validate_policy_tree_paths;
 
 /// An array of all the verification algorithms exported by this crate.
 ///
