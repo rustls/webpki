@@ -347,6 +347,7 @@ mod tests {
     use crate::error::Error;
     #[cfg(feature = "alloc")]
     use crate::subject_name::GeneralName;
+    use std::prelude::v1::*;
 
     #[test]
     // Note: cert::parse_cert is crate-local visibility, and EndEntityCert doesn't expose the
