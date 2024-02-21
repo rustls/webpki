@@ -12,7 +12,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::default::Default;
 use core::ops::ControlFlow;
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
