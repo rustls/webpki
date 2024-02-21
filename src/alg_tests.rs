@@ -14,6 +14,8 @@
 
 #![allow(clippy::duplicate_mod)]
 
+use std::prelude::v1::*;
+
 use base64::{engine::general_purpose, Engine as _};
 
 use crate::error::{DerTypeId, Error};

@@ -186,6 +186,7 @@ impl<'a> Deref for EndEntityCert<'a> {
 mod tests {
     use super::*;
     use crate::test_utils;
+    use std::prelude::v1::*;
 
     // This test reproduces https://github.com/rustls/webpki/issues/167 --- an
     // end-entity cert where the common name is a `PrintableString` rather than

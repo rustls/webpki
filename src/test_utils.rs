@@ -1,4 +1,5 @@
 #![cfg(feature = "alloc")]
+use std::prelude::v1::*;
 
 use crate::types::CertificateDer;
 
