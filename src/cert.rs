@@ -14,6 +14,8 @@
 
 use pki_types::{CertificateDer, DnsName};
 
+#[cfg(feature = "cert_policy")]
+use crate::cert_policy::{CertificatePolicy, PolicyIterator};
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
@@ -187,6 +189,23 @@ impl<'a> Cert<'a> {
     /// Raw DER encoded representation of the certificate.
     pub fn der(&self) -> CertificateDer<'a> {
         self.der.clone() // This is cheap, just cloning a reference.
+    }
+
+    /// Returns an iterator over the certificate policies extension values, if any.
+    ///
+    /// The `cert_policy` feature is required.
+    ///
+    /// `rustls-webpki` does not perform any policy tree validation.
+    /// You may use `verify_path` callback of
+    /// [`EndEntityCert::verify_for_usage`][crate::end_entity::EndEntityCert::verify_for_usage]
+    /// to implement custom policy validation.
+    #[cfg(feature = "cert_policy")]
+    pub fn certificate_policies(
+        &self,
+    ) -> Option<impl Iterator<Item = Result<CertificatePolicy<'a>, Error>>> {
+        self.certificate_policies
+            .as_ref()
+            .map(|&policies| PolicyIterator::new(policies))
     }
 }
 

@@ -1,3 +1,7 @@
+//! Certificate policies extension.
+//!
+//! The `cert_policy` feature is required.
+
 #![cfg(feature = "cert_policy")]
 
 use core::ops::ControlFlow;
@@ -5,426 +9,7 @@ use core::ops::ControlFlow;
 use crate::cert::Cert;
 use crate::der::{self, FromDer, Tag};
 use crate::error::{DerTypeId, Error};
-use crate::verify_cert::{IntermediateIterator, PathNode, VerifiedPath};
-
-/// Validates the certificate policy tree formed by a given certificate path.
-///
-/// The feature `cert_policy` is required.
-///
-/// ### Remarks
-///
-/// This function does not build the entire policy tree as described in RFC
-/// 5280, Section 6.1, but checks if there is any policy tree path that accepts
-/// at least one policy in `user_initial_policy_set` in a depth-first search
-/// manner.
-///
-/// This function assumes:
-/// - *valid_policy_tree* must include at least one policy in
-///   `user_initial_policy_set`
-/// - *anyPolicy* is allowed
-/// - Policy mappings extension is not supported
-/// - Policy constraints extension is not supported
-/// - Inhibit anyPolicy extension is not supported
-///
-/// `user_initial_policy_set` is a slice of acceptable policy OIDs.
-/// Each OID must be DER-encoded but without the first two bytes (the tag and
-/// length).
-/// You may include *anyPolicy* in `user_initial_policy_set`.
-/// This function fails if `user_initial_policy_set` is empty.
-///
-/// ### Conformity to RFC 5280, Section 6.1.
-///
-/// Excerpts from RFC 5280 are blockquoted.
-///
-/// #### 6.1.1. Inputs
-///
-/// > (a) a prospective certification path of length n.
-///
-/// Given by `path`.
-///
-/// > (b) the current date/time.
-///
-/// Does not apply.
-///
-/// > (c) user-initial-policy-set
-///
-/// Given by `user_initial_policy_set`.
-///
-/// > (d) trust anchor information
-///
-/// Does not apply.
-///
-/// > (e) initial-policy-mapping-inhibit
-///
-/// Policy mapping is not supported.
-///
-/// > (f) initial-explicit-policy
-///
-/// Always set; i.e., this function fails if `path` is valid for none of
-/// policies in `user_initial_policy_set`.
-///
-/// > (g) initial-any-policy-inhibit
-///
-/// Always unset; i.e., any policy is allowed.
-///
-/// > (h) initial-permitted-subtrees
-///
-/// Does not apply.
-///
-/// > (i) initial-excluded-subtrees
-///
-/// Does not apply.
-///
-/// #### 6.1.2. Initialization
-///
-/// > (a) valid_policy_tree:
-/// > ...
-/// > The initial value of the valid_policy_tree is a single node with
-/// > valid_policy anyPolicy, an empty qualifier set, and an expected_policy_set
-/// > with the single value anyPolicy. This node is considered to be at depth
-/// > zero.
-///
-/// This function works in a depth-first search manner.
-/// The initial value of *valid_policy* is the first policy in
-/// `user_initial_policy_set`.
-/// This function goes through `path` checking if *valid_policy* is valid.
-/// If the inital *valid_policy* is not valid, this function picks the next
-/// policy in `user_initial_policy_set` as the next initial *valid_policy* and
-/// repeats the above check.
-/// This function repeats the above process until it finds a valid policy or
-/// processes all the policies in `user_initial_policy_set`.
-///
-/// *qualifier_set* is not used; i.e., this function is **not suitable for
-/// applications that require policy qualifiers**.
-///
-/// *expected_policy_set* is always equal to *valid_policy*.
-///
-/// > (b) permitted_subtrees:
-///
-/// Does not apply.
-///
-/// > (c) excluded_subtrees:
-///
-/// Does not apply.
-///
-/// > (d) explicit_policy:
-///
-/// 0 because *initial-explict-policy* is set.
-///
-/// > (e) inhibit_anyPolicy:
-///
-/// n+1 because *initial-any-policy-inhibit* is unset.
-///
-/// > (f) policy_mapping:
-///
-/// Policy mappings extension is not supported.
-///
-/// > (g) working_public_key_algorithm:
-///
-/// Does not apply.
-///
-/// > (h) working_public_key:
-///
-/// Does not apply.
-///
-/// > (i) working_public_key_parameters:
-///
-/// Does not apply.
-///
-/// > (j) working_issuer_name:
-///
-/// Does not apply.
-///
-/// > (k) max_path_length:
-///
-/// Does not apply.
-///
-/// #### 6.1.3. Basic Certificate Processing
-///
-/// > (a) Verify the basic certificate information.
-///
-/// Does not apply.
-///
-/// > (b) If certificate i is self-issued ...
-/// > within one of the permitted_subtrees ...
-///
-/// Does not apply.
-///
-/// > (c) If certificate i is self-issued ...
-/// > not within one of the excluded_subtrees ...
-///
-/// Does not apply.
-///
-/// > (d) If the certificate policies extension is present in the certificate
-/// > and the valid_policy_tree is not NULL, process the policy information by
-/// > performing the following steps in order:
-///
-/// > (1) For each policy P not equal to anyPolicy in the certificate policies
-/// > extension, let P-OID denote the OID for policy P and P-Q denote the
-/// > qualifier set for policy P.
-///
-/// Policy qualifier *P-Q* is not handled.
-///
-/// > (i) For each node of depth i-1 in the valid_policy_tree where P-OID is
-/// > in the expected_policy_set, create a child node as follows: set the
-/// > valid_policy to P-OID, set the qualifier_set to P-Q, and set the
-/// > expected_policy_set to {P-OID}.
-///
-/// Since *expected_policy_set* is equivalent to *valid_policy* in our
-/// procedure, this step checks if non-any *valid_policy* matches *P-OID*.
-/// If it matches, this function recursively applies Step (d) to the remaining
-/// certificates in `path`.
-/// Otherwise, proceeds to Step (ii).
-/// If *valid_policy* is valid for all the remaining certificates in `path`,
-/// this function finishes with success.
-/// Otherwise, proceeds to Step (ii).
-///
-/// > (ii) If there was no match in step (i) and the valid_policy_tree includes
-/// > a node of depth i-1 with the valid_policy anyPolicy, generate a child node
-/// > with the following values: set the valid_policy to P-OID, set the
-/// > qualifier_set to P-Q, and set the expected_policy_set to {P-OID}.
-///
-/// This step is applied if *valid_policy* is *anyPolicy* since we are
-/// performing a depth-first search.
-/// If *valid_policy* is *anyPolicy*, this function replaces *valid_policy* with
-/// *P-OID* and recursively applies Step (d) to the remaining certificates in
-/// `path`.
-/// Otherwise, proceeds to Step (2).
-/// If *valid_policy* is valid for all the remaining certificates in `path`,
-/// this function finishes with success.
-/// Otherwise, proceeds to Step (2).
-///
-/// > (2) If the certificate policies extension includes the policy anyPolicy
-/// > with the qualifier set AP-Q and either (a) inhibit_anyPolicy is greater
-/// > than 0 or (b) i<n and the certificate is self-issued, then
-/// >
-/// > For each node in the valid_policy_tree of depth i-1, for each value in the
-/// > expected_policy_set (including anyPolicy) that does not appear in a child
-/// > node, create a child node with the following values: set the valid_policy
-/// > to the value from the expected_policy_set in the parent node, set the
-/// > qualifier_set to AP-Q, and set the expected_policy_set to the value in the
-/// > valid_policy from this node.
-///
-/// If the certificate policies extension includes the policy *anyPolicy*,
-/// this function recursively applies Step (d) to the remaining certificates in
-/// `path`.
-/// Otherwise, proceeds to Step (3).
-/// If *valid_policy* is valid for all the remaining certificates in `path`,
-/// this function finishes with success.
-/// Otherwise, proceeds to Step (3).
-///
-/// Policy qualifier *AP-Q* is not handled.
-///
-/// *inhibit_anyPolicy* does not matter because it is virtually greater than 0.
-///
-/// > (3) If there is a node in the valid_policy_tree of depth i-1 or less
-/// > without any child nodes, delete that node. Repeat this step until there
-/// > are no nodes of depth i-1 or less without children.
-///
-/// This function stops the recursion with failure as soon as it reaches this
-/// step.
-/// Our procedure does not need "pruning" described in RFC 5280 because it
-/// performs a depth-first search.
-///
-/// > (e) If the certificate policies extension is not present, set the
-/// > valid_policy_tree to NULL.
-/// >
-/// > (f) Verify that either explicit_policy is greater than 0 or the
-/// > valid_policy_tree is not equal to NULL.
-///
-/// This function immediately fails if any certificate in `path` does not have
-/// the certificate policies extension, because *explicit_policy* is vritually
-/// 0.
-///
-/// This function fails if all the recursions at Step (d) fail for all the
-/// policies in `user_initial_policy_set`.
-/// It is equivalent to the situation where *valid_policy_tree* is *NULL*.
-///
-/// #### 6.1.4. Preparation for Certificate i+1
-///
-/// As detailed below, the steps described in this section do not apply.
-///
-/// > To prepare for processing of certificate i+1, perform the following steps
-/// > for certificate i:
-///
-/// > (a) If a policy mappings extension is present, ...
-///
-/// Policy mappings is not supported.
-///
-/// > (b) If a policy mappings extension is present, ...
-///
-/// Policy mappings is not supported.
-///
-/// > (c) Assign the certificate subject name to working_issuer_name.
-///
-/// Does not apply.
-///
-/// > (d) Assign the certificate subjectPublicKey to working_public_key.
-///
-/// Does not apply.
-///
-/// > (e) If the subjectPublicKeyInfo field of ...
-///
-/// Does not apply.
-///
-/// > (f) Assign the certificate subjectPublicKey algorithm to ...
-///
-/// Does not apply.
-///
-/// > (g) If a name constraints extension is included in the certificate, ...
-///
-/// Does not apply.
-///
-/// > (h) If certificate i is not self-issued:
-///
-/// > (1) If explicit_policy is not 0, decrement explicit_policy by 1.
-///
-/// *explicit_policy* is virtually 0.
-///
-/// > (2) If policy_mapping is not 0, decrement policy_mapping by 1.
-///
-/// Policy mappings extension is not supported.
-///
-/// > (3) If inhibit_anyPolicy is not 0, decrement inhibit_anyPolicy by 1.
-///
-/// *inhibit_anyPolicy* is virtually always greater than 0, because
-/// *initial-any-policy-inhibit* is unset and inhibit anyPolicy extension is
-/// not supported.
-///
-/// > (i) If a policy constraints extension is included in the certificate, ...
-///
-/// Policy constraints extension is not supported.
-///
-/// > (j) If the inhibitAnyPolicy extension is included in the certificate, ...
-///
-/// Inhibit anyPolicy exxtension is not supported.
-///
-/// > (k) If certificate i is a version 3 certificate, ...
-///
-/// Does not apply.
-///
-/// > (l) If the certificate was not self-issued, verify that max_path_length ...
-///
-/// Does not apply.
-///
-/// > (m) If pathLenConstraint is present in the certificate ...
-///
-/// Does not apply.
-///
-/// > (n) If a key usage extension is present, ...
-///
-/// Does not apply.
-///
-/// > (o) Recognize and process any other critical extension ...
-///
-/// Does not apply.
-///
-/// #### 6.1.5. Wrap-Up Procedure
-///
-/// As detailed below, the steps described in this section do not apply.
-///
-/// > To complete the processing of the target certificate, perform the
-/// > following steps for certificate n:
-///
-/// > (a) If explicit_policy is not 0, decrement explicit_policy by 1.
-///
-/// *explicit_policy* is virtualy 0.
-///
-/// > (b) If a policy constraints extension is included in the certificate ...
-///
-/// Policy constraints extension is not supported.
-///
-/// > (c) Assign the certificate subjectPublicKey to working_public_key.
-///
-/// Does not apply.
-///
-/// > (d) If the subjectPublicKeyInfo field of the certificate ...
-///
-/// Does not apply.
-///
-/// > (e) Assign the certificate subjectPublicKey algorithm to ...
-///
-/// Does not apply.
-///
-/// > (f) Recognize and process any other critical extension ...
-///
-/// Does not apply.
-///
-/// > (g) Calculate the intersection of the valid_policy_tree and the
-/// > user-initial-policy-set, as follows:
-///
-/// Does not apply because we do not build the entire policy tree.
-/// Because we start from a specific policy OID in `user_initial_policy_set`,
-/// the valid policy tree path that our procedure finds is vitually included in
-/// the intersection of the *valid_policy_tree* and the
-/// *user-initial-policy-set*.
-pub fn validate_policy_tree_paths(
-    path: &crate::VerifiedPath<'_>,
-    user_initial_policy_set: &[&[u8]],
-) -> Result<(), Error> {
-    for &valid_policy in user_initial_policy_set {
-        let cert_chain = CertificateIterator::new(path);
-        match validate_policy_tree_paths_inner(cert_chain, &valid_policy.into()) {
-            Ok(()) => return Ok(()),
-            Err(ControlFlow::Break(err)) => return Err(err),
-            Err(ControlFlow::Continue(_)) => (),
-        }
-    }
-    Err(Error::InvalidPolicyTree)
-}
-
-fn validate_policy_tree_paths_inner<'a>(
-    mut cert_chain: impl Iterator<Item = &'a Cert<'a>> + Clone,
-    valid_policy: &PolicyOid<'_>,
-) -> Result<(), ControlFlow<Error, Error>> {
-    if let Some(cert) = cert_chain.next() {
-        if let Some(policies) = cert.certificate_policies {
-            let mut policy_iter = PolicyIterator::new(policies);
-            let mut has_any_policy = false;
-            for policy in &mut policy_iter {
-                let policy = policy?.policy_oid(); // should not fail
-                if !policy.is_any_policy() {
-                    // RFC 5280, Section 6.1.3. (d)
-                    // (1) For each policy P not equal to anyPolicy in the
-                    // certificate policies extension
-                    if valid_policy.matches(&policy) {
-                        // covers both (i) and (ii)
-                        //
-                        // (i) For each node of depth i-1 in the
-                        // valid_policy_tree where P-OID is in the
-                        // expected_policy_set ...
-                        // ← valid_policy is not anyPolicy
-                        //
-                        // (ii) If there was no match in step (i) and the
-                        // valid_policy_tree includes a node of depth i-1 with
-                        // the valid_policy anyPolicy ...
-                        // ← valid_policy is anyPolicy
-                        match validate_policy_tree_paths_inner(cert_chain.clone(), valid_policy) {
-                            Ok(()) => return Ok(()),
-                            res @ Err(ControlFlow::Break(_)) => return res,
-                            Err(ControlFlow::Continue(_)) => (),
-                        }
-                    }
-                } else {
-                    has_any_policy = true;
-                }
-            }
-            if has_any_policy {
-                // (2) If the certificate policies extension includes the policy
-                // anyPolicy
-                validate_policy_tree_paths_inner(cert_chain, valid_policy)
-            } else {
-                Err(ControlFlow::Continue(Error::InvalidPolicyTree))
-            }
-        } else {
-            // if any cert in the chain lacks the certificate policies extension
-            // there is no chance to succeed
-            Err(ControlFlow::Break(Error::InvalidPolicyTree))
-        }
-    } else {
-        Ok(())
-    }
-}
+use crate::verify_cert::PathNode;
 
 // Checks if the individual certificate policies extensions conform to the
 // specification described in RFC 5280, Section 4.2.1.4.
@@ -504,7 +89,7 @@ fn check_certificate_policy_qualifiers(policies: untrusted::Input<'_>) -> Result
     Ok(())
 }
 
-struct PolicyIterator<'a> {
+pub(crate) struct PolicyIterator<'a> {
     // `None` means that the end of the input has been reached.
     policies: Option<untrusted::Reader<'a>>,
 }
@@ -518,7 +103,7 @@ struct PolicyIterator<'a> {
 //
 // Note that SEQUENCE tag has already been consumed.
 impl<'a> PolicyIterator<'a> {
-    fn new(policies: untrusted::Input<'a>) -> Self {
+    pub(crate) fn new(policies: untrusted::Input<'a>) -> Self {
         PolicyIterator {
             policies: Some(untrusted::Reader::new(policies)),
         }
@@ -563,27 +148,29 @@ impl<'a> Iterator for PolicyIterator<'a> {
     }
 }
 
-// Represents a single policy information defined in
-// RFC 5280, Section 4.2.1.4:
-//
-// ```
-// PolicyInformation ::= SEQUENCE {
-//      policyIdentifier   CertPolicyId,
-//      policyQualifiers   SEQUENCE SIZE (1..MAX) OF
-//                              PolicyQualifierInfo OPTIONAL }
-// ```
+/// Represents a single policy information defined in
+/// RFC 5280, Section 4.2.1.4.
+///
+/// ```text
+/// PolicyInformation ::= SEQUENCE {
+///      policyIdentifier   CertPolicyId,
+///      policyQualifiers   SEQUENCE SIZE (1..MAX) OF
+///                              PolicyQualifierInfo OPTIONAL }
+/// ```
 #[derive(Clone)]
-struct CertificatePolicy<'a> {
-    pub(crate) id: untrusted::Input<'a>,
+pub struct CertificatePolicy<'a> {
+    id: untrusted::Input<'a>,
     qualifiers: Option<untrusted::Input<'a>>,
 }
 
 impl<'a> CertificatePolicy<'a> {
-    fn policy_oid(&self) -> PolicyOid<'a> {
+    /// Returns the policy OID.
+    pub fn policy_oid(&self) -> PolicyOid<'a> {
         PolicyOid::from(self.id)
     }
 
-    pub(crate) fn qualifiers(&self) -> PolicyQualifierInfoIterator<'a> {
+    /// Iterates over policy qualifiers.
+    pub fn qualifiers(&self) -> impl Iterator<Item = Result<PolicyQualifierInfo<'a>, Error>> {
         PolicyQualifierInfoIterator::new(self.qualifiers)
     }
 }
@@ -658,18 +245,29 @@ impl<'a> Iterator for PolicyQualifierInfoIterator<'a> {
     }
 }
 
-// Represents a single policy qualifier information defined in
-// RFC 5280, Section 4.2.1.4:
-//
-// ```
-// PolicyQualifierInfo ::= SEQUENCE {
-//      policyQualifierId  PolicyQualifierId,
-//      qualifier          ANY DEFINED BY policyQualifierId }
-// ```
-#[cfg_attr(not(test), allow(dead_code))]
-struct PolicyQualifierInfo<'a> {
-    id: untrusted::Input<'a>,
-    qualifier: PolicyQualifier<'a>,
+/// Represents a single policy qualifier information defined in
+/// RFC 5280, Section 4.2.1.4.
+///
+/// ```text
+/// PolicyQualifierInfo ::= SEQUENCE {
+///      policyQualifierId  PolicyQualifierId,
+///      qualifier          ANY DEFINED BY policyQualifierId }
+///
+/// -- policyQualifierIds for Internet policy qualifiers
+///
+/// id-qt          OBJECT IDENTIFIER ::=  { id-pkix 2 }
+/// id-qt-cps      OBJECT IDENTIFIER ::=  { id-qt 1 }
+/// id-qt-unotice  OBJECT IDENTIFIER ::=  { id-qt 2 }
+///
+/// PolicyQualifierId ::= OBJECT IDENTIFIER ( id-qt-cps | id-qt-unotice )
+/// ```
+pub struct PolicyQualifierInfo<'a> {
+    /// Policy qualifier ID.
+    ///
+    /// The OID tag and length are not included.
+    pub id: untrusted::Input<'a>,
+    /// Optional fields of the policy qualifier.
+    pub qualifier: PolicyQualifier<'a>,
 }
 
 impl<'a> PolicyQualifierInfo<'a> {
@@ -726,28 +324,29 @@ const POLICY_QUALIFIER_ID_CPS: &[u8] = &policy_qualifier_id!(1);
 // ```
 const POLICY_QUALIFIER_ID_USER_NOTICE: &[u8] = &policy_qualifier_id!(2);
 
-// Represents variants of policy qualifiers.
-enum PolicyQualifier<'a> {
-    // RFC 5280, Section 4.2.1.4:
-    // ```
-    // CPSuri ::= IA5String
-    // ```
-    // Note that the value does not contain the IA5String tag and length.
+/// Represents additional fields of policy qualifiers.
+pub enum PolicyQualifier<'a> {
+    /// CPS Pointer (URI) in RFC 5280, Section 4.2.1.4:
+    /// ```text
+    /// CPSuri ::= IA5String
+    /// ```
+    /// Note that the value does not contain the IA5String tag and length.
     CPSuri(untrusted::Input<'a>),
-    // RFC 5280, Section 4.2.1.4:
-    // ```
-    // UserNotice ::= SEQUENCE {
-    //      noticeRef        NoticeReference OPTIONAL,
-    //      explicitText     DisplayText OPTIONAL }
-    // ```
-    // We accept the case where neither of `noticeRef` and `explicitText` is
-    // present.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// User notice in RFC 5280, Section 4.2.1.4:
+    /// ```text
+    /// UserNotice ::= SEQUENCE {
+    ///      noticeRef        NoticeReference OPTIONAL,
+    ///      explicitText     DisplayText OPTIONAL }
+    /// ```
+    /// We accept the case where neither of `noticeRef` and `explicitText` is
+    /// present.
     UserNotice {
+        /// Notice reference.
         notice_ref: Option<NoticeReference<'a>>,
+        /// Explicit text.
         explicit_text: Option<DisplayText<'a>>,
     },
-    // Other qualifier IDs fall into this variant.
+    /// Other qualifier IDs fall into this variant.
     Unknown(untrusted::Input<'a>),
 }
 
@@ -787,17 +386,20 @@ impl<'a> PolicyQualifier<'a> {
     }
 }
 
-// Represents a notice reference defined in RFC 5280, Section 4.2.1.4:
-//
-// ```
-// NoticeReference ::= SEQUENCE {
-//      organization     DisplayText,
-//      noticeNumbers    SEQUENCE OF INTEGER }
-// ```
-#[cfg_attr(not(test), allow(dead_code))]
-struct NoticeReference<'a> {
-    organization: DisplayText<'a>,
-    notice_numbers: untrusted::Input<'a>,
+/// Represents a notice reference defined in RFC 5280, Section 4.2.1.4:
+///
+/// ```text
+/// NoticeReference ::= SEQUENCE {
+///      organization     DisplayText,
+///      noticeNumbers    SEQUENCE OF INTEGER }
+/// ```
+pub struct NoticeReference<'a> {
+    /// Organization.
+    pub organization: DisplayText<'a>,
+    /// Policy numbers.
+    ///
+    /// The SEQUENCE tag and length are not included.
+    pub notice_numbers: untrusted::Input<'a>,
 }
 
 impl<'a> FromDer<'a> for NoticeReference<'a> {
@@ -825,37 +427,42 @@ impl<'a> FromDer<'a> for NoticeReference<'a> {
     const TYPE_ID: DerTypeId = DerTypeId::NoticeReference;
 }
 
-// Represents a display text defined in RFC 5280, Section 4.2.1.4:
-//
-// ```
-// DisplayText ::= CHOICE {
-//      ia5String        IA5String      (SIZE (1..200)),
-//      visibleString    VisibleString  (SIZE (1..200)),
-//      bmpString        BMPString      (SIZE (1..200)),
-//      utf8String       UTF8String     (SIZE (1..200)) }
-// ```
-//
-// Despite said in RFC 5280, Section 4.2.1.4:
-//
-// > Conforming CAs MUST NOT encode explicitText as VisibleString or BMPString.
-//
-// We faced both VisibleString and BMPString in the following test fixtures:
-// - tests/netflix
-// - tests/win_hello_attest_tpm
-//
-// We do not impose the cap on the length as said in RFC 5280, Section 4.2.1.4:
-//
-// > Note: While the explicitText has a maximum size of 200 characters, some
-// > non-conforming CAs exceed this limit.  Therefore, certificate users SHOULD
-// > gracefully handle explicitText with more than 200 characters.
-//
+/// Represents a display text defined in RFC 5280, Section 4.2.1.4:
+///
+/// ```text
+/// DisplayText ::= CHOICE {
+///      ia5String        IA5String      (SIZE (1..200)),
+///      visibleString    VisibleString  (SIZE (1..200)),
+///      bmpString        BMPString      (SIZE (1..200)),
+///      utf8String       UTF8String     (SIZE (1..200)) }
+/// ```
+///
+/// Despite said in RFC 5280, Section 4.2.1.4:
+///
+/// > Conforming CAs MUST NOT encode explicitText as VisibleString or BMPString.
+///
+/// We faced both VisibleString and BMPString in the following test fixtures:
+/// - tests/netflix
+/// - tests/win_hello_attest_tpm
+///
+/// We do not impose the cap on the length as said in RFC 5280, Section 4.2.1.4:
+///
+/// > Note: While the explicitText has a maximum size of 200 characters, some
+/// > non-conforming CAs exceed this limit.  Therefore, certificate users SHOULD
+/// > gracefully handle explicitText with more than 200 characters.
+///
+/// The value of each variant does not include the tag and length.
 // The variants all end with "String" and `clippy` does not like it.
 // But I leave it as is to keep coherent with the terms in the RFC.
 #[allow(clippy::enum_variant_names)]
-enum DisplayText<'a> {
+pub enum DisplayText<'a> {
+    /// IA5String.
     IA5String(untrusted::Input<'a>),
+    /// VisibleString.
     VisibleString(untrusted::Input<'a>),
+    /// BMPString.
     BMPString(untrusted::Input<'a>),
+    /// UTF8String.
     UTF8String(untrusted::Input<'a>),
 }
 
@@ -878,49 +485,16 @@ impl<'a> FromDer<'a> for DisplayText<'a> {
     const TYPE_ID: DerTypeId = DerTypeId::DisplayText;
 }
 
-#[derive(Clone)]
-struct CertificateIterator<'a> {
-    // `None` means all the intermediate certificates have been porcessed.
-    intermediate_certs: Option<IntermediateIterator<'a>>,
-    // `None` means the end-entity certificate has been processed.
-    end_entity_cert: Option<&'a Cert<'a>>,
-}
-
-impl<'a> CertificateIterator<'a> {
-    fn new(path: &'a VerifiedPath<'a>) -> Self {
-        Self {
-            intermediate_certs: Some(path.intermediate_certificates()),
-            end_entity_cert: Some(path.end_entity()),
-        }
-    }
-}
-
-impl<'a> Iterator for CertificateIterator<'a> {
-    type Item = &'a Cert<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(intermediate_certs) = self.intermediate_certs.as_mut() {
-            if let Some(cert) = intermediate_certs.next_back() {
-                return Some(cert);
-            } else {
-                self.intermediate_certs = None;
-                // returns the end-entity certificate below
-            }
-        }
-        if let Some(end_entity_cert) = self.end_entity_cert.take() {
-            return Some(end_entity_cert);
-        }
-        None
-    }
-}
-
 // RFC 5280, Section 4.2.1.4
 const ANY_POLICY_OID: &[u8] = &oid!(2, 5, 29, 32, 0);
 
-enum PolicyOid<'a> {
-    // anyPolicy
+/// Policy OID.
+pub enum PolicyOid<'a> {
+    /// `anyPolicy`
     AnyPolicy,
-    // specific policy OID
+    /// Specific policy OID.
+    ///
+    /// The OID tag and length are not included.
     SpecificPolicy(untrusted::Input<'a>),
 }
 
@@ -933,11 +507,15 @@ impl<'a> PolicyOid<'a> {
         }
     }
 
-    const fn is_any_policy(&self) -> bool {
+    /// Returns if this policy OID is `anyPolicy`.
+    pub const fn is_any_policy(&self) -> bool {
         matches!(self, Self::AnyPolicy)
     }
 
-    fn matches(&self, other: &Self) -> bool {
+    /// Returns if this policy OID matches another policy OID.
+    ///
+    /// `anyPolicy` matches any policy OID.
+    pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::AnyPolicy, _) | (_, Self::AnyPolicy) => true,
             (Self::SpecificPolicy(a), Self::SpecificPolicy(b)) => {

@@ -87,9 +87,12 @@ pub enum Error {
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
 
-    /// The policy tree is invalid for given acceptable policies.
+    /// The policy tree is invalid.
     ///
     /// The feature `cert_policy` is required.
+    ///
+    /// This error is reserved for users who want to implement policy
+    /// validation.
     #[cfg(feature = "cert_policy")]
     InvalidPolicyTree,
 

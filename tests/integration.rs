@@ -17,8 +17,6 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-#[cfg(feature = "cert_policy")]
-use webpki::validate_policy_tree_paths;
 use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 /* Checks we can verify netflix's cert chain.  This is notable
@@ -130,7 +128,6 @@ pub fn win_hello_attest_tpm() {
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     let inter = [inter];
-    // no policyt tree validation
     assert!(cert
         .verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
@@ -142,111 +139,6 @@ pub fn win_hello_attest_tpm() {
             None,
         )
         .is_ok());
-    // policy tree validation: valid policy OID
-    assert!(cert
-        .verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &inter,
-            time,
-            key_usage,
-            None,
-            Some(&|path| validate_policy_tree_paths(
-                path,
-                // 1.3.6.1.4.1.311.21.31
-                &[&[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x1F]],
-            )),
-        )
-        .is_ok());
-    // policy tree validation: invalid policy OID
-    assert!(matches!(
-        cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &inter,
-            time,
-            key_usage,
-            None,
-            Some(&|path| validate_policy_tree_paths(
-                path,
-                // 1.3.6.1.4.1.311.21.32
-                &[&[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x20]],
-            )),
-        ),
-        Err(webpki::Error::InvalidPolicyTree),
-    ));
-    // policy tree validation: invalid → valid policy OIDs
-    assert!(cert
-        .verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &inter,
-            time,
-            key_usage,
-            None,
-            Some(&|path| validate_policy_tree_paths(
-                path,
-                &[
-                    // 1.3.6.1.4.1.311.21.32
-                    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x20],
-                    // 1.3.6.1.4.1.311.21.31
-                    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x1F],
-                ],
-            )),
-        )
-        .is_ok());
-    // policy tree validation: empty user-initial-policy-set
-    assert!(matches!(
-        cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &inter,
-            time,
-            key_usage,
-            None,
-            Some(&|path| validate_policy_tree_paths(path, &[])),
-        ),
-        Err(webpki::Error::InvalidPolicyTree),
-    ));
-}
-
-/* Checks we fail to validate netflix's non-critical cert policy tree.
- * netflix's cert policy tree has no reachable leaves; i.e., we get a NULL
- * policy tree from the chain.
- */
-#[cfg(all(feature = "alloc", feature = "cert_policy"))]
-#[test]
-fn netflix_invalid_policy_tree() {
-    let ee: &[u8] = include_bytes!("netflix/ee.der");
-    let inter = CertificateDer::from(&include_bytes!("netflix/inter.der")[..]);
-    let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
-
-    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
-
-    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_492_441_716)); // 2017-04-17T15:08:36Z
-
-    let ee = CertificateDer::from(ee);
-    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(matches!(
-        cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[inter],
-            time,
-            KeyUsage::server_auth(),
-            None,
-            Some(&|path| validate_policy_tree_paths(
-                path,
-                &[
-                    // policy in ee: 2.23.140.1.2.2
-                    &[0x67, 0x81, 0x0C, 0x01, 0x02, 0x02],
-                    // policy in inter: 2.16.840.1.113733.1.7.54
-                    &[0x60, 0x86, 0x48, 0x01, 0x86, 0xF8, 0x45, 0x01, 0x07, 0x36],
-                ],
-            )),
-        ),
-        Err(webpki::Error::InvalidPolicyTree),
-    ));
 }
 
 #[cfg(feature = "alloc")]
