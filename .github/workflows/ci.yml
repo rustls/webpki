@@ -42,7 +42,7 @@ jobs:
         with:
           components: clippy
 
-      - run: cargo clippy --all-features --all-targets -- --deny warnings
+      - run: cargo clippy --locked --all-features --all-targets -- --deny warnings
 
   deny:
     name: Cargo Deny
@@ -59,7 +59,7 @@ jobs:
       - name: Install cargo deny
         uses: taiki-e/install-action@cargo-deny
 
-      - run: cargo deny check
+      - run: cargo deny --locked check
 
   # Verify that documentation builds.
   rustdoc:
@@ -83,7 +83,7 @@ jobs:
           toolchain: ${{ matrix.rust_channel }}
 
       - name: cargo doc (all features)
-        run: cargo doc --all-features --document-private-items
+        run: cargo doc --locked --all-features --document-private-items
         env:
           RUSTDOCFLAGS: ${{ matrix.rust_channel == 'nightly' && '-Dwarnings --cfg=docsrs' || '-Dwarnings' }}
 
@@ -99,7 +99,7 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - run: cargo package --all-features
+      - run: cargo package --locked --all-features
 
   test:
     name: Build+test
@@ -224,7 +224,7 @@ jobs:
         uses: seanmiddleditch/gha-setup-ninja@v4
 
       - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
-        run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
+        run: cargo test --locked -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
         env:
           RUSTFLAGS: "-D warnings"
 
@@ -241,7 +241,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.61"
-      - run: cargo check --lib --all-features
+      - run: cargo check --locked --lib --all-features
 
   cross:
     name: Check cross compilation targets
@@ -258,7 +258,7 @@ jobs:
       - name: Install cross
         uses: taiki-e/install-action@cross
 
-      - run: cross build --target i686-unknown-linux-gnu
+      - run: cross build --locked --target i686-unknown-linux-gnu
 
   semver:
     name: Check semver compatibility
@@ -310,7 +310,7 @@ jobs:
           components: llvm-tools
 
       - name: Measure coverage
-        run: cargo llvm-cov --all-features --lcov --output-path ./lcov.info
+        run: cargo llvm-cov --locked --all-features --lcov --output-path ./lcov.info
 
       - name: Report to codecov.io
         uses: codecov/codecov-action@v4
@@ -343,7 +343,7 @@ jobs:
           targets: "$NOSTD_TARGET"
 
       - name: check no-std mode
-        run: cargo check --target $NOSTD_TARGET ${{ matrix.features  }}
+        run: cargo check --locked --target $NOSTD_TARGET ${{ matrix.features  }}
 
   feature-powerset:
     name: Feature Powerset
