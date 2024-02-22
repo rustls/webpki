@@ -219,6 +219,10 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/setup-nasm@v1
 
+      - name: Install ninja-build tool for aws-lc-fips-sys on Windows
+        if: runner.os == 'Windows'
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
       - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
         run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
         env:
