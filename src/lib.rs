@@ -118,9 +118,6 @@ pub mod aws_lc_rs {
     };
 }
 
-#[cfg(feature = "cert_policy")]
-pub use verify_cert::IntermediateIterator;
-
 /// An array of all the verification algorithms exported by this crate.
 ///
 /// This will be empty if the crate is built without the `ring` and `aws_lc_rs` features.
