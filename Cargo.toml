@@ -85,7 +85,7 @@ ring = { version = "0.17", default-features = false, optional = true }
 untrusted = "0.9"
 
 [dev-dependencies]
-base64 = "0.21"
+base64 = "0.22"
 bencher = "0.1.5"
 bzip2 = "0.4.4"
 once_cell = "1.17.2"
