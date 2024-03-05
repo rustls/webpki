@@ -25,6 +25,7 @@
 //! | `std` | Enable features that require libstd. Implies `alloc`. |
 //! | `ring` | Enable use of the *ring* crate for cryptography. |
 //! | `aws_lc_rs` | Enable use of the aws-lc-rs crate for cryptography. |
+//! | `cert_policy` | Enable features to read certificate policies extensions. Policy tree validation is user's responsibility. |
 
 #![no_std]
 #![warn(unreachable_pub)]
@@ -53,6 +54,8 @@ mod der;
 #[cfg(feature = "aws_lc_rs")]
 mod aws_lc_rs_algs;
 mod cert;
+#[cfg(feature = "cert_policy")]
+pub mod cert_policy;
 mod end_entity;
 mod error;
 #[cfg(feature = "ring")]

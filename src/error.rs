@@ -42,6 +42,18 @@ pub enum Error {
     /// The certificate, or one of its issuers, has been revoked.
     CertRevoked,
 
+    /// Duplicate certificate policy OID.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
+    DuplicateCertificatePolicyOid,
+
+    /// Empty certificate policies extension.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
+    EmptyCertificatePolicies,
+
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 
@@ -74,6 +86,15 @@ pub enum Error {
 
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
+
+    /// The policy tree is invalid.
+    ///
+    /// The feature `cert_policy` is required.
+    ///
+    /// This error is reserved for users who want to implement policy
+    /// validation.
+    #[cfg(feature = "cert_policy")]
+    InvalidPolicyTree,
 
     /// A CRL was signed by an issuer that has a KeyUsage bitstring that does not include
     /// the cRLSign key usage bit.
@@ -125,6 +146,12 @@ pub enum Error {
 
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
+
+    /// Unknown certificate policy qualifier.
+    ///
+    /// The feature `cert_policy` is required.
+    #[cfg(feature = "cert_policy")]
+    UnknownPolicyQualifier,
 
     /// The certificate's revocation status could not be determined.
     UnknownRevocationStatus,
@@ -221,12 +248,20 @@ impl Error {
             Error::PathLenConstraintViolated => 220,
             Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 210,
             Error::IssuerNotCrlSigner => 200,
+            #[cfg(feature = "cert_policy")]
+            Error::InvalidPolicyTree => 195,
 
             // Errors related to supported features used in an invalid way.
             Error::InvalidCertValidity => 190,
             Error::InvalidNetworkMaskConstraint => 180,
             Error::InvalidSerialNumber => 170,
             Error::InvalidCrlNumber => 160,
+            #[cfg(feature = "cert_policy")]
+            Error::EmptyCertificatePolicies => 157,
+            #[cfg(feature = "cert_policy")]
+            Error::DuplicateCertificatePolicyOid => 155,
+            #[cfg(feature = "cert_policy")]
+            Error::UnknownPolicyQualifier => 152,
 
             // Errors related to unsupported features.
             Error::UnsupportedCrlSignatureAlgorithmForPublicKey
@@ -305,15 +340,25 @@ pub enum DerTypeId {
     Bool,
     Certificate,
     CertificateExtensions,
+    #[cfg(feature = "cert_policy")]
+    CertificatePolicy,
     CertificateTbsCertificate,
     CertRevocationList,
     CertRevocationListExtension,
+    #[cfg(feature = "cert_policy")]
+    CPSuri,
     CrlDistributionPoint,
     CommonNameInner,
     CommonNameOuter,
+    #[cfg(feature = "cert_policy")]
+    DisplayText,
     DistributionPointName,
     Extension,
     GeneralName,
+    #[cfg(feature = "cert_policy")]
+    NoticeReference,
+    #[cfg(feature = "cert_policy")]
+    PolicyQualifierInfo,
     RevocationReason,
     Signature,
     SignatureAlgorithm,
@@ -323,6 +368,8 @@ pub enum DerTypeId {
     TrustAnchorV1,
     TrustAnchorV1TbsCertificate,
     U8,
+    #[cfg(feature = "cert_policy")]
+    UserNotice,
     RevokedCertificate,
     RevokedCertificateExtension,
     RevokedCertEntry,

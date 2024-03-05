@@ -14,6 +14,8 @@
 
 use pki_types::{CertificateDer, DnsName};
 
+#[cfg(feature = "cert_policy")]
+use crate::cert_policy::{CertificatePolicy, PolicyIterator};
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
 use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
@@ -40,6 +42,8 @@ pub struct Cert<'a> {
     pub(crate) name_constraints: Option<untrusted::Input<'a>>,
     pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
     pub(crate) crl_distribution_points: Option<untrusted::Input<'a>>,
+    #[cfg(feature = "cert_policy")]
+    pub(crate) certificate_policies: Option<untrusted::Input<'a>>,
 
     der: CertificateDer<'a>,
 }
@@ -98,6 +102,8 @@ impl<'a> Cert<'a> {
                     name_constraints: None,
                     subject_alt_name: None,
                     crl_distribution_points: None,
+                    #[cfg(feature = "cert_policy")]
+                    certificate_policies: None,
 
                     der: CertificateDer::from(cert_der.as_slice_less_safe()),
                 };
@@ -184,6 +190,23 @@ impl<'a> Cert<'a> {
     pub fn der(&self) -> CertificateDer<'a> {
         self.der.clone() // This is cheap, just cloning a reference.
     }
+
+    /// Returns an iterator over the certificate policies extension values, if any.
+    ///
+    /// The `cert_policy` feature is required.
+    ///
+    /// `rustls-webpki` does not perform any policy tree validation.
+    /// You may use `verify_path` callback of
+    /// [`EndEntityCert::verify_for_usage`][crate::end_entity::EndEntityCert::verify_for_usage]
+    /// to implement custom policy validation.
+    #[cfg(feature = "cert_policy")]
+    pub fn certificate_policies(
+        &self,
+    ) -> Option<impl Iterator<Item = Result<CertificatePolicy<'a>, Error>>> {
+        self.certificate_policies
+            .as_ref()
+            .map(|&policies| PolicyIterator::new(policies))
+    }
 }
 
 // mozilla::pkix supports v1, v2, v3, and v4, including both the implicit
@@ -244,6 +267,10 @@ fn remember_cert_extension<'a>(
 
             // id-ce-cRLDistributionPoints 2.5.29.31
             31 => &mut cert.crl_distribution_points,
+
+            // id-ce-certificatePolicies 2.5.29.32
+            #[cfg(feature = "cert_policy")]
+            32 => &mut cert.certificate_policies,
 
             // id-ce-extKeyUsage 2.5.29.37
             37 => &mut cert.eku,
