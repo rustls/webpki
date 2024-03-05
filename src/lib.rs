@@ -72,8 +72,9 @@ pub(crate) mod test_utils;
 pub use {
     cert::Cert,
     crl::{
-        BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, RevocationCheckDepth,
-        RevocationOptions, RevocationOptionsBuilder, RevocationReason, UnknownStatusPolicy,
+        BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, ExpirationPolicy,
+        RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, RevocationReason,
+        UnknownStatusPolicy,
     },
     end_entity::EndEntityCert,
     error::{DerTypeId, Error},
