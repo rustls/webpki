@@ -1,9 +1,9 @@
 use bencher::{benchmark_group, benchmark_main, Bencher};
 use once_cell::sync::Lazy;
 use rcgen::{
-    date_time_ymd, BasicConstraints, Certificate, CertificateParams, CertificateRevocationList,
-    CertificateRevocationListParams, IsCa, KeyIdMethod, KeyUsagePurpose, RevocationReason,
-    RevokedCertParams, SerialNumber, PKCS_ECDSA_P256_SHA256,
+    date_time_ymd, BasicConstraints, CertificateParams, CertificateRevocationListParams,
+    CertifiedKey, IsCa, KeyIdMethod, KeyPair, KeyUsagePurpose, RevocationReason, RevokedCertParams,
+    SerialNumber, PKCS_ECDSA_P256_SHA256,
 };
 
 use std::fs::File;
@@ -16,15 +16,18 @@ use webpki::{BorrowedCertRevocationList, CertRevocationList, OwnedCertRevocation
 
 /// Lazy initialized CRL issuer to be used when generating CRL data. Includes
 /// `KeyUsagePurpose::CrlSign` key usage bit.
-static CRL_ISSUER: Lazy<Mutex<Certificate>> = Lazy::new(|| {
-    let mut issuer_params = CertificateParams::new(vec!["crl.issuer.example.com".to_string()]);
+static CRL_ISSUER: Lazy<Mutex<CertifiedKey>> = Lazy::new(|| {
+    let mut issuer_params =
+        CertificateParams::new(vec!["crl.issuer.example.com".to_string()]).unwrap();
     issuer_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     issuer_params.key_usages = vec![
         KeyUsagePurpose::KeyCertSign,
         KeyUsagePurpose::DigitalSignature,
         KeyUsagePurpose::CrlSign,
     ];
-    Mutex::new(Certificate::from_params(issuer_params).unwrap())
+    let key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256).unwrap();
+    let cert = issuer_params.self_signed(&key_pair).unwrap();
+    Mutex::new(CertifiedKey { cert, key_pair })
 });
 
 /// Number of revoked certificates to include in the small benchmark CRL. Produces a CRL roughly
@@ -83,14 +86,15 @@ fn generate_crl(revoked_count: usize) -> Vec<u8> {
         this_update: date_time_ymd(2023, 6, 17),
         next_update: date_time_ymd(2024, 6, 17),
         crl_number: SerialNumber::from(1234),
-        alg: &PKCS_ECDSA_P256_SHA256,
         key_identifier_method: KeyIdMethod::Sha256,
         issuing_distribution_point: None,
         revoked_certs,
     };
-    let crl = CertificateRevocationList::from_params(crl).unwrap();
     let issuer = CRL_ISSUER.lock().unwrap();
-    crl.serialize_der_with_signer(&issuer).unwrap()
+    crl.signed_by(&issuer.cert, &issuer.key_pair)
+        .unwrap()
+        .der()
+        .to_vec()
 }
 
 /// Benchmark parsing a small CRL file into a borrowed representation.
