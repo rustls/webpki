@@ -550,14 +550,11 @@ const EKU_SERVER_AUTH: &[u8] = &oid!(1, 3, 6, 1, 5, 5, 7, 3, 1);
 // id-kp-clientAuth   OBJECT IDENTIFIER ::= { id-kp 2 }
 const EKU_CLIENT_AUTH: &[u8] = &oid!(1, 3, 6, 1, 5, 5, 7, 3, 2);
 
-fn loop_while_non_fatal_error<'a, V: 'a>(
+fn loop_while_non_fatal_error<'a, V: IntoIterator + 'a>(
     default_error: Error,
     values: V,
     mut f: impl FnMut(V::Item) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>>,
-) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>>
-where
-    V: IntoIterator,
-{
+) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>> {
     let mut error = default_error;
     for v in values {
         match f(v) {
