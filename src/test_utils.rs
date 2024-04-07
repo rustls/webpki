@@ -6,7 +6,7 @@ pub(crate) fn make_end_entity(
     issuer: &rcgen::Certificate,
     issuer_key: &rcgen::KeyPair,
 ) -> rcgen::CertifiedKey {
-    let key_pair = make_keypair();
+    let key_pair = rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
     rcgen::CertifiedKey {
         cert: end_entity_params(vec!["example.com".into()])
             .signed_by(&key_pair, issuer, issuer_key)
@@ -16,7 +16,7 @@ pub(crate) fn make_end_entity(
 }
 
 pub(crate) fn make_issuer(org_name: impl Into<String>) -> rcgen::CertifiedKey {
-    let key_pair = make_keypair();
+    let key_pair = rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
     rcgen::CertifiedKey {
         cert: issuer_params(org_name).self_signed(&key_pair).unwrap(),
         key_pair,
@@ -44,10 +44,6 @@ pub(crate) fn end_entity_params(subject_alt_names: Vec<String>) -> rcgen::Certif
     let mut ee_params = rcgen::CertificateParams::new(subject_alt_names).unwrap();
     ee_params.is_ca = rcgen::IsCa::ExplicitNoCa;
     ee_params
-}
-
-pub(crate) fn make_keypair() -> rcgen::KeyPair {
-    rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap()
 }
 
 /// Signature algorithm used by certificates and parameters generated using the test utils helpers.
