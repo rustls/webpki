@@ -712,53 +712,6 @@ mod tests {
         )
     }
 
-    #[cfg(feature = "alloc")]
-    enum ChainTrustAnchor {
-        NotInChain,
-        InChain,
-    }
-
-    fn build_degenerate_chain(
-        intermediate_count: usize,
-        trust_anchor: ChainTrustAnchor,
-    ) -> ControlFlow<Error, Error> {
-        let ca_cert = make_issuer("Bogus Subject");
-        let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
-
-        let mut intermediates = Vec::with_capacity(intermediate_count + 1);
-        if let ChainTrustAnchor::InChain = trust_anchor {
-            intermediates.push(CertificateDer::from(ca_cert_der.to_vec()));
-        }
-
-        let mut issuer = ca_cert;
-        for _ in 0..intermediate_count {
-            let intermediate = make_issuer("Bogus Subject");
-            let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
-            intermediates.push(CertificateDer::from(intermediate_der));
-            issuer = intermediate;
-        }
-
-        let trust_anchor = match trust_anchor {
-            ChainTrustAnchor::InChain => {
-                let unused_anchor = make_issuer("Bogus Trust Anchor");
-                CertificateDer::from(unused_anchor.serialize_der().unwrap())
-            }
-            ChainTrustAnchor::NotInChain => ca_cert_der,
-        };
-
-        let ee_der = make_end_entity(&issuer);
-        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
-        verify_chain(
-            &[anchor_from_trusted_cert(&trust_anchor).unwrap()],
-            &intermediates,
-            &ee_cert,
-            None,
-            None,
-        )
-        .map(|_| ())
-        .unwrap_err()
-    }
-
     #[test]
     fn test_too_many_signatures() {
         assert!(matches!(
@@ -773,64 +726,6 @@ mod tests {
             dbg!(build_degenerate_chain(10, ChainTrustAnchor::InChain)),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
         ));
-    }
-
-    fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
-        let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
-        let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
-        let anchor = anchor_from_trusted_cert(&ca_cert_der).unwrap();
-        let anchors = &[anchor.clone()];
-
-        let mut intermediates = Vec::with_capacity(chain_length);
-        let mut issuer = ca_cert;
-        for i in 0..chain_length {
-            let intermediate = make_issuer(format!("Bogus Subject {i}"));
-            let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
-            intermediates.push(CertificateDer::from(intermediate_der));
-            issuer = intermediate;
-        }
-
-        let ee_der = make_end_entity(&issuer);
-        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
-
-        let expected_chain = |path: &VerifiedPath<'_>| {
-            assert_eq!(path.anchor().subject, anchor.subject);
-            assert!(public_values_eq(path.end_entity().subject, ee_cert.subject));
-            assert_eq!(path.intermediate_certificates().count(), chain_length);
-
-            let intermediate_certs = intermediates
-                .iter()
-                .map(|der| Cert::from_der(untrusted::Input::from(der.as_ref())).unwrap())
-                .collect::<Vec<_>>();
-
-            for (cert, expected) in path
-                .intermediate_certificates()
-                .rev()
-                .zip(intermediate_certs.iter())
-            {
-                assert!(public_values_eq(cert.subject, expected.subject));
-                assert_eq!(cert.der(), expected.der());
-            }
-
-            for (cert, expected) in path
-                .intermediate_certificates()
-                .zip(intermediate_certs.iter().rev())
-            {
-                assert!(public_values_eq(cert.subject, expected.subject));
-                assert_eq!(cert.der(), expected.der());
-            }
-
-            Ok(())
-        };
-
-        verify_chain(
-            anchors,
-            &intermediates,
-            &ee_cert,
-            Some(&expected_chain),
-            None,
-        )
-        .map(|_| ())
     }
 
     #[test]
@@ -1069,6 +964,111 @@ mod tests {
             intermediate_c_cert.subject()
         );
         assert_eq!(path_intermediates[1].issuer(), trust_anchor_cert.subject());
+    }
+
+    fn build_degenerate_chain(
+        intermediate_count: usize,
+        trust_anchor: ChainTrustAnchor,
+    ) -> ControlFlow<Error, Error> {
+        let ca_cert = make_issuer("Bogus Subject");
+        let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
+
+        let mut intermediates = Vec::with_capacity(intermediate_count + 1);
+        if let ChainTrustAnchor::InChain = trust_anchor {
+            intermediates.push(CertificateDer::from(ca_cert_der.to_vec()));
+        }
+
+        let mut issuer = ca_cert;
+        for _ in 0..intermediate_count {
+            let intermediate = make_issuer("Bogus Subject");
+            let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
+            intermediates.push(CertificateDer::from(intermediate_der));
+            issuer = intermediate;
+        }
+
+        let trust_anchor = match trust_anchor {
+            ChainTrustAnchor::InChain => {
+                let unused_anchor = make_issuer("Bogus Trust Anchor");
+                CertificateDer::from(unused_anchor.serialize_der().unwrap())
+            }
+            ChainTrustAnchor::NotInChain => ca_cert_der,
+        };
+
+        let ee_der = make_end_entity(&issuer);
+        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
+        verify_chain(
+            &[anchor_from_trusted_cert(&trust_anchor).unwrap()],
+            &intermediates,
+            &ee_cert,
+            None,
+            None,
+        )
+        .map(|_| ())
+        .unwrap_err()
+    }
+
+    #[cfg(feature = "alloc")]
+    enum ChainTrustAnchor {
+        NotInChain,
+        InChain,
+    }
+
+    fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
+        let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
+        let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
+        let anchor = anchor_from_trusted_cert(&ca_cert_der).unwrap();
+        let anchors = &[anchor.clone()];
+
+        let mut intermediates = Vec::with_capacity(chain_length);
+        let mut issuer = ca_cert;
+        for i in 0..chain_length {
+            let intermediate = make_issuer(format!("Bogus Subject {i}"));
+            let intermediate_der = intermediate.serialize_der_with_signer(&issuer).unwrap();
+            intermediates.push(CertificateDer::from(intermediate_der));
+            issuer = intermediate;
+        }
+
+        let ee_der = make_end_entity(&issuer);
+        let ee_cert = EndEntityCert::try_from(&ee_der).unwrap();
+
+        let expected_chain = |path: &VerifiedPath<'_>| {
+            assert_eq!(path.anchor().subject, anchor.subject);
+            assert!(public_values_eq(path.end_entity().subject, ee_cert.subject));
+            assert_eq!(path.intermediate_certificates().count(), chain_length);
+
+            let intermediate_certs = intermediates
+                .iter()
+                .map(|der| Cert::from_der(untrusted::Input::from(der.as_ref())).unwrap())
+                .collect::<Vec<_>>();
+
+            for (cert, expected) in path
+                .intermediate_certificates()
+                .rev()
+                .zip(intermediate_certs.iter())
+            {
+                assert!(public_values_eq(cert.subject, expected.subject));
+                assert_eq!(cert.der(), expected.der());
+            }
+
+            for (cert, expected) in path
+                .intermediate_certificates()
+                .zip(intermediate_certs.iter().rev())
+            {
+                assert!(public_values_eq(cert.subject, expected.subject));
+                assert_eq!(cert.der(), expected.der());
+            }
+
+            Ok(())
+        };
+
+        verify_chain(
+            anchors,
+            &intermediates,
+            &ee_cert,
+            Some(&expected_chain),
+            None,
+        )
+        .map(|_| ())
     }
 
     fn verify_chain<'a>(
