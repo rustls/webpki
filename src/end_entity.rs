@@ -186,6 +186,7 @@ impl<'a> Deref for EndEntityCert<'a> {
 mod tests {
     use super::*;
     use crate::test_utils;
+    use crate::test_utils::RCGEN_SIGNATURE_ALG;
     use std::prelude::v1::*;
 
     // This test reproduces https://github.com/rustls/webpki/issues/167 --- an
@@ -208,7 +209,11 @@ mod tests {
                 ),
             );
             params
-                .signed_by(&test_utils::make_keypair(), &issuer.cert, &issuer.key_pair)
+                .signed_by(
+                    &rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap(),
+                    &issuer.cert,
+                    &issuer.key_pair,
+                )
                 .expect("failed to make ee cert (this is a test bug)")
         };
 

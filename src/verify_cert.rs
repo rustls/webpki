@@ -700,7 +700,7 @@ pub(crate) enum Role {
 mod tests {
     use super::*;
     use crate::test_utils;
-    use crate::test_utils::{issuer_params, make_end_entity, make_issuer, make_keypair};
+    use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
     use crate::trust_anchor::anchor_from_trusted_cert;
     use rcgen::{CertifiedKey, KeyPair};
     use std::dbg;
@@ -980,48 +980,35 @@ mod tests {
         trust_anchor: ChainTrustAnchor,
     ) -> ControlFlow<Error, Error> {
         let ca_cert = make_issuer("Bogus Subject");
-
-        let mut intermediates: Vec<CertifiedKey> = Vec::with_capacity(intermediate_count);
-        for i in 0..intermediate_count {
-            let (issuer, issuer_key) = if i == 0 {
-                (&ca_cert.cert, &ca_cert.key_pair)
-            } else {
-                (&intermediates[i - 1].cert, &intermediates[i - 1].key_pair)
-            };
-            let intermediate = issuer_params("Bogus Subject".to_string());
-            let intermediate_key_pair = make_keypair();
-            let intermediate = intermediate
-                .signed_by(&intermediate_key_pair, issuer, issuer_key)
-                .unwrap();
-            intermediates.push(CertifiedKey {
-                cert: intermediate,
-                key_pair: intermediate_key_pair,
-            });
-        }
+        let mut intermediate_chain = build_linear_chain(&ca_cert, intermediate_count, true);
 
         let verify_trust_anchor = match trust_anchor {
             ChainTrustAnchor::InChain => make_issuer("Bogus Trust Anchor"),
             ChainTrustAnchor::NotInChain => ca_cert,
         };
 
-        let last_intermediate = intermediates.last().unwrap();
-        let ee_cert = make_end_entity(&last_intermediate.cert, &last_intermediate.key_pair);
+        let ee_cert = make_end_entity(
+            &intermediate_chain.last_issuer.cert,
+            &intermediate_chain.last_issuer.key_pair,
+        );
         let ee_cert = EndEntityCert::try_from(ee_cert.cert.der()).unwrap();
-        let intermediates = &mut intermediates
-            .into_iter()
-            .map(|cert_and_key| cert_and_key.cert.into())
-            .collect::<Vec<_>>();
         let trust_anchor_der: CertificateDer<'_> = verify_trust_anchor.cert.into();
         let webpki_ta = anchor_from_trusted_cert(&trust_anchor_der).unwrap();
         if matches!(trust_anchor, ChainTrustAnchor::InChain) {
             // Note: we clone the trust anchor DER here because we can't move it into the chain
             // as it's loaned to webpki_ta above.
-            intermediates.insert(0, trust_anchor_der.clone())
+            intermediate_chain.chain.insert(0, trust_anchor_der.clone())
         }
 
-        verify_chain(&[webpki_ta], intermediates, &ee_cert, None, None)
-            .map(|_| ())
-            .unwrap_err()
+        verify_chain(
+            &[webpki_ta],
+            &intermediate_chain.chain,
+            &ee_cert,
+            None,
+            None,
+        )
+        .map(|_| ())
+        .unwrap_err()
     }
 
     #[cfg(feature = "alloc")]
@@ -1032,44 +1019,25 @@ mod tests {
 
     fn build_and_verify_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
-
-        let mut intermediates: Vec<CertifiedKey> = Vec::with_capacity(chain_length);
-        for i in 0..chain_length {
-            let (issuer, issuer_key) = if i == 0 {
-                (&ca_cert.cert, &ca_cert.key_pair)
-            } else {
-                (&intermediates[i - 1].cert, &intermediates[i - 1].key_pair)
-            };
-            let intermediate = issuer_params(format!("Bogus Subject {i}"));
-            let intermediate_key_pair = make_keypair();
-            let intermediate = intermediate
-                .signed_by(&intermediate_key_pair, issuer, issuer_key)
-                .unwrap();
-            intermediates.push(CertifiedKey {
-                cert: intermediate,
-                key_pair: intermediate_key_pair,
-            });
-        }
+        let intermediate_chain = build_linear_chain(&ca_cert, chain_length, false);
 
         let ca_cert_der: CertificateDer<'_> = ca_cert.cert.into();
         let anchor = anchor_from_trusted_cert(&ca_cert_der).unwrap();
         let anchors = &[anchor.clone()];
 
-        let last_intermediate = intermediates.last().unwrap();
-        let ee_cert = make_end_entity(&last_intermediate.cert, &last_intermediate.key_pair);
+        let ee_cert = make_end_entity(
+            &intermediate_chain.last_issuer.cert,
+            &intermediate_chain.last_issuer.key_pair,
+        );
         let ee_cert = EndEntityCert::try_from(ee_cert.cert.der()).unwrap();
-
-        let intermediates_der = intermediates
-            .into_iter()
-            .map(|cert_and_key| cert_and_key.cert.into())
-            .collect::<Vec<_>>();
 
         let expected_chain = |path: &VerifiedPath<'_>| {
             assert_eq!(path.anchor().subject, anchor.subject);
             assert!(public_values_eq(path.end_entity().subject, ee_cert.subject));
             assert_eq!(path.intermediate_certificates().count(), chain_length);
 
-            let intermediate_certs = intermediates_der
+            let intermediate_certs = intermediate_chain
+                .chain
                 .iter()
                 .map(|der: &CertificateDer| Cert::from_der(untrusted::Input::from(der)).unwrap())
                 .collect::<Vec<_>>();
@@ -1096,12 +1064,55 @@ mod tests {
 
         verify_chain(
             anchors,
-            &intermediates_der,
+            &intermediate_chain.chain,
             &ee_cert,
             Some(&expected_chain),
             None,
         )
         .map(|_| ())
+    }
+
+    fn build_linear_chain(
+        ca_cert: &CertifiedKey,
+        chain_length: usize,
+        all_same_subject: bool,
+    ) -> IntermediateChain {
+        let mut intermediates: Vec<CertifiedKey> = Vec::with_capacity(chain_length);
+
+        for i in 0..chain_length {
+            let (issuer, issuer_key) = if i == 0 {
+                (&ca_cert.cert, &ca_cert.key_pair)
+            } else {
+                (&intermediates[i - 1].cert, &intermediates[i - 1].key_pair)
+            };
+            let intermediate = issuer_params(match all_same_subject {
+                true => "Bogus Subject".to_string(),
+                false => format!("Bogus Subject {i}"),
+            });
+            let intermediate_key_pair =
+                KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+            let intermediate = intermediate
+                .signed_by(&intermediate_key_pair, issuer, issuer_key)
+                .unwrap();
+            intermediates.push(CertifiedKey {
+                cert: intermediate,
+                key_pair: intermediate_key_pair,
+            });
+        }
+
+        let last_issuer = intermediates.pop().unwrap();
+        let mut chain = intermediates
+            .into_iter()
+            .map(|cert_and_key| cert_and_key.cert.into())
+            .collect::<Vec<_>>();
+        chain.push(last_issuer.cert.der().clone());
+
+        IntermediateChain { last_issuer, chain }
+    }
+
+    struct IntermediateChain {
+        last_issuer: CertifiedKey,
+        chain: Vec<CertificateDer<'static>>,
     }
 
     fn verify_chain<'a>(
