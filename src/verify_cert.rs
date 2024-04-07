@@ -715,7 +715,7 @@ mod tests {
     #[test]
     fn test_too_many_signatures() {
         assert!(matches!(
-            build_degenerate_chain(5, ChainTrustAnchor::NotInChain),
+            build_and_verify_degenerate_chain(5, ChainTrustAnchor::NotInChain),
             ControlFlow::Break(Error::MaximumSignatureChecksExceeded)
         ));
     }
@@ -723,25 +723,28 @@ mod tests {
     #[test]
     fn test_too_many_path_calls() {
         assert!(matches!(
-            dbg!(build_degenerate_chain(10, ChainTrustAnchor::InChain)),
+            dbg!(build_and_verify_degenerate_chain(
+                10,
+                ChainTrustAnchor::InChain
+            )),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
         ));
     }
 
     #[test]
     fn longest_allowed_path() {
-        assert!(build_linear_chain(1).is_ok());
-        assert!(build_linear_chain(2).is_ok());
-        assert!(build_linear_chain(3).is_ok());
-        assert!(build_linear_chain(4).is_ok());
-        assert!(build_linear_chain(5).is_ok());
-        assert!(build_linear_chain(6).is_ok());
+        assert!(build_and_verify_linear_chain(1).is_ok());
+        assert!(build_and_verify_linear_chain(2).is_ok());
+        assert!(build_and_verify_linear_chain(3).is_ok());
+        assert!(build_and_verify_linear_chain(4).is_ok());
+        assert!(build_and_verify_linear_chain(5).is_ok());
+        assert!(build_and_verify_linear_chain(6).is_ok());
     }
 
     #[test]
     fn path_too_long() {
         assert!(matches!(
-            build_linear_chain(7),
+            build_and_verify_linear_chain(7),
             Err(ControlFlow::Continue(Error::MaximumPathDepthExceeded))
         ));
     }
@@ -966,7 +969,7 @@ mod tests {
         assert_eq!(path_intermediates[1].issuer(), trust_anchor_cert.subject());
     }
 
-    fn build_degenerate_chain(
+    fn build_and_verify_degenerate_chain(
         intermediate_count: usize,
         trust_anchor: ChainTrustAnchor,
     ) -> ControlFlow<Error, Error> {
@@ -1013,7 +1016,7 @@ mod tests {
         InChain,
     }
 
-    fn build_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
+    fn build_and_verify_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca_cert = make_issuer(format!("Bogus Subject {chain_length}"));
         let ca_cert_der = CertificateDer::from(ca_cert.serialize_der().unwrap());
         let anchor = anchor_from_trusted_cert(&ca_cert_der).unwrap();
