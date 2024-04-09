@@ -1077,37 +1077,33 @@ mod tests {
         chain_length: usize,
         all_same_subject: bool,
     ) -> IntermediateChain {
-        let mut intermediates: Vec<CertifiedKey> = Vec::with_capacity(chain_length);
+        let mut chain = Vec::with_capacity(chain_length);
 
+        let mut prev = None;
         for i in 0..chain_length {
-            let (issuer, issuer_key) = if i == 0 {
-                (&ca_cert.cert, &ca_cert.key_pair)
-            } else {
-                (&intermediates[i - 1].cert, &intermediates[i - 1].key_pair)
+            let issuer = match &prev {
+                Some(prev) => prev,
+                None => ca_cert,
             };
+
             let intermediate = issuer_params(match all_same_subject {
                 true => "Bogus Subject".to_string(),
                 false => format!("Bogus Subject {i}"),
             });
-            let intermediate_key_pair =
-                KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
-            let intermediate = intermediate
-                .signed_by(&intermediate_key_pair, issuer, issuer_key)
+
+            let key_pair = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+            let cert = intermediate
+                .signed_by(&key_pair, &issuer.cert, &issuer.key_pair)
                 .unwrap();
-            intermediates.push(CertifiedKey {
-                cert: intermediate,
-                key_pair: intermediate_key_pair,
-            });
+
+            chain.push(cert.der().clone());
+            prev = Some(CertifiedKey { cert, key_pair });
         }
 
-        let last_issuer = intermediates.pop().unwrap();
-        let mut chain = intermediates
-            .into_iter()
-            .map(|cert_and_key| cert_and_key.cert.into())
-            .collect::<Vec<_>>();
-        chain.push(last_issuer.cert.der().clone());
-
-        IntermediateChain { last_issuer, chain }
+        IntermediateChain {
+            last_issuer: prev.unwrap(),
+            chain,
+        }
     }
 
     struct IntermediateChain {
