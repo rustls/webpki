@@ -13,7 +13,7 @@ on:
 jobs:
   rustfmt:
     name: Format
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
 
   deny:
     name: Cargo Deny
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
   # Verify that documentation builds.
   rustdoc:
     name: Check for documentation errors
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         rust_channel:
@@ -89,7 +89,7 @@ jobs:
 
   package:
     name: Cargo Package
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -141,37 +141,37 @@ jobs:
           - features: # Default
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --features=alloc
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --no-default-features
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --no-default-features --features alloc,std
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: --release
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: # debug
             rust_channel: nightly
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: # debug
             rust_channel: beta
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: # debug
@@ -230,7 +230,7 @@ jobs:
 
   msrv:
     name: MSRV
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -245,7 +245,7 @@ jobs:
 
   cross:
     name: Check cross compilation targets
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -294,7 +294,7 @@ jobs:
 
   coverage:
     name: Measure coverage
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -321,7 +321,7 @@ jobs:
 
   nostd:
     name: Verify that no-std modes do not rely on libstd
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     # a target without a pre-compiled libstd like this one will catch any use of libstd in the
     # entire dependency graph whereas a target like x86_64-unknown-linux-gnu will not
     env:
@@ -347,7 +347,7 @@ jobs:
 
   feature-powerset:
     name: Feature Powerset
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
