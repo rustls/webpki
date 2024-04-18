@@ -16,7 +16,7 @@
 categories = ["cryptography", "no-std"]
 description = "Web PKI X.509 Certificate Verification."
 edition = "2021"
-rust-version = "1.61"
+rust-version = "1.63"
 license = "ISC"
 name = "rustls-webpki"
 readme = "README.md"
