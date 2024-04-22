@@ -923,6 +923,8 @@ mod tests {
     use std::time::Duration;
 
     use pki_types::CertificateDer;
+    use std::prelude::v1::*;
+    use std::println;
 
     use super::*;
     use crate::cert::Cert;

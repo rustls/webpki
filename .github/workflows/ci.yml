@@ -13,7 +13,7 @@ on:
 jobs:
   rustfmt:
     name: Format
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -42,11 +42,11 @@ jobs:
         with:
           components: clippy
 
-      - run: cargo clippy --all-features --all-targets -- --deny warnings
+      - run: cargo clippy --locked --all-features --all-targets -- --deny warnings
 
   deny:
     name: Cargo Deny
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -59,12 +59,12 @@ jobs:
       - name: Install cargo deny
         uses: taiki-e/install-action@cargo-deny
 
-      - run: cargo deny check
+      - run: cargo deny --locked check
 
   # Verify that documentation builds.
   rustdoc:
     name: Check for documentation errors
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         rust_channel:
@@ -83,13 +83,13 @@ jobs:
           toolchain: ${{ matrix.rust_channel }}
 
       - name: cargo doc (all features)
-        run: cargo doc --all-features --document-private-items
+        run: cargo doc --locked --all-features --document-private-items
         env:
           RUSTDOCFLAGS: ${{ matrix.rust_channel == 'nightly' && '-Dwarnings --cfg=docsrs' || '-Dwarnings' }}
 
   package:
     name: Cargo Package
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -99,7 +99,7 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - run: cargo package --all-features
+      - run: cargo package --locked --all-features
 
   test:
     name: Build+test
@@ -141,37 +141,37 @@ jobs:
           - features: # Default
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --features=alloc
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --no-default-features
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --no-default-features --features alloc,std
             mode: # debug
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: --release
             rust_channel: stable
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: # debug
             rust_channel: nightly
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: # debug
             rust_channel: beta
-            host_os: ubuntu-20.04
+            host_os: ubuntu-latest
 
           - features: --all-features
             mode: # debug
@@ -219,14 +219,18 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/setup-nasm@v1
 
+      - name: Install ninja-build tool for aws-lc-fips-sys on Windows
+        if: runner.os == 'Windows'
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
       - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
-        run: cargo test -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
+        run: cargo test --locked -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
         env:
           RUSTFLAGS: "-D warnings"
 
   msrv:
     name: MSRV
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -236,12 +240,12 @@ jobs:
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.61"
-      - run: cargo check --lib --all-features
+          toolchain: "1.63"
+      - run: cargo check --locked --lib --all-features
 
   cross:
     name: Check cross compilation targets
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -254,7 +258,7 @@ jobs:
       - name: Install cross
         uses: taiki-e/install-action@cross
 
-      - run: cross build --target i686-unknown-linux-gnu
+      - run: cross build --locked --target i686-unknown-linux-gnu
 
   semver:
     name: Check semver compatibility
@@ -280,7 +284,7 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2023-10-10
+          toolchain: nightly-2024-02-07
           # ^ sync with https://github.com/awslabs/cargo-check-external-types/blob/main/rust-toolchain.toml
 
       - run: cargo install --locked cargo-check-external-types
@@ -290,7 +294,7 @@ jobs:
 
   coverage:
     name: Measure coverage
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -306,19 +310,18 @@ jobs:
           components: llvm-tools
 
       - name: Measure coverage
-        run: cargo llvm-cov --all-features --lcov --output-path ./lcov.info
+        run: cargo llvm-cov --locked --all-features --lcov --output-path ./lcov.info
 
       - name: Report to codecov.io
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./lcov.info
-          fail_ci_if_error: true
-          verbose: true
+          fail_ci_if_error: false
 
   nostd:
     name: Verify that no-std modes do not rely on libstd
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     # a target without a pre-compiled libstd like this one will catch any use of libstd in the
     # entire dependency graph whereas a target like x86_64-unknown-linux-gnu will not
     env:
@@ -340,11 +343,11 @@ jobs:
           targets: "$NOSTD_TARGET"
 
       - name: check no-std mode
-        run: cargo check --target $NOSTD_TARGET ${{ matrix.features  }}
+        run: cargo check --locked --target $NOSTD_TARGET ${{ matrix.features  }}
 
   feature-powerset:
     name: Feature Powerset
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4

@@ -1,19 +1,33 @@
 #![cfg(feature = "alloc")]
+use std::prelude::v1::*;
 
-use crate::types::CertificateDer;
+#[cfg_attr(not(feature = "ring"), allow(dead_code))]
+pub(crate) fn make_end_entity(
+    issuer: &rcgen::Certificate,
+    issuer_key: &rcgen::KeyPair,
+) -> rcgen::CertifiedKey {
+    let key_pair = rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
+    rcgen::CertifiedKey {
+        cert: end_entity_params(vec!["example.com".into()])
+            .signed_by(&key_pair, issuer, issuer_key)
+            .unwrap(),
+        key_pair,
+    }
+}
 
-/// Signature algorithm used by certificates and parameters generated using the test utils helpers.
-static RCGEN_SIGNATURE_ALG: &rcgen::SignatureAlgorithm = &rcgen::PKCS_ECDSA_P256_SHA256;
-
-pub(crate) fn make_issuer(org_name: impl Into<String>) -> rcgen::Certificate {
-    rcgen::Certificate::from_params(issuer_params(org_name)).unwrap()
+pub(crate) fn make_issuer(org_name: impl Into<String>) -> rcgen::CertifiedKey {
+    let key_pair = rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
+    rcgen::CertifiedKey {
+        cert: issuer_params(org_name).self_signed(&key_pair).unwrap(),
+        key_pair,
+    }
 }
 
 /// Populate a [CertificateParams] that describes an unconstrained issuer certificate capable
 /// of signing other certificates and CRLs, with the given `org_name` as an organization distinguished
 /// subject name.
 pub(crate) fn issuer_params(org_name: impl Into<String>) -> rcgen::CertificateParams {
-    let mut ca_params = rcgen::CertificateParams::new(Vec::new());
+    let mut ca_params = rcgen::CertificateParams::new(Vec::new()).unwrap();
     ca_params
         .distinguished_name
         .push(rcgen::DnType::OrganizationName, org_name);
@@ -23,23 +37,14 @@ pub(crate) fn issuer_params(org_name: impl Into<String>) -> rcgen::CertificatePa
         rcgen::KeyUsagePurpose::DigitalSignature,
         rcgen::KeyUsagePurpose::CrlSign,
     ];
-    ca_params.alg = RCGEN_SIGNATURE_ALG;
     ca_params
 }
 
-#[cfg_attr(not(feature = "ring"), allow(dead_code))]
-pub(crate) fn make_end_entity(issuer: &rcgen::Certificate) -> CertificateDer<'static> {
-    CertificateDer::from(
-        rcgen::Certificate::from_params(end_entity_params(vec!["example.com".into()]))
-            .unwrap()
-            .serialize_der_with_signer(issuer)
-            .unwrap(),
-    )
-}
-
 pub(crate) fn end_entity_params(subject_alt_names: Vec<String>) -> rcgen::CertificateParams {
-    let mut ee_params = rcgen::CertificateParams::new(subject_alt_names);
+    let mut ee_params = rcgen::CertificateParams::new(subject_alt_names).unwrap();
     ee_params.is_ca = rcgen::IsCa::ExplicitNoCa;
-    ee_params.alg = RCGEN_SIGNATURE_ALG;
     ee_params
 }
+
+/// Signature algorithm used by certificates and parameters generated using the test utils helpers.
+pub(crate) static RCGEN_SIGNATURE_ALG: &rcgen::SignatureAlgorithm = &rcgen::PKCS_ECDSA_P256_SHA256;
