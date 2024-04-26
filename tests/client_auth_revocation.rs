@@ -1547,3 +1547,107 @@ fn ee_dp_invalid_owned() {
         Err(webpki::Error::UnknownRevocationStatus)
     );
 }
+
+#[test]
+fn expired_crl_ignore_expiration() {
+    let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
+    let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
+
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/expired_crl_ignore_expiration.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
+    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
+    let revocation = Some(builder.build());
+    assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn expired_crl_ignore_expiration_owned() {
+    let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
+    let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
+
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::OwnedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/expired_crl_ignore_expiration.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
+    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
+    let revocation = Some(builder.build());
+    assert_eq!(check_cert(ee, intermediates, ca, revocation), Ok(()));
+}
+
+#[test]
+fn expired_crl_enforce_expiration() {
+    let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
+    let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
+
+    let crls = &[&webpki::CertRevocationList::Borrowed(
+        webpki::BorrowedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/expired_crl_enforce_expiration.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
+    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
+
+    let builder = builder.with_expiration_policy(webpki::ExpirationPolicy::Enforce);
+    let revocation = Some(builder.build());
+    assert_eq!(
+        check_cert(ee, intermediates, ca, revocation),
+        Err(webpki::Error::CrlExpired)
+    );
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn expired_crl_enforce_expiration_owned() {
+    let ee = include_bytes!("client_auth_revocation/no_ku_chain.ee.der");
+    let intermediates = &[
+        include_bytes!("client_auth_revocation/no_ku_chain.int.a.ca.der").as_slice(),
+        include_bytes!("client_auth_revocation/no_ku_chain.int.b.ca.der").as_slice(),
+    ];
+    let ca = include_bytes!("client_auth_revocation/no_ku_chain.root.ca.der");
+
+    let crls = &[&webpki::CertRevocationList::Owned(
+        webpki::OwnedCertRevocationList::from_der(
+            include_bytes!("client_auth_revocation/expired_crl_enforce_expiration.crl.der")
+                .as_slice(),
+        )
+        .unwrap(),
+    )];
+    let builder = RevocationOptionsBuilder::new(crls).unwrap();
+
+    let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
+
+    let builder = builder.with_expiration_policy(webpki::ExpirationPolicy::Enforce);
+    let revocation = Some(builder.build());
+    assert_eq!(
+        check_cert(ee, intermediates, ca, revocation),
+        Err(webpki::Error::CrlExpired)
+    );
+}
