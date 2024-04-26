@@ -935,6 +935,10 @@ def client_auth_revocation(force: bool) -> None:
         ALLOW_UNKNOWN = enum.auto()
         FORBID_UNKNOWN = enum.auto()
 
+    class ExpirationPolicy(enum.Enum):
+        ENFORCE = enum.auto()
+        IGNORE = enum.auto()
+
     def _chain(
         *,
         chain_name: str,
@@ -1045,6 +1049,7 @@ def client_auth_revocation(force: bool) -> None:
         issuer_name: x509.Name,
         issuer_key: Optional[ANY_PRIV_KEY],
         issuing_dp: Optional[x509.IssuingDistributionPoint] = None,
+        not_after: Optional[datetime.datetime] = None,
     ) -> x509.CertificateRevocationList:
         """
         Generate a certificate revocation list.
@@ -1060,7 +1065,9 @@ def client_auth_revocation(force: bool) -> None:
         )
         crl_builder = crl_builder.issuer_name(issuer_name)
         crl_builder = crl_builder.last_update(NOT_BEFORE)
-        crl_builder = crl_builder.next_update(NOT_AFTER)
+        if not_after is None:
+            not_after = NOT_AFTER
+        crl_builder = crl_builder.next_update(not_after)
         for serial in serials:
             revoked_cert_builder: x509.RevokedCertificateBuilder = (
                 x509.RevokedCertificateBuilder()
@@ -1091,6 +1098,7 @@ def client_auth_revocation(force: bool) -> None:
         crl_paths: list[str],
         depth: ChainDepth,
         policy: StatusRequirement,
+        expiration: ExpirationPolicy,
         expected_error: Optional[str],
         ee_topbit_serial: bool = False,
     ) -> None:
@@ -1163,6 +1171,10 @@ def client_auth_revocation(force: bool) -> None:
                     revocation_setup += """
                     let builder = builder.with_status_policy(UnknownStatusPolicy::Allow);
                     """
+                if expiration == ExpirationPolicy.ENFORCE:
+                    revocation_setup += """
+                    let builder = builder.with_expiration_policy(webpki::ExpirationPolicy::Enforce);
+                    """
                 revocation_setup += "let revocation = Some(builder.build());"
 
             expected: str = (
@@ -1213,6 +1225,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[],
             depth=ChainDepth.END_ENTITY,  # unused
             policy=StatusRequirement.ALLOW_UNKNOWN,  # unused
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1236,6 +1249,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[no_match_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1259,6 +1273,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[no_match_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -1287,6 +1302,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_not_revoked_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1316,6 +1332,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_not_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1344,6 +1361,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_revoked_badsig_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="InvalidCrlSignatureForPublicKey",
         )
 
@@ -1369,6 +1387,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_revoked_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1397,6 +1416,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_not_revoked_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1422,6 +1442,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_revoked_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="CertRevoked",
         )
 
@@ -1447,6 +1468,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_revoked_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="CertRevoked",
         )
 
@@ -1458,6 +1480,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[],
             depth=ChainDepth.CHAIN,  # unused
             policy=StatusRequirement.ALLOW_UNKNOWN,  # unused
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1480,6 +1503,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[no_match_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1502,6 +1526,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[no_match_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -1530,6 +1555,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[int_not_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1554,7 +1580,7 @@ def client_auth_revocation(force: bool) -> None:
             ee_not_revoked_crl.public_bytes(Encoding.DER),
             force,
         )
-        # Generate a CRL that doesn't include the intermediate A cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include the intermediate A cert's serial, but that is issued by the same issuer.
         int_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the int_a_cert.serial.
             issuer_name=int_a_cert.issuer,
@@ -1566,7 +1592,7 @@ def client_auth_revocation(force: bool) -> None:
             int_not_revoked_crl.public_bytes(Encoding.DER),
             force,
         )
-        # Generate a CRL that doesn't include the intermediate B cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include the intermediate B cert's serial, but that is issued by the same issuer.
         int_not_revoked_crl_b = _crl(
             serials=[12345],  # Some serial that isn't the int_b_cert.serial.
             issuer_name=int_b_cert.issuer,
@@ -1591,6 +1617,7 @@ def client_auth_revocation(force: bool) -> None:
             ],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1621,6 +1648,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[int_revoked_badsig_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="InvalidCrlSignatureForPublicKey",
         )
 
@@ -1648,6 +1676,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[int_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="IssuerNotCrlSigner",
         )
 
@@ -1673,6 +1702,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="CertRevoked",
         )
 
@@ -1700,6 +1730,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[int_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="CertRevoked",
         )
 
@@ -1727,6 +1758,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[int_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="CertRevoked",
         )
 
@@ -1750,6 +1782,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_revoked_crl_path],
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             ee_topbit_serial=True,
             expected_error="CertRevoked",
         )
@@ -1777,6 +1810,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_idp_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -1802,6 +1836,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_no_idp_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -1840,6 +1875,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_wrong_idp_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -1891,6 +1927,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_indirect_dp_unknown_status_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -1943,6 +1980,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_reasons_dp_unknown_status_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -1996,6 +2034,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_nofullname_dp_unknown_status_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
         )
 
@@ -2035,6 +2074,7 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[ee_dp_idp_match_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error=None,
         )
 
@@ -2078,7 +2118,66 @@ def client_auth_revocation(force: bool) -> None:
             crl_paths=[invalid_dp_chain_crl_path],
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
             expected_error="UnknownRevocationStatus",
+        )
+
+    def _expired_crl_ignore_expiration() -> None:
+        test_name = "expired_crl_ignore_expiration"
+        ee_cert = no_ku_chain[0][0]
+        int_a_key = no_ku_chain[1][2]
+        # Generate an expired CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        ee_not_revoked_crl = _crl(
+            serials=[12345],  # Some serial that isn't the ee_cert.serial.
+            issuer_name=ee_cert.issuer,
+            issuer_key=int_a_key,
+            not_after=datetime.datetime.utcfromtimestamp(0x1FEDF00D - 10),
+        )
+        ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        write_der(
+            ee_not_revoked_crl_path,
+            ee_not_revoked_crl.public_bytes(Encoding.DER),
+            force,
+        )
+
+        # Providing a CRL that's expired should succeed if the expiration policy is set to ignore.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[ee_not_revoked_crl_path],
+            depth=ChainDepth.CHAIN,
+            policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
+            expected_error=None,
+        )
+
+    def _expired_crl_enforce_expiration() -> None:
+        test_name = "expired_crl_enforce_expiration"
+        ee_cert = no_ku_chain[0][0]
+        int_a_key = no_ku_chain[1][2]
+        # Generate an expired CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        ee_not_revoked_crl = _crl(
+            serials=[12345],  # Some serial that isn't the ee_cert.serial.
+            issuer_name=ee_cert.issuer,
+            issuer_key=int_a_key,
+            not_after=datetime.datetime.utcfromtimestamp(0x1FEDF00D - 10),
+        )
+        ee_not_revoked_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        write_der(
+            ee_not_revoked_crl_path,
+            ee_not_revoked_crl.public_bytes(Encoding.DER),
+            force,
+        )
+
+        # Providing a CRL that's expired should error if the expiration policy is set to enforce.
+        _revocation_test(
+            test_name=test_name,
+            chain=no_ku_chain,
+            crl_paths=[ee_not_revoked_crl_path],
+            depth=ChainDepth.CHAIN,
+            policy=StatusRequirement.ALLOW_UNKNOWN,
+            expiration=ExpirationPolicy.ENFORCE,
+            expected_error="CrlExpired",
         )
 
     with trim_top("client_auth_revocation.rs") as output:
@@ -2111,6 +2210,8 @@ def client_auth_revocation(force: bool) -> None:
         _ee_nofullname_dp_unknown_status()
         _ee_dp_idp_match()
         _ee_dp_invalid()
+        _expired_crl_ignore_expiration()
+        _expired_crl_enforce_expiration()
 
 
 if __name__ == "__main__":
