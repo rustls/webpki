@@ -1281,7 +1281,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name = "ee_not_revoked_ee_depth"
         ee_cert = no_ku_chain[0][0]
         int_a_key = no_ku_chain[1][2]
-        # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include the EE cert's serial, but that is issued by the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
@@ -1310,7 +1310,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name = "ee_not_revoked_chain_depth"
         ee_cert = no_ku_chain[0][0]
         int_a_key = no_ku_chain[1][2]
-        # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include the EE cert's serial, but that is issued by the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
@@ -1395,7 +1395,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name = "ee_not_revoked_wrong_ku_ee_depth"
         ee_cert = no_crl_ku_chain[0][0]
         int_a_key = no_crl_ku_chain[1][2]
-        # Generate a CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include the EE cert's serial, but that is issued by the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
@@ -1534,7 +1534,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name = "int_not_revoked_chain_depth"
         int_a_cert = no_ku_chain[1][0]
         int_b_key = no_ku_chain[2][2]
-        # Generate a CRL that doesn't include the intermediate A cert's serial, but that is issued the same issuer.
+        # Generate a CRL that doesn't include the intermediate A cert's serial, but that is issued by the same issuer.
         int_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the int_a_cert.serial.
             issuer_name=int_a_cert.issuer,
@@ -2126,7 +2126,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name = "expired_crl_ignore_expiration"
         ee_cert = no_ku_chain[0][0]
         int_a_key = no_ku_chain[1][2]
-        # Generate an expired CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate an expired CRL that doesn't include the EE cert's serial, but that is issued by the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
@@ -2155,7 +2155,7 @@ def client_auth_revocation(force: bool) -> None:
         test_name = "expired_crl_enforce_expiration"
         ee_cert = no_ku_chain[0][0]
         int_a_key = no_ku_chain[1][2]
-        # Generate an expired CRL that doesn't include the EE cert's serial, but that is issued the same issuer.
+        # Generate an expired CRL that doesn't include the EE cert's serial, but that is issued by the same issuer.
         ee_not_revoked_crl = _crl(
             serials=[12345],  # Some serial that isn't the ee_cert.serial.
             issuer_name=ee_cert.issuer,
