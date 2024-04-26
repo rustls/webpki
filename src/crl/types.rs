@@ -1258,7 +1258,8 @@ mod tests {
         let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
             .unwrap()
             .into();
-        let time = UnixTime::since_unix_epoch(Duration::from_secs(1706905579));
+        //  Friday, February 2, 2024 8:26:19 PM GMT
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(1_706_905_579));
 
         assert!(matches!(crl.check_expiration(time), Err(Error::CrlExpired)));
     }
@@ -1269,7 +1270,8 @@ mod tests {
         let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
             .unwrap()
             .into();
-        let expiration_time = 1666210326;
+        // Wednesday, October 19, 2022 8:12:06 PM GMT
+        let expiration_time = 1_666_210_326;
         let time = UnixTime::since_unix_epoch(Duration::from_secs(expiration_time - 1000));
 
         assert!(matches!(crl.check_expiration(time), Ok(())));
