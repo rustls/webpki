@@ -1,3 +1,5 @@
+#![allow(clippy::incompatible_msrv)]
+
 use bencher::{benchmark_group, benchmark_main, Bencher};
 use once_cell::sync::Lazy;
 use rcgen::{
