@@ -12,6 +12,8 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use pki_types::SubjectPublicKeyInfoDer;
 use pki_types::{CertificateDer, DnsName};
 
 use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
@@ -171,6 +173,17 @@ impl<'a> Cert<'a> {
     /// Raw DER encoded certificate subject.
     pub fn subject(&self) -> &[u8] {
         self.subject.as_slice_less_safe()
+    }
+
+    /// Get the RFC 5280-compliant [`SubjectPublicKeyInfoDer`] (SPKI) of this [`Cert`].
+    #[cfg(feature = "alloc")]
+    pub fn subject_public_key_info(&self) -> SubjectPublicKeyInfoDer {
+        // Our SPKI representation contains only the content of the RFC 5280 SEQUENCE
+        // So we wrap the SPKI contents back into a properly-encoded ASN.1 SEQUENCE
+        SubjectPublicKeyInfoDer::from(der::asn1_wrap(
+            Tag::Sequence,
+            self.spki.as_slice_less_safe(),
+        ))
     }
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
@@ -363,6 +376,24 @@ mod tests {
                 68, 209
             ]
         )
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn test_spki_read() {
+        let ee = include_bytes!("../tests/ed25519/ee.der");
+        let cert = Cert::from_der(untrusted::Input::from(ee)).expect("failed to parse certificate");
+        // How did I get this lovely string of hex bytes?
+        // openssl x509 -in tests/ed25519/ee.der -pubkey -noout > pubkey.pem
+        // openssl ec -pubin -in pubkey.pem -outform DER -out pubkey.der
+        // xxd -plain -cols 1 pubkey.der
+        let expected_spki = [
+            0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00, 0xfe, 0x5a,
+            0x1e, 0x36, 0x6c, 0x17, 0x27, 0x5b, 0xf1, 0x58, 0x1e, 0x3a, 0x0e, 0xe6, 0x56, 0x29,
+            0x8d, 0x9e, 0x1b, 0x3f, 0xd3, 0x3f, 0x96, 0x46, 0xef, 0xbf, 0x04, 0x6b, 0xc7, 0x3d,
+            0x47, 0x5c,
+        ];
+        assert_eq!(expected_spki, *cert.subject_public_key_info())
     }
 
     #[test]
