@@ -155,8 +155,8 @@ impl<'a> SignedData<'a> {
 /// linearly for matches.
 pub(crate) fn verify_signed_data(
     supported_algorithms: &[&dyn SignatureVerificationAlgorithm],
-    spki_value: untrusted::Input,
-    signed_data: &SignedData,
+    spki_value: untrusted::Input<'_>,
+    signed_data: &SignedData<'_>,
     budget: &mut Budget,
 ) -> Result<(), Error> {
     budget.consume_signature()?;
@@ -210,11 +210,11 @@ pub(crate) fn verify_signed_data(
 
 pub(crate) fn verify_signature(
     signature_alg: &dyn SignatureVerificationAlgorithm,
-    spki_value: untrusted::Input,
-    msg: untrusted::Input,
-    signature: untrusted::Input,
+    spki_value: untrusted::Input<'_>,
+    msg: untrusted::Input<'_>,
+    signature: untrusted::Input<'_>,
 ) -> Result<(), Error> {
-    let spki = der::read_all::<SubjectPublicKeyInfo>(spki_value)?;
+    let spki = der::read_all::<SubjectPublicKeyInfo<'_>>(spki_value)?;
     if signature_alg.public_key_alg_id().as_ref() != spki.algorithm_id_value.as_slice_less_safe() {
         return Err(Error::UnsupportedSignatureAlgorithmForPublicKey);
     }

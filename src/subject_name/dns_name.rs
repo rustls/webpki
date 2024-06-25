@@ -84,7 +84,7 @@ impl<'a> WildcardDnsNameRef<'a> {
 }
 
 impl core::fmt::Debug for WildcardDnsNameRef<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         f.write_str("WildcardDnsNameRef(\"")?;
 
         // Convert each byte of the underlying ASCII string to a `char` and
@@ -215,9 +215,9 @@ impl core::fmt::Debug for WildcardDnsNameRef<'_> {
 //     incorporated into the spec:
 //     https://www.ietf.org/mail-archive/web/pkix/current/msg21192.html
 pub(super) fn presented_id_matches_reference_id(
-    presented_dns_id: untrusted::Input,
+    presented_dns_id: untrusted::Input<'_>,
     reference_dns_id_role: IdRole,
-    reference_dns_id: untrusted::Input,
+    reference_dns_id: untrusted::Input<'_>,
 ) -> Result<bool, Error> {
     if !is_valid_dns_id(presented_dns_id, IdRole::Presented, Wildcards::Allow) {
         return Err(Error::MalformedDnsIdentifier);
@@ -377,7 +377,7 @@ pub(super) enum IdRole {
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1136616: As an exception to the
 // requirement above, underscores are also allowed in names for compatibility.
 fn is_valid_dns_id(
-    hostname: untrusted::Input,
+    hostname: untrusted::Input<'_>,
     id_role: IdRole,
     allow_wildcards: Wildcards,
 ) -> bool {

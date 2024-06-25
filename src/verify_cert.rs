@@ -61,10 +61,8 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
 
         // TODO: HPKP checks.
 
-        let result = loop_while_non_fatal_error(
-            Error::UnknownIssuer,
-            self.trust_anchors,
-            |trust_anchor: &TrustAnchor| {
+        let result =
+            loop_while_non_fatal_error(Error::UnknownIssuer, self.trust_anchors, |trust_anchor| {
                 let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
                 if !public_values_eq(path.head().issuer, trust_anchor_subject) {
                     return Err(Error::UnknownIssuer.into());
@@ -91,8 +89,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                     Ok(()) => Ok(trust_anchor),
                     Err(err) => Err(ControlFlow::Continue(err)),
                 }
-            },
-        );
+            });
 
         let err = match result {
             Ok(anchor) => return Ok(anchor),
@@ -138,7 +135,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         &self,
         path: &PathNode<'_>,
         time: UnixTime,
-        trust_anchor: &TrustAnchor,
+        trust_anchor: &TrustAnchor<'_>,
         budget: &mut Budget,
     ) -> Result<(), ControlFlow<Error, Error>> {
         let mut spki_value = untrusted::Input::from(trust_anchor.subject_public_key_info.as_ref());
@@ -270,7 +267,7 @@ impl<'a> AsRef<[Option<Cert<'a>>]> for Intermediates<'a> {
 
 fn check_signed_chain_name_constraints(
     path: &PathNode<'_>,
-    trust_anchor: &TrustAnchor,
+    trust_anchor: &TrustAnchor<'_>,
     budget: &mut Budget,
 ) -> Result<(), ControlFlow<Error, Error>> {
     let mut name_constraints = trust_anchor
@@ -345,7 +342,7 @@ impl Default for Budget {
 }
 
 fn check_issuer_independent_properties(
-    cert: &Cert,
+    cert: &Cert<'_>,
     time: UnixTime,
     role: Role,
     sub_ca_count: usize,
@@ -373,7 +370,7 @@ fn check_issuer_independent_properties(
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.1.2.5
-fn check_validity(input: &mut untrusted::Reader, time: UnixTime) -> Result<(), Error> {
+fn check_validity(input: &mut untrusted::Reader<'_>, time: UnixTime) -> Result<(), Error> {
     let not_before = UnixTime::from_der(input)?;
     let not_after = UnixTime::from_der(input)?;
 
@@ -396,7 +393,7 @@ fn check_validity(input: &mut untrusted::Reader, time: UnixTime) -> Result<(), E
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.9
 fn check_basic_constraints(
-    input: Option<&mut untrusted::Reader>,
+    input: Option<&mut untrusted::Reader<'_>>,
     role: Role,
     sub_ca_count: usize,
 ) -> Result<(), Error> {
@@ -484,7 +481,7 @@ enum ExtendedKeyUsage {
 
 impl ExtendedKeyUsage {
     // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-    fn check(&self, input: Option<&mut untrusted::Reader>) -> Result<(), Error> {
+    fn check(&self, input: Option<&mut untrusted::Reader<'_>>) -> Result<(), Error> {
         let input = match (input, self) {
             (Some(input), _) => input,
             (None, Self::RequiredIfPresent(_)) => return Ok(()),
@@ -1041,7 +1038,7 @@ mod tests {
             let intermediate_certs = intermediate_chain
                 .chain
                 .iter()
-                .map(|der: &CertificateDer| Cert::from_der(untrusted::Input::from(der)).unwrap())
+                .map(|der| Cert::from_der(untrusted::Input::from(der)).unwrap())
                 .collect::<Vec<_>>();
 
             for (cert, expected) in path

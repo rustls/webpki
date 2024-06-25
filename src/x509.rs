@@ -62,7 +62,7 @@ pub(crate) fn set_extension_once<T>(
 }
 
 pub(crate) fn remember_extension(
-    extension: &Extension,
+    extension: &Extension<'_>,
     mut handler: impl FnMut(u8) -> Result<(), Error>,
 ) -> Result<(), Error> {
     // ISO arc for standard certificate and CRL extensions.

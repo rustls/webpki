@@ -370,7 +370,7 @@ fn parse_test_signed_data(file_contents: &[u8]) -> TestSignedData {
 
 use alloc::str::Lines;
 
-fn read_pem_section(lines: &mut Lines, section_name: &str) -> Vec<u8> {
+fn read_pem_section(lines: &mut Lines<'_>, section_name: &str) -> Vec<u8> {
     // Skip comments and header
     let begin_section = format!("-----BEGIN {}-----", section_name);
     loop {

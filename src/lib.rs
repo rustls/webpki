@@ -27,7 +27,7 @@
 //! | `aws_lc_rs` | Enable use of the aws-lc-rs crate for cryptography. |
 
 #![no_std]
-#![warn(unreachable_pub)]
+#![warn(elided_lifetimes_in_paths, unreachable_pub)]
 #![deny(missing_docs, clippy::as_conversions)]
 #![allow(
     clippy::len_without_is_empty,

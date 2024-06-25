@@ -177,7 +177,7 @@ impl<'a> Cert<'a> {
 
     /// Get the RFC 5280-compliant [`SubjectPublicKeyInfoDer`] (SPKI) of this [`Cert`].
     #[cfg(feature = "alloc")]
-    pub fn subject_public_key_info(&self) -> SubjectPublicKeyInfoDer {
+    pub fn subject_public_key_info(&self) -> SubjectPublicKeyInfoDer<'static> {
         // Our SPKI representation contains only the content of the RFC 5280 SEQUENCE
         // So we wrap the SPKI contents back into a properly-encoded ASN.1 SEQUENCE
         SubjectPublicKeyInfoDer::from(der::asn1_wrap(
@@ -201,7 +201,7 @@ impl<'a> Cert<'a> {
 
 // mozilla::pkix supports v1, v2, v3, and v4, including both the implicit
 // (correct) and explicit (incorrect) encoding of v1. We allow only v3.
-fn version3(input: &mut untrusted::Reader) -> Result<(), Error> {
+fn version3(input: &mut untrusted::Reader<'_>) -> Result<(), Error> {
     der::nested(
         input,
         der::Tag::ContextSpecificConstructed0,
@@ -417,7 +417,7 @@ mod tests {
 
         // There should be one distribution point present.
         assert_eq!(crl_distribution_points.len(), 1);
-        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+        let crl_distribution_point = crl_distribution_points
             .first()
             .expect("missing distribution point");
 
@@ -449,7 +449,7 @@ mod tests {
 
         // There should be one general name.
         assert_eq!(names.len(), 1);
-        let name: &GeneralName = names.first().expect("missing general name");
+        let name = names.first().expect("missing general name");
 
         // The general name should be a URI matching the expected value.
         match name {
@@ -479,7 +479,7 @@ mod tests {
 
         // There should be one distribution point present.
         assert_eq!(crl_distribution_points.len(), 1);
-        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+        let crl_distribution_point = crl_distribution_points
             .first()
             .expect("missing distribution point");
 
@@ -518,7 +518,7 @@ mod tests {
 
         // There should be one distribution point present.
         assert_eq!(crl_distribution_points.len(), 1);
-        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+        let crl_distribution_point = crl_distribution_points
             .first()
             .expect("missing distribution point");
 
@@ -580,7 +580,7 @@ mod tests {
 
         // There should be one distribution point present.
         assert_eq!(crl_distribution_points.len(), 1);
-        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+        let crl_distribution_point = crl_distribution_points
             .first()
             .expect("missing distribution point");
 
@@ -618,7 +618,7 @@ mod tests {
 
         // There should be one distribution point present.
         assert_eq!(crl_distribution_points.len(), 1);
-        let crl_distribution_point: &CrlDistributionPoint = crl_distribution_points
+        let crl_distribution_point = crl_distribution_points
             .first()
             .expect("missing distribution point");
 
@@ -642,7 +642,7 @@ mod tests {
             .expect("failed to parse distribution points");
 
         // There should be two distribution points present.
-        let (point_a, point_b): (&CrlDistributionPoint, &CrlDistributionPoint) = (
+        let (point_a, point_b) = (
             crl_distribution_points
                 .first()
                 .expect("missing first distribution point"),
@@ -666,7 +666,7 @@ mod tests {
             }
         }
 
-        fn uri_bytes<'a>(name: &'a GeneralName) -> &'a [u8] {
+        fn uri_bytes<'a>(name: &'a GeneralName<'a>) -> &'a [u8] {
             match name {
                 GeneralName::UniformResourceIdentifier(uri) => uri.as_slice_less_safe(),
                 _ => panic!("unexpected name type"),

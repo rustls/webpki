@@ -101,7 +101,7 @@ impl<'a> EndEntityCert<'a> {
     pub fn verify_for_usage<'p>(
         &'p self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        trust_anchors: &'p [TrustAnchor],
+        trust_anchors: &'p [TrustAnchor<'_>],
         intermediate_certs: &'p [CertificateDer<'p>],
         time: UnixTime,
         usage: KeyUsage,

@@ -66,7 +66,7 @@ impl<'a> CertRevocationList<'a> {
 
     /// Try to find a revoked certificate in the CRL by DER encoded serial number. This
     /// may yield an error if the CRL has malformed revoked certificates.
-    pub fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
+    pub fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert<'_>>, Error> {
         match self {
             #[cfg(feature = "alloc")]
             CertRevocationList::Owned(crl) => crl.find_serial(serial),
@@ -121,7 +121,7 @@ impl<'a> CertRevocationList<'a> {
     pub(crate) fn verify_signature(
         &self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        issuer_spki: untrusted::Input,
+        issuer_spki: untrusted::Input<'_>,
         budget: &mut Budget,
     ) -> Result<(), Error> {
         signed_data::verify_signed_data(
@@ -194,7 +194,7 @@ impl OwnedCertRevocationList {
         BorrowedCertRevocationList::from_der(crl_der)?.to_owned()
     }
 
-    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert<'_>>, Error> {
         // note: this is infallible for the owned representation because we process all
         // revoked certificates at the time of construction to build the `revoked_certs` map,
         // returning any encountered errors at that time.
@@ -309,7 +309,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
         })
     }
 
-    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert>, Error> {
+    fn find_serial(&self, serial: &[u8]) -> Result<Option<BorrowedRevokedCert<'_>>, Error> {
         for revoked_cert_result in self {
             match revoked_cert_result {
                 Err(e) => return Err(e),
@@ -471,7 +471,7 @@ pub(crate) struct IssuingDistributionPoint<'a> {
 }
 
 impl<'a> IssuingDistributionPoint<'a> {
-    pub(crate) fn from_der(der: untrusted::Input<'a>) -> Result<IssuingDistributionPoint, Error> {
+    pub(crate) fn from_der(der: untrusted::Input<'a>) -> Result<Self, Error> {
         const DISTRIBUTION_POINT_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED;
         const ONLY_CONTAINS_USER_CERTS_TAG: u8 = CONTEXT_SPECIFIC | 1;
         const ONLY_CONTAINS_CA_CERTS_TAG: u8 = CONTEXT_SPECIFIC | 2;
@@ -491,7 +491,7 @@ impl<'a> IssuingDistributionPoint<'a> {
         // Note: we can't use der::optional_boolean here because the distribution point
         //       booleans are context specific primitives and der::optional_boolean expects
         //       to unwrap a Tag::Boolean constructed value.
-        fn decode_bool(value: untrusted::Input) -> Result<bool, Error> {
+        fn decode_bool(value: untrusted::Input<'_>) -> Result<bool, Error> {
             let mut reader = untrusted::Reader::new(value);
             let value = reader.read_byte().map_err(der::end_of_input_err)?;
             if !reader.at_end() {
@@ -693,7 +693,7 @@ pub struct OwnedRevokedCert {
 #[cfg(feature = "alloc")]
 impl OwnedRevokedCert {
     /// Convert the owned representation of this revoked cert to a borrowed version.
-    pub fn borrow(&self) -> BorrowedRevokedCert {
+    pub fn borrow(&self) -> BorrowedRevokedCert<'_> {
         BorrowedRevokedCert {
             serial_number: &self.serial_number,
             revocation_date: self.revocation_date,
@@ -1211,17 +1211,15 @@ mod tests {
         let owned_crl = borrowed_crl.to_owned().unwrap();
 
         // It should be possible to convert a BorrowedCertRevocationList to a CertRevocationList.
-        let _crl: CertRevocationList = borrowed_crl.into();
+        let _crl = CertRevocationList::from(borrowed_crl);
         // And similar for an OwnedCertRevocationList.
-        let _crl: CertRevocationList = owned_crl.into();
+        let _crl = CertRevocationList::from(owned_crl);
     }
 
     #[test]
     fn test_crl_authoritative_issuer_mismatch() {
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
-            .unwrap()
-            .into();
+        let crl = CertRevocationList::from(BorrowedCertRevocationList::from_der(&crl[..]).unwrap());
 
         let ee = CertificateDer::from(
             &include_bytes!("../../tests/client_auth_revocation/no_ku_chain.ee.der")[..],
@@ -1237,9 +1235,7 @@ mod tests {
     fn test_crl_authoritative_no_idp_no_cert_dp() {
         let crl =
             include_bytes!("../../tests/client_auth_revocation/ee_revoked_crl_ku_ee_depth.crl.der");
-        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
-            .unwrap()
-            .into();
+        let crl = CertRevocationList::from(BorrowedCertRevocationList::from_der(&crl[..]).unwrap());
 
         let ee = CertificateDer::from(
             &include_bytes!("../../tests/client_auth_revocation/ku_chain.ee.der")[..],
@@ -1255,9 +1251,7 @@ mod tests {
     #[test]
     fn test_crl_expired() {
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
-            .unwrap()
-            .into();
+        let crl = CertRevocationList::from(BorrowedCertRevocationList::from_der(&crl[..]).unwrap());
         //  Friday, February 2, 2024 8:26:19 PM GMT
         let time = UnixTime::since_unix_epoch(Duration::from_secs(1_706_905_579));
 
@@ -1267,9 +1261,7 @@ mod tests {
     #[test]
     fn test_crl_not_expired() {
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
-            .unwrap()
-            .into();
+        let crl = CertRevocationList::from(BorrowedCertRevocationList::from_der(&crl[..]).unwrap());
         // Wednesday, October 19, 2022 8:12:06 PM GMT
         let expiration_time = 1_666_210_326;
         let time = UnixTime::since_unix_epoch(Duration::from_secs(expiration_time - 1000));

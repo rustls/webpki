@@ -55,8 +55,8 @@ pub(crate) fn verify_ip_address_names(
 //   exactly four octets.  For IP version 6, as specified in
 //   [RFC2460], the octet string MUST contain exactly sixteen octets.
 fn presented_id_matches_reference_id(
-    presented_id: untrusted::Input,
-    reference_id: untrusted::Input,
+    presented_id: untrusted::Input<'_>,
+    reference_id: untrusted::Input<'_>,
 ) -> bool {
     match (presented_id.len(), reference_id.len()) {
         (4, 4) => (),
@@ -89,8 +89,8 @@ fn presented_id_matches_reference_id(
 //     octets C0 00 02 00 FF FF FF 00, representing the CIDR notation
 //     192.0.2.0/24 (mask 255.255.255.0).
 pub(super) fn presented_id_matches_constraint(
-    name: untrusted::Input,
-    constraint: untrusted::Input,
+    name: untrusted::Input<'_>,
+    constraint: untrusted::Input<'_>,
 ) -> Result<bool, Error> {
     match (name.len(), constraint.len()) {
         (4, 8) => (),
