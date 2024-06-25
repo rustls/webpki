@@ -444,14 +444,14 @@ impl KeyUsage {
     ///
     /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not require the certificate to specify the eKU extension.
     pub const fn server_auth() -> Self {
-        KeyUsage::required_if_present(EKU_SERVER_AUTH)
+        Self::required_if_present(EKU_SERVER_AUTH)
     }
 
     /// Construct a new [`KeyUsage`] as appropriate for client certificate authentication.
     ///
     /// As specified in <>, this does not require the certificate to specify the eKU extension.
     pub const fn client_auth() -> Self {
-        KeyUsage::required_if_present(EKU_CLIENT_AUTH)
+        Self::required_if_present(EKU_CLIENT_AUTH)
     }
 
     /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID.
@@ -506,8 +506,8 @@ impl ExtendedKeyUsage {
     fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
         public_values_eq(
             match self {
-                ExtendedKeyUsage::Required(eku) => *eku,
-                ExtendedKeyUsage::RequiredIfPresent(eku) => *eku,
+                Self::Required(eku) => *eku,
+                Self::RequiredIfPresent(eku) => *eku,
             }
             .oid_value,
             value,
