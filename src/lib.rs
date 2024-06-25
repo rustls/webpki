@@ -35,7 +35,8 @@
     clippy::single_match,
     clippy::single_match_else,
     clippy::type_complexity,
-    clippy::upper_case_acronyms
+    clippy::upper_case_acronyms,
+    clippy::use_self
 )]
 // Enable documentation for all features on docs.rs
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
