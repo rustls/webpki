@@ -364,7 +364,7 @@ impl<'a> BitStringFlags<'a> {
 //
 // [0]: https://security.stackexchange.com/a/10396
 // [1]: https://www.itu.int/ITU-T/studygroups/com17/languages/X.690-0207.pdf
-pub(crate) fn bit_string_flags(input: untrusted::Input) -> Result<BitStringFlags<'_>, Error> {
+pub(crate) fn bit_string_flags(input: untrusted::Input<'_>) -> Result<BitStringFlags<'_>, Error> {
     input.read_all(Error::BadDer, |bit_string| {
         // ITU X690-0207 11.2:
         //   "The initial octet shall encode, as an unsigned binary integer with bit 1 as the least
@@ -586,7 +586,7 @@ mod tests {
         );
     }
 
-    fn bytes_reader(bytes: &[u8]) -> untrusted::Reader {
+    fn bytes_reader(bytes: &[u8]) -> untrusted::Reader<'_> {
         return untrusted::Reader::new(untrusted::Input::from(bytes));
     }
 

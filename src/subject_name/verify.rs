@@ -20,7 +20,7 @@ use crate::verify_cert::{Budget, PathNode};
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10
 pub(crate) fn check_name_constraints(
-    constraints: Option<&mut untrusted::Reader>,
+    constraints: Option<&mut untrusted::Reader<'_>>,
     path: &PathNode<'_>,
     budget: &mut Budget,
 ) -> Result<(), Error> {
@@ -67,9 +67,9 @@ pub(crate) fn check_name_constraints(
 }
 
 fn check_presented_id_conforms_to_constraints(
-    name: GeneralName,
-    permitted_subtrees: Option<untrusted::Input>,
-    excluded_subtrees: Option<untrusted::Input>,
+    name: GeneralName<'_>,
+    permitted_subtrees: Option<untrusted::Input<'_>>,
+    excluded_subtrees: Option<untrusted::Input<'_>>,
     budget: &mut Budget,
 ) -> Option<Result<(), Error>> {
     let subtrees = [

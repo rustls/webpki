@@ -98,6 +98,6 @@ impl<'a> From<Cert<'a>> for TrustAnchor<'a> {
     }
 }
 
-fn skip(input: &mut untrusted::Reader, tag: der::Tag) -> Result<(), Error> {
+fn skip(input: &mut untrusted::Reader<'_>, tag: der::Tag) -> Result<(), Error> {
     der::expect_tag(input, tag).map(|_| ())
 }

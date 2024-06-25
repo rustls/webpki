@@ -115,9 +115,9 @@ impl<'a> RevocationOptions<'a> {
     pub(crate) fn check(
         &self,
         path: &PathNode<'_>,
-        issuer_subject: untrusted::Input,
-        issuer_spki: untrusted::Input,
-        issuer_ku: Option<untrusted::Input>,
+        issuer_subject: untrusted::Input<'_>,
+        issuer_spki: untrusted::Input<'_>,
+        issuer_ku: Option<untrusted::Input<'_>>,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
         budget: &mut Budget,
         time: UnixTime,
@@ -185,7 +185,7 @@ enum KeyUsageMode {
 
 impl KeyUsageMode {
     // https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
-    fn check(self, input: Option<untrusted::Input>) -> Result<(), Error> {
+    fn check(self, input: Option<untrusted::Input<'_>>) -> Result<(), Error> {
         let bit_string = match input {
             Some(input) => {
                 der::expect_tag(&mut untrusted::Reader::new(input), der::Tag::BitString)?
@@ -286,7 +286,7 @@ mod tests {
 
         // It should be possible to build a revocation options builder with defaults.
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
-        let crl: CertRevocationList = BorrowedCertRevocationList::from_der(&crl[..])
+        let crl = BorrowedCertRevocationList::from_der(&crl[..])
             .unwrap()
             .into();
         let crls = [&crl];
