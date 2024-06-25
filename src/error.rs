@@ -199,7 +199,7 @@ pub enum Error {
 impl Error {
     // Compare the Error with the new error by rank, returning the higher rank of the two as
     // the most specific error.
-    pub(crate) fn most_specific(self, new: Error) -> Error {
+    pub(crate) fn most_specific(self, new: Self) -> Self {
         // Assign an error a numeric value ranking it by specificity.
         if self.rank() >= new.rank() {
             self
@@ -215,55 +215,55 @@ impl Error {
     pub(crate) fn rank(&self) -> u32 {
         match &self {
             // Errors related to certificate validity
-            Error::CertNotValidYet | Error::CertExpired => 290,
-            Error::CertNotValidForName => 280,
-            Error::CertRevoked | Error::UnknownRevocationStatus | Error::CrlExpired => 270,
-            Error::InvalidCrlSignatureForPublicKey | Error::InvalidSignatureForPublicKey => 260,
-            Error::SignatureAlgorithmMismatch => 250,
-            Error::RequiredEkuNotFound => 240,
-            Error::NameConstraintViolation => 230,
-            Error::PathLenConstraintViolated => 220,
-            Error::CaUsedAsEndEntity | Error::EndEntityUsedAsCa => 210,
-            Error::IssuerNotCrlSigner => 200,
+            Self::CertNotValidYet | Self::CertExpired => 290,
+            Self::CertNotValidForName => 280,
+            Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired => 270,
+            Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
+            Self::SignatureAlgorithmMismatch => 250,
+            Self::RequiredEkuNotFound => 240,
+            Self::NameConstraintViolation => 230,
+            Self::PathLenConstraintViolated => 220,
+            Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
+            Self::IssuerNotCrlSigner => 200,
 
             // Errors related to supported features used in an invalid way.
-            Error::InvalidCertValidity => 190,
-            Error::InvalidNetworkMaskConstraint => 180,
-            Error::InvalidSerialNumber => 170,
-            Error::InvalidCrlNumber => 160,
+            Self::InvalidCertValidity => 190,
+            Self::InvalidNetworkMaskConstraint => 180,
+            Self::InvalidSerialNumber => 170,
+            Self::InvalidCrlNumber => 160,
 
             // Errors related to unsupported features.
-            Error::UnsupportedCrlSignatureAlgorithmForPublicKey
-            | Error::UnsupportedSignatureAlgorithmForPublicKey => 150,
-            Error::UnsupportedCrlSignatureAlgorithm | Error::UnsupportedSignatureAlgorithm => 140,
-            Error::UnsupportedCriticalExtension => 130,
-            Error::UnsupportedCertVersion => 130,
-            Error::UnsupportedCrlVersion => 120,
-            Error::UnsupportedDeltaCrl => 110,
-            Error::UnsupportedIndirectCrl => 100,
-            Error::UnsupportedNameType => 95,
-            Error::UnsupportedRevocationReason => 90,
-            Error::UnsupportedRevocationReasonsPartitioning => 80,
-            Error::UnsupportedCrlIssuingDistributionPoint => 70,
-            Error::MaximumPathDepthExceeded => 61,
+            Self::UnsupportedCrlSignatureAlgorithmForPublicKey
+            | Self::UnsupportedSignatureAlgorithmForPublicKey => 150,
+            Self::UnsupportedCrlSignatureAlgorithm | Self::UnsupportedSignatureAlgorithm => 140,
+            Self::UnsupportedCriticalExtension => 130,
+            Self::UnsupportedCertVersion => 130,
+            Self::UnsupportedCrlVersion => 120,
+            Self::UnsupportedDeltaCrl => 110,
+            Self::UnsupportedIndirectCrl => 100,
+            Self::UnsupportedNameType => 95,
+            Self::UnsupportedRevocationReason => 90,
+            Self::UnsupportedRevocationReasonsPartitioning => 80,
+            Self::UnsupportedCrlIssuingDistributionPoint => 70,
+            Self::MaximumPathDepthExceeded => 61,
 
             // Errors related to malformed data.
-            Error::MalformedDnsIdentifier => 60,
-            Error::MalformedNameConstraint => 50,
-            Error::MalformedExtensions | Error::TrailingData(_) => 40,
-            Error::ExtensionValueInvalid => 30,
+            Self::MalformedDnsIdentifier => 60,
+            Self::MalformedNameConstraint => 50,
+            Self::MalformedExtensions | Self::TrailingData(_) => 40,
+            Self::ExtensionValueInvalid => 30,
 
             // Generic DER errors.
-            Error::BadDerTime => 20,
-            Error::BadDer => 10,
+            Self::BadDerTime => 20,
+            Self::BadDer => 10,
 
             // Special case errors - not subject to ranking.
-            Error::MaximumSignatureChecksExceeded => 0,
-            Error::MaximumPathBuildCallsExceeded => 0,
-            Error::MaximumNameConstraintComparisonsExceeded => 0,
+            Self::MaximumSignatureChecksExceeded => 0,
+            Self::MaximumPathBuildCallsExceeded => 0,
+            Self::MaximumNameConstraintComparisonsExceeded => 0,
 
             // Default catch all error - should be renamed in the future.
-            Error::UnknownIssuer => 0,
+            Self::UnknownIssuer => 0,
         }
     }
 
@@ -273,9 +273,9 @@ impl Error {
     pub(crate) fn is_fatal(&self) -> bool {
         matches!(
             self,
-            Error::MaximumSignatureChecksExceeded
-                | Error::MaximumPathBuildCallsExceeded
-                | Error::MaximumNameConstraintComparisonsExceeded
+            Self::MaximumSignatureChecksExceeded
+                | Self::MaximumPathBuildCallsExceeded
+                | Self::MaximumNameConstraintComparisonsExceeded
         )
     }
 }
