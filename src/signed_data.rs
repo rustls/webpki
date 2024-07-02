@@ -228,7 +228,7 @@ pub(crate) fn verify_signature(
         .map_err(|_| Error::InvalidSignatureForPublicKey)
 }
 
-struct SubjectPublicKeyInfo<'a> {
+pub(crate) struct SubjectPublicKeyInfo<'a> {
     algorithm_id_value: untrusted::Input<'a>,
     key_value: untrusted::Input<'a>,
 }

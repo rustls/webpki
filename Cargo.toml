@@ -37,6 +37,7 @@ include = [
     "src/der.rs",
     "src/end_entity.rs",
     "src/error.rs",
+    "src/rpk_entity.rs",
     "src/subject_name/dns_name.rs",
     "src/subject_name/ip_address.rs",
     "src/subject_name/mod.rs",
