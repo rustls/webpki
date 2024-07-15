@@ -209,7 +209,7 @@ def generate_tls_server_cert_test(
 
     - `test_name`: name of the test, must be a rust identifier.
     - `expected_error`: item in `webpki::Error` enum, expected error from
-      webpki `verify_is_valid_tls_server_cert` function.  Leave absent to
+      webpki `verify_for_usage()` function.  Leave absent to
       expect success.
     - `subject_common_name`: optional string to put in end-entity certificate
       subject common name.
