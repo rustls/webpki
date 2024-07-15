@@ -29,21 +29,22 @@ use crate::{cert, signed_data};
 /// Server certificate processing in a TLS connection consists of several
 /// steps. All of these steps are necessary:
 ///
-/// * `EndEntityCert.verify_is_valid_tls_server_cert`: Verify that the server's
-///   certificate is currently valid *for use by a TLS server*.
-/// * `EndEntityCert.verify_is_valid_for_subject_name`: Verify that the server's
+/// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
+///   is valid for the current usage scenario. For server authentication, use
+///   [`KeyUsage::server_auth()`].
+/// * [`EndEntityCert::verify_is_valid_for_subject_name()`]: Verify that the server's
 ///   certificate is valid for the host or IP address that is being connected to.
-///
-/// * `EndEntityCert.verify_signature`: Verify that the signature of server's
+/// * [`EndEntityCert::verify_signature()`]: Verify that the signature of server's
 ///   `ServerKeyExchange` message is valid for the server's certificate.
 ///
 /// Client certificate processing in a TLS connection consists of analogous
 /// steps. All of these steps are necessary:
 ///
-/// * `EndEntityCert.verify_is_valid_tls_client_cert`: Verify that the client's
-///   certificate is currently valid *for use by a TLS client*.
-/// * `EndEntityCert.verify_signature`: Verify that the client's signature in
-///   its `CertificateVerify` message is valid using the public key from the
+/// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
+///   is valid for the current usage scenario. For client authentication, use
+///   [`KeyUsage::client_auth()`].
+/// * [`EndEntityCert::verify_signature()`]: Verify that the signature of client's
+///   `CertificateVerify` message is valid using the public key from the
 ///   client's certificate.
 ///
 /// Although it would be less error-prone to combine all these steps into a
@@ -51,10 +52,10 @@ use crate::{cert, signed_data};
 /// three steps are processed separately (in parallel). It does not matter much
 /// which order the steps are done in, but **all of these steps must completed
 /// before application data is sent and before received application data is
-/// processed**. `EndEntityCert::from` is an inexpensive operation and is
-/// deterministic, so if these tasks are done in multiple threads, it is
-/// probably best to just call `EndEntityCert::from` multiple times (before each
-/// operation) for the same DER-encoded ASN.1 certificate bytes.
+/// processed**. The [`TryFrom`] conversion from `&CertificateDer<'_>` is an
+/// inexpensive operation and is deterministic, so if these tasks are done in
+/// multiple threads, it is probably best to just create multiple [`EndEntityCert`]
+/// instances for the same DER-encoded ASN.1 certificate bytes.
 pub struct EndEntityCert<'a> {
     inner: cert::Cert<'a>,
 }
