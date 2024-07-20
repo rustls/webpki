@@ -7,6 +7,7 @@ name-related parts of webpki.
 Run this script from tests/.  It edits the bottom part of some .rs files and
 drops testcase data into subdirectories as required.
 """
+
 import argparse
 import enum
 import os
@@ -561,6 +562,8 @@ def signatures(force: bool) -> None:
 
     feature_gates = {
         "ECDSA_P521_SHA512": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
+        "ECDSA_P521_SHA256": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
+        "ECDSA_P521_SHA384": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
     }
 
     rsa_types: list[str] = [
@@ -576,7 +579,7 @@ def signatures(force: bool) -> None:
         "ed25519": ["ED25519"],
         "ecdsa_p256": ["ECDSA_P256_SHA384", "ECDSA_P256_SHA256"],
         "ecdsa_p384": ["ECDSA_P384_SHA384", "ECDSA_P384_SHA256"],
-        "ecdsa_p521": ["ECDSA_P521_SHA512"],
+        "ecdsa_p521": ["ECDSA_P521_SHA512", "ECDSA_P521_SHA256", "ECDSA_P521_SHA384"],
         "rsa_2048": rsa_types,
         "rsa_3072": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
         "rsa_4096": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
@@ -604,6 +607,12 @@ def signatures(force: bool) -> None:
             message, ec.ECDSA(hashes.SHA256())
         ),
         "ECDSA_P384_SHA384": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA384())
+        ),
+        "ECDSA_P521_SHA256": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA256())
+        ),
+        "ECDSA_P521_SHA384": lambda key, message: key.sign(
             message, ec.ECDSA(hashes.SHA384())
         ),
         "ECDSA_P521_SHA512": lambda key, message: key.sign(
@@ -1126,7 +1135,13 @@ def client_auth_revocation(force: bool) -> None:
         intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
 
         def _write_revocation_test(*, owned: bool) -> None:
-            nonlocal crl_paths, expected_error, intermediates_str, test_name, ee_cert_path, root_cert_path
+            nonlocal \
+                crl_paths, \
+                expected_error, \
+                intermediates_str, \
+                test_name, \
+                ee_cert_path, \
+                root_cert_path
 
             test_name = test_name if not owned else test_name + "_owned"
 
