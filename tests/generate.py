@@ -560,6 +560,8 @@ def signatures(force: bool) -> None:
     }
 
     feature_gates = {
+        "ECDSA_P521_SHA256": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
+        "ECDSA_P521_SHA384": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
         "ECDSA_P521_SHA512": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
     }
 
@@ -576,7 +578,7 @@ def signatures(force: bool) -> None:
         "ed25519": ["ED25519"],
         "ecdsa_p256": ["ECDSA_P256_SHA384", "ECDSA_P256_SHA256"],
         "ecdsa_p384": ["ECDSA_P384_SHA384", "ECDSA_P384_SHA256"],
-        "ecdsa_p521": ["ECDSA_P521_SHA512"],
+        "ecdsa_p521": ["ECDSA_P521_SHA512", "ECDSA_P521_SHA256", "ECDSA_P521_SHA384"],
         "rsa_2048": rsa_types,
         "rsa_3072": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
         "rsa_4096": rsa_types + ["RSA_PKCS1_3072_8192_SHA384"],
@@ -604,6 +606,12 @@ def signatures(force: bool) -> None:
             message, ec.ECDSA(hashes.SHA256())
         ),
         "ECDSA_P384_SHA384": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA384())
+        ),
+        "ECDSA_P521_SHA256": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA256())
+        ),
+        "ECDSA_P521_SHA384": lambda key, message: key.sign(
             message, ec.ECDSA(hashes.SHA384())
         ),
         "ECDSA_P521_SHA512": lambda key, message: key.sign(

@@ -109,10 +109,10 @@ pub mod ring {
 pub mod aws_lc_rs {
     pub use super::aws_lc_rs_algs::{
         ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384,
-        ECDSA_P521_SHA512, ED25519, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384,
-        RSA_PKCS1_2048_8192_SHA512, RSA_PKCS1_3072_8192_SHA384,
-        RSA_PSS_2048_8192_SHA256_LEGACY_KEY, RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-        RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        ECDSA_P521_SHA256, ECDSA_P521_SHA384, ECDSA_P521_SHA512, ED25519,
+        RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
+        RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     };
 }
 
@@ -152,6 +152,10 @@ pub static ALL_VERIFICATION_ALGS: &[&dyn types::SignatureVerificationAlgorithm] 
     aws_lc_rs::ECDSA_P384_SHA256,
     #[cfg(feature = "aws_lc_rs")]
     aws_lc_rs::ECDSA_P384_SHA384,
+    #[cfg(feature = "aws_lc_rs")]
+    aws_lc_rs::ECDSA_P521_SHA256,
+    #[cfg(feature = "aws_lc_rs")]
+    aws_lc_rs::ECDSA_P521_SHA384,
     #[cfg(feature = "aws_lc_rs")]
     aws_lc_rs::ECDSA_P521_SHA512,
     #[cfg(feature = "aws_lc_rs")]

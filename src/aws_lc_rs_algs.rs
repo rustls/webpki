@@ -67,6 +67,20 @@ pub static ECDSA_P384_SHA384: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgo
     verification_alg: &signature::ECDSA_P384_SHA384_ASN1,
 };
 
+/// ECDSA signatures using the P-521 curve and SHA-256.
+pub static ECDSA_P521_SHA256: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ECDSA_P521,
+    signature_alg_id: alg_id::ECDSA_SHA256,
+    verification_alg: &signature::ECDSA_P521_SHA256_ASN1,
+};
+
+/// ECDSA signatures using the P-521 curve and SHA-384.
+pub static ECDSA_P521_SHA384: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ECDSA_P521,
+    signature_alg_id: alg_id::ECDSA_SHA384,
+    verification_alg: &signature::ECDSA_P521_SHA384_ASN1,
+};
+
 /// ECDSA signatures using the P-521 curve and SHA-512.
 pub static ECDSA_P521_SHA512: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
     public_key_alg_id: alg_id::ECDSA_P521,
@@ -151,6 +165,8 @@ mod tests {
         // Reasonable algorithms.
         super::ECDSA_P256_SHA256,
         super::ECDSA_P384_SHA384,
+        super::ECDSA_P521_SHA256,
+        super::ECDSA_P521_SHA384,
         super::ECDSA_P521_SHA512,
         super::ED25519,
         super::RSA_PKCS1_2048_8192_SHA256,
