@@ -560,9 +560,9 @@ def signatures(force: bool) -> None:
     }
 
     feature_gates = {
-        "ECDSA_P521_SHA512": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
         "ECDSA_P521_SHA256": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
         "ECDSA_P521_SHA384": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
+        "ECDSA_P521_SHA512": 'all(not(feature = "ring"), feature = "aws_lc_rs")',
     }
 
     rsa_types: list[str] = [
