@@ -7,7 +7,6 @@ name-related parts of webpki.
 Run this script from tests/.  It edits the bottom part of some .rs files and
 drops testcase data into subdirectories as required.
 """
-
 import argparse
 import enum
 import os
@@ -1135,13 +1134,7 @@ def client_auth_revocation(force: bool) -> None:
         intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
 
         def _write_revocation_test(*, owned: bool) -> None:
-            nonlocal \
-                crl_paths, \
-                expected_error, \
-                intermediates_str, \
-                test_name, \
-                ee_cert_path, \
-                root_cert_path
+            nonlocal crl_paths, expected_error, intermediates_str, test_name, ee_cert_path, root_cert_path
 
             test_name = test_name if not owned else test_name + "_owned"
 
