@@ -1822,12 +1822,13 @@ def client_auth_revocation(force: bool) -> None:
             expected_error=None,
         )
 
-    def _ee_crl_no_idp_unknown_status() -> None:
-        test_name = "ee_crl_no_idp_unknown_status"
+    def _ee_not_revoked_crl_no_idp() -> None:
+        test_name = "ee_not_revoked_crl_no_idp"
         # Use the chain that has a CRL distribution point in each cert.
         ee_cert = dp_chain[0][0]
         int_a_key = dp_chain[1][2]
-        # Generate a CRL that has a matching issuer, but no issuing distribution point.
+        # Generate a CRL that has a matching issuer, but no issuing distribution point,
+        # that does not include the ee cert's serial.
         ee_no_idp_crl = _crl(
             serials=[0xFFFF],
             issuer_name=ee_cert.issuer,
@@ -1836,8 +1837,10 @@ def client_auth_revocation(force: bool) -> None:
         ee_no_idp_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
         write_der(ee_no_idp_crl_path, ee_no_idp_crl.public_bytes(Encoding.DER), force)
 
-        # Checking revocation and not allowing unknown status should error - the CRL
-        # isn't relevant because it's missing a CRL IDP to match the cert DP.
+        # Checking revocation and not allowing unknown status should be OK - the CRL
+        # is considered to have a scope of "everything" since it does not
+        # explicitly set a scope with a CRL IDP extension.
+        # See https://github.com/rustls/webpki/issues/228
         _revocation_test(
             test_name=test_name,
             chain=dp_chain,
@@ -1845,7 +1848,36 @@ def client_auth_revocation(force: bool) -> None:
             depth=ChainDepth.END_ENTITY,
             policy=StatusRequirement.FORBID_UNKNOWN,
             expiration=ExpirationPolicy.IGNORE,
-            expected_error="UnknownRevocationStatus",
+            expected_error=None,
+        )
+
+    def _ee_revoked_crl_no_idp() -> None:
+        test_name = "ee_revoked_crl_no_idp"
+        # Use the chain that has a CRL distribution point in each cert.
+        ee_cert = dp_chain[0][0]
+        int_a_key = dp_chain[1][2]
+        # Generate a CRL that has a matching issuer, but no issuing distribution point,
+        # and that _does_ include the ee cert's serial.
+        ee_no_idp_crl = _crl(
+            serials=[ee_cert.serial_number],
+            issuer_name=ee_cert.issuer,
+            issuer_key=int_a_key,
+        )
+        ee_no_idp_crl_path = os.path.join(output_dir, f"{test_name}.crl.der")
+        write_der(ee_no_idp_crl_path, ee_no_idp_crl.public_bytes(Encoding.DER), force)
+
+        # Checking revocation and not allowing unknown status should return a revoked
+        # status - the CRL is considered to have a scope of "everything" since
+        # it does not explicitly set a scope with a CRL IDP extension.
+        # See https://github.com/rustls/webpki/issues/228
+        _revocation_test(
+            test_name=test_name,
+            chain=dp_chain,
+            crl_paths=[ee_no_idp_crl_path],
+            depth=ChainDepth.END_ENTITY,
+            policy=StatusRequirement.FORBID_UNKNOWN,
+            expiration=ExpirationPolicy.IGNORE,
+            expected_error="CertRevoked",
         )
 
     def _ee_crl_mismatched_idp_unknown_status() -> None:
@@ -2211,7 +2243,8 @@ def client_auth_revocation(force: bool) -> None:
         _int_revoked_crl_ku_chain_depth()
         _ee_with_top_bit_set_serial_revoked()
         _ee_no_dp_crl_idp()
-        _ee_crl_no_idp_unknown_status()
+        _ee_not_revoked_crl_no_idp()
+        _ee_revoked_crl_no_idp()
         _ee_crl_mismatched_idp_unknown_status()
         _ee_indirect_dp_unknown_status()
         _ee_reasons_dp_unknown_status()

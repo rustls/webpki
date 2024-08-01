@@ -86,6 +86,8 @@ impl<'a> CertRevocationList<'a> {
     ///       distribution point extension with a scope that includes the certificate, and at least
     ///       one distribution point full name is a URI type general name that can also be found in
     ///       the CRL issuing distribution point full name general name sequence.
+    ///     * Or, the certificate has CRL distribution points, and the CRL has no issuing
+    ///       distribution point extension.
     ///
     /// In all other circumstances the CRL is not considered authoritative.
     pub(crate) fn authoritative(&self, path: &PathNode<'_>) -> bool {
@@ -95,22 +97,20 @@ impl<'a> CertRevocationList<'a> {
             return false;
         }
 
-        let crl_idp = match (
-            path.cert.crl_distribution_points(),
-            self.issuing_distribution_point(),
-        ) {
-            // If the certificate has no CRL distribution points, and the CRL has no issuing distribution point,
-            // then we can consider this CRL authoritative based on the issuer matching.
-            (cert_dps, None) => return cert_dps.is_none(),
-
+        let crl_idp = match self.issuing_distribution_point() {
             // If the CRL has an issuing distribution point, parse it so we can consider its scope
             // and compare against the cert CRL distribution points, if present.
-            (_, Some(crl_idp)) => {
+            Some(crl_idp) => {
                 match IssuingDistributionPoint::from_der(untrusted::Input::from(crl_idp)) {
                     Ok(crl_idp) => crl_idp,
                     Err(_) => return false, // Note: shouldn't happen - we verify IDP at CRL-load.
                 }
             }
+            // If the CRL has no issuing distribution point we assume the CRL scope
+            // to be "everything" and consider the CRL authoritative for the cert based on the
+            // issuer matching. We do not need to consider the certificate's CRL distribution point
+            // extension (see also https://github.com/rustls/webpki/issues/228).
+            None => return true,
         };
 
         crl_idp.authoritative_for(path)
