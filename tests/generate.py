@@ -7,6 +7,7 @@ name-related parts of webpki.
 Run this script from tests/.  It edits the bottom part of some .rs files and
 drops testcase data into subdirectories as required.
 """
+
 import argparse
 import enum
 import os
@@ -16,7 +17,7 @@ from pathlib import Path
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, padding
-from cryptography.hazmat.primitives.serialization import Encoding
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 import ipaddress
@@ -651,6 +652,9 @@ def signatures(force: bool) -> None:
     def _cert_path(cert_type: str) -> str:
         return os.path.join(output_dir, f"{cert_type}.ee.der")
 
+    def _rpk_path(rpk_type: str) -> str:
+        return os.path.join(output_dir, f"{rpk_type}.spki.der")
+
     for name, private_key in all_key_types.items():
         ee_subject = x509.Name(
             [x509.NameAttribute(NameOID.ORGANIZATION_NAME, name + " test")]
@@ -664,6 +668,10 @@ def signatures(force: bool) -> None:
             issuer_name=issuer_subject,
         )
 
+        rpk_pub_key = private_key.public_key().public_bytes(
+            Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+        )
+        write_der(_rpk_path(name), rpk_pub_key, force)
         write_der(_cert_path(name), certificate.public_bytes(Encoding.DER), force)
 
     def _test(
@@ -671,6 +679,7 @@ def signatures(force: bool) -> None:
     ) -> None:
         nonlocal message_path
         cert_path: str = _cert_path(cert_type)
+        rpk_path: str = _rpk_path(cert_type)
         lower_test_name: str = test_name.lower()
 
         sig_path: str = os.path.join(output_dir, f"{lower_test_name}.sig.bin")
@@ -687,6 +696,23 @@ fn %(lower_test_name)s() {
     let signature = include_bytes!("%(sig_path)s");
     assert_eq!(
         check_sig(ee, %(algorithm)s, message, signature),
+        %(expected)s
+    );
+}"""
+            % locals(),
+            file=output,
+        )
+
+        print(
+            """
+#[test]
+#[cfg(%(feature_gate)s)]
+fn %(lower_test_name)s_rpk() {
+    let rpk = include_bytes!("%(rpk_path)s");
+    let message = include_bytes!("%(message_path)s");
+    let signature = include_bytes!("%(sig_path)s");
+    assert_eq!(
+        check_sig_rpk(rpk, %(algorithm)s, message, signature),
         %(expected)s
     );
 }"""
