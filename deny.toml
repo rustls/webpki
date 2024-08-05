@@ -28,9 +28,7 @@ license-files = [
 ]
 
 [bans]
-# We don't maintain a fixed Cargo.lock so enforcing
-# `multiple-versions = "deny"` is impractical.
-multiple-versions = "allow"
+multiple-versions = "deny"
 wildcards = "deny"
 
 [sources]
