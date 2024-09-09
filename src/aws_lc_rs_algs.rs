@@ -207,6 +207,7 @@ mod tests {
     const INVALID_SIGNATURE_FOR_RSA_KEY: Error = Error::InvalidSignatureForPublicKey;
 
     const OK_IF_RSA_AVAILABLE: Result<(), Error> = Ok(());
+    const OK_IF_POINT_COMPRESSION_SUPPORTED: Result<(), Error> = Ok(());
 
     #[path = "alg_tests.rs"]
     mod alg_tests;

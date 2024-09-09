@@ -23,8 +23,9 @@ use crate::verify_cert::Budget;
 use crate::{der, signed_data};
 
 use super::{
-    INVALID_SIGNATURE_FOR_RSA_KEY, OK_IF_RSA_AVAILABLE, SUPPORTED_ALGORITHMS_IN_TESTS,
-    UNSUPPORTED_ECDSA_SHA512_SIGNATURE, UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY,
+    INVALID_SIGNATURE_FOR_RSA_KEY, OK_IF_POINT_COMPRESSION_SUPPORTED, OK_IF_RSA_AVAILABLE,
+    SUPPORTED_ALGORITHMS_IN_TESTS, UNSUPPORTED_ECDSA_SHA512_SIGNATURE,
+    UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY,
 };
 
 macro_rules! test_file_bytes {
@@ -344,6 +345,17 @@ test_verify_signed_data!(
     test_rsa2048_pkcs1_sha512,
     "rsa2048-pkcs1-sha512.pem",
     OK_IF_RSA_AVAILABLE
+);
+
+test_verify_signed_data!(
+    test_ecdsa_prime256v1_sha256,
+    "ours/ecdsa-prime256v1-sha256.pem",
+    Ok(())
+);
+test_verify_signed_data!(
+    test_ecdsa_prime256v1_sha256_compressed,
+    "ours/ecdsa-prime256v1-sha256-compressed.pem",
+    OK_IF_POINT_COMPRESSION_SUPPORTED
 );
 
 struct TestSignedData {
