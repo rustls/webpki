@@ -29,6 +29,23 @@ impl SignatureVerificationAlgorithm for AwsLcRsAlgorithm {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
+        if matches!(
+            self.public_key_alg_id,
+            alg_id::ECDSA_P256 | alg_id::ECDSA_P384 | alg_id::ECDSA_P521
+        ) {
+            // Restrict the allowed encodings of EC public keys.
+            //
+            // "The first octet of the OCTET STRING indicates whether the key is
+            //  compressed or uncompressed.  The uncompressed form is indicated
+            //  by 0x04 and the compressed form is indicated by either 0x02 or
+            //  0x03 (see 2.3.3 in [SEC1]).  The public key MUST be rejected if
+            //  any other value is included in the first octet."
+            // -- <https://datatracker.ietf.org/doc/html/rfc5480#section-2.2>
+            match public_key.first() {
+                Some(0x04) | Some(0x02) | Some(0x03) => {}
+                _ => return Err(InvalidSignature),
+            };
+        }
         signature::UnparsedPublicKey::new(self.verification_alg, public_key)
             .verify(message, signature)
             .map_err(|_| InvalidSignature)
