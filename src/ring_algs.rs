@@ -198,6 +198,9 @@ mod tests {
         Err(Error::UnsupportedSignatureAlgorithm)
     };
 
+    const OK_IF_POINT_COMPRESSION_SUPPORTED: Result<(), Error> =
+        Err(Error::InvalidSignatureForPublicKey);
+
     #[path = "alg_tests.rs"]
     mod alg_tests;
 }
