@@ -357,6 +357,11 @@ test_verify_signed_data!(
     "ours/ecdsa-prime256v1-sha256-compressed.pem",
     OK_IF_POINT_COMPRESSION_SUPPORTED
 );
+test_verify_signed_data!(
+    test_ecdsa_prime256v1_sha256_spki_inside_spki,
+    "ours/ecdsa-prime256v1-sha256-spki-inside-spki.pem",
+    Err(Error::InvalidSignatureForPublicKey)
+);
 
 struct TestSignedData {
     spki: Vec<u8>,
