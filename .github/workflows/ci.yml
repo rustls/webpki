@@ -309,7 +309,7 @@ jobs:
         run: cargo llvm-cov --locked --all-features --lcov --output-path ./lcov.info
 
       - name: Report to codecov.io
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./lcov.info
