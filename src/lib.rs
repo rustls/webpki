@@ -31,6 +31,7 @@
 #![deny(missing_docs, clippy::as_conversions)]
 #![allow(
     clippy::len_without_is_empty,
+    clippy::manual_let_else,
     clippy::new_without_default,
     clippy::single_match,
     clippy::single_match_else,
