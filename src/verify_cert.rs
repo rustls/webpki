@@ -235,7 +235,7 @@ impl<'a> Iterator for IntermediateIterator<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for IntermediateIterator<'a> {
+impl DoubleEndedIterator for IntermediateIterator<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
         match self.intermediates.split_last() {
             Some((head, tail)) => {

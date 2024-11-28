@@ -22,7 +22,7 @@ pub(crate) struct Extension<'a> {
     pub(crate) value: untrusted::Input<'a>,
 }
 
-impl<'a> Extension<'a> {
+impl Extension<'_> {
     pub(crate) fn unsupported(&self) -> Result<(), Error> {
         match self.critical {
             true => Err(Error::UnsupportedCriticalExtension),
