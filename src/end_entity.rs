@@ -72,7 +72,7 @@ impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
     }
 }
 
-impl<'a> EndEntityCert<'a> {
+impl EndEntityCert<'_> {
     /// Verifies that the end-entity certificate is valid for use against the
     /// specified Extended Key Usage (EKU).
     ///

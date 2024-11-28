@@ -43,7 +43,7 @@ impl<'a> From<BorrowedCertRevocationList<'a>> for CertRevocationList<'a> {
     }
 }
 
-impl<'a> CertRevocationList<'a> {
+impl CertRevocationList<'_> {
     /// Return the DER encoded issuer of the CRL.
     pub fn issuer(&self) -> &[u8] {
         match self {

@@ -152,7 +152,9 @@ fn bench_search_borrowed_crl_small(c: &mut Bencher) {
         .unwrap()
         .into();
 
-    c.iter(|| black_box(assert!(matches!(crl.find_serial(FAKE_SERIAL), Ok(None)))));
+    c.iter(|| {
+        assert!(matches!(black_box(crl.find_serial(FAKE_SERIAL)), Ok(None)));
+    });
 }
 
 /// Benchmark searching a small CRL file in owned representation for a serial that does not
@@ -163,7 +165,9 @@ fn bench_search_owned_crl_small(c: &mut Bencher) {
         .unwrap()
         .into();
 
-    c.iter(|| black_box(assert!(matches!(crl.find_serial(FAKE_SERIAL), Ok(None)))));
+    c.iter(|| {
+        assert!(matches!(black_box(crl.find_serial(FAKE_SERIAL)), Ok(None)));
+    });
 }
 
 /// Benchmark searching a medium CRL file in borrowed representation for a serial that does not
@@ -174,7 +178,9 @@ fn bench_search_borrowed_crl_medium(c: &mut Bencher) {
         .unwrap()
         .into();
 
-    c.iter(|| black_box(assert!(matches!(crl.find_serial(FAKE_SERIAL), Ok(None)))));
+    c.iter(|| {
+        assert!(matches!(black_box(crl.find_serial(FAKE_SERIAL)), Ok(None)));
+    });
 }
 
 /// Benchmark searching a medium CRL file in owned representation for a serial that does not
@@ -185,7 +191,9 @@ fn bench_search_owned_crl_medium(c: &mut Bencher) {
         .unwrap()
         .into();
 
-    c.iter(|| black_box(assert!(matches!(crl.find_serial(FAKE_SERIAL), Ok(None)))));
+    c.iter(|| {
+        assert!(matches!(black_box(crl.find_serial(FAKE_SERIAL)), Ok(None)));
+    });
 }
 
 /// Benchmark searching a large CRL file in borrowed representation for a serial that does not
@@ -196,7 +204,9 @@ fn bench_search_borrowed_crl_large(c: &mut Bencher) {
         .unwrap()
         .into();
 
-    c.iter(|| black_box(assert!(matches!(crl.find_serial(FAKE_SERIAL), Ok(None)))));
+    c.iter(|| {
+        assert!(matches!(black_box(crl.find_serial(FAKE_SERIAL)), Ok(None)));
+    });
 }
 
 /// Benchmark searching a large CRL file in owned representation for a serial that does not
@@ -207,7 +217,9 @@ fn bench_search_owned_crl_large(c: &mut Bencher) {
         .unwrap()
         .into();
 
-    c.iter(|| black_box(assert!(matches!(crl.find_serial(FAKE_SERIAL), Ok(None)))));
+    c.iter(|| {
+        assert!(matches!(black_box(crl.find_serial(FAKE_SERIAL)), Ok(None)));
+    });
 }
 
 benchmark_group!(

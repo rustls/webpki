@@ -344,7 +344,7 @@ pub(crate) struct BitStringFlags<'a> {
     raw_bits: &'a [u8],
 }
 
-impl<'a> BitStringFlags<'a> {
+impl BitStringFlags<'_> {
     pub(crate) fn bit_set(&self, bit: usize) -> bool {
         let byte_index = bit / 8;
         let bit_shift = 7 - (bit % 8);
@@ -587,7 +587,7 @@ mod tests {
     }
 
     fn bytes_reader(bytes: &[u8]) -> untrusted::Reader<'_> {
-        return untrusted::Reader::new(untrusted::Input::from(bytes));
+        untrusted::Reader::new(untrusted::Input::from(bytes))
     }
 
     #[test]
