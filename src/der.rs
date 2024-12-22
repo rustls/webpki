@@ -111,9 +111,10 @@ pub(crate) fn nested_limited<'a, R>(
     decoder: impl FnOnce(&mut untrusted::Reader<'a>) -> Result<R, Error>,
     size_limit: usize,
 ) -> Result<R, Error> {
-    expect_tag_and_get_value_limited(input, tag, size_limit)
-        .map_err(|_| error)?
-        .read_all(error, decoder)
+    match expect_tag_and_get_value_limited(input, tag, size_limit) {
+        Ok(value) => value.read_all(error, decoder),
+        Err(_) => Err(error),
+    }
 }
 
 // TODO: investigate taking decoder as a reference to reduce generated code
@@ -312,9 +313,9 @@ pub(crate) fn nested_of_mut<'a>(
     error: Error,
     mut decoder: impl FnMut(&mut untrusted::Reader<'a>) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    nested(input, outer_tag, error, |outer| {
+    nested(input, outer_tag, error.clone(), |outer| {
         loop {
-            nested(outer, inner_tag, error, |inner| decoder(inner))?;
+            nested(outer, inner_tag, error.clone(), |inner| decoder(inner))?;
             if outer.at_end() {
                 break;
             }
@@ -703,11 +704,11 @@ mod tests {
             let mut bytes = untrusted::Reader::new(untrusted::Input::from(tc.input));
 
             let res = read_tag_and_get_value_limited(&mut bytes, tc.limit);
-            match tc.err {
+            match &tc.err {
                 None => assert!(res.is_ok()),
                 Some(e) => {
                     let actual = res.unwrap_err();
-                    assert_eq!(actual, e)
+                    assert_eq!(&actual, e)
                 }
             }
         }
