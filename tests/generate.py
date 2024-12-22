@@ -286,6 +286,20 @@ def generate_tls_server_cert_test(
 
     valid_names_str: str = ", ".join('"' + name + '"' for name in valid_names)
     invalid_names_str: str = ", ".join('"' + name + '"' for name in invalid_names)
+    presented_names_str: str = ""
+    for san in sans if sans is not None else []:
+        if presented_names_str:
+            presented_names_str += ", "
+        if isinstance(san, x509.DNSName):
+            presented_names_str += f'"DnsName(\\"{san.value}\\")"'
+        elif isinstance(san, x509.IPAddress):
+            presented_names_str += f'"IpAddress({san.value})"'
+
+    ip_addr_sans = all(isinstance(san, x509.IPAddress) for san in (sans or []))
+    if expected_error is None and not (ip_addr_sans and subject_common_name is None):
+        if presented_names_str:
+            presented_names_str += ", "
+        presented_names_str += '"DirectoryName"'
 
     print(
         """
@@ -294,7 +308,7 @@ fn %(test_name)s() {
     let ee = include_bytes!("%(ee_cert_path)s");
     let ca = include_bytes!("%(ca_cert_path)s");
     assert_eq!(
-        check_cert(ee, ca, &[%(valid_names_str)s], &[%(invalid_names_str)s]),
+        check_cert(ee, ca, &[%(valid_names_str)s], &[%(invalid_names_str)s], &[%(presented_names_str)s]),
         %(expected)s
     );
 }"""

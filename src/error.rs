@@ -12,8 +12,15 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
+
+#[cfg(feature = "alloc")]
+use pki_types::ServerName;
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,7 +40,7 @@ pub enum Error {
     CertExpired,
 
     /// The certificate is not valid for the name it is being validated for.
-    CertNotValidForName,
+    CertNotValidForName(InvalidNameContext),
 
     /// The certificate is not valid yet; i.e. the time it is being validated
     /// for is earlier than the certificate's notBefore time.
@@ -216,7 +223,7 @@ impl Error {
         match &self {
             // Errors related to certificate validity
             Self::CertNotValidYet | Self::CertExpired => 290,
-            Self::CertNotValidForName => 280,
+            Self::CertNotValidForName(_) => 280,
             Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
@@ -299,6 +306,22 @@ impl fmt::Display for Error {
 
 #[cfg(feature = "std")]
 impl ::std::error::Error for Error {}
+
+/// Additional context for the `CertNotValidForName` error variant.
+///
+/// The contents of this type depend on whether the `alloc` feature is enabled.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvalidNameContext {
+    /// Expected server name.
+    #[cfg(feature = "alloc")]
+    pub expected: ServerName<'static>,
+    /// The names presented in the end entity certificate.
+    ///
+    /// These are the subject names as present in the leaf certificate and may contain DNS names
+    /// with or without a wildcard label as well as IP address names.
+    #[cfg(feature = "alloc")]
+    pub presented: Vec<String>,
+}
 
 /// Trailing data was found while parsing DER-encoded input for the named type.
 #[allow(missing_docs)]
