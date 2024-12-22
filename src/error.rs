@@ -16,7 +16,7 @@ use core::fmt;
 use core::ops::ControlFlow;
 
 /// An error that occurs during certificate validation or name validation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
     /// The encoding of some ASN.1 DER-encoded item is invalid.
