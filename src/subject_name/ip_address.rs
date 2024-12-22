@@ -12,7 +12,12 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::format;
+
 use pki_types::IpAddr;
+#[cfg(feature = "alloc")]
+use pki_types::ServerName;
 
 use super::verify::{GeneralName, NameIterator};
 use crate::{Cert, Error};
@@ -23,24 +28,40 @@ pub(crate) fn verify_ip_address_names(reference: &IpAddr, cert: &Cert<'_>) -> Re
         IpAddr::V6(ip) => untrusted::Input::from(ip.as_ref()),
     };
 
-    NameIterator::new(None, cert.subject_alt_name)
-        .find_map(|result| {
-            let name = match result {
-                Ok(name) => name,
-                Err(err) => return Some(Err(err)),
-            };
+    let result = NameIterator::new(None, cert.subject_alt_name).find_map(|result| {
+        let name = match result {
+            Ok(name) => name,
+            Err(err) => return Some(Err(err)),
+        };
 
-            let presented_id = match name {
-                GeneralName::IpAddress(presented) => presented,
-                _ => return None,
-            };
+        let presented_id = match name {
+            GeneralName::IpAddress(presented) => presented,
+            _ => return None,
+        };
 
-            match presented_id_matches_reference_id(presented_id, ip_address) {
-                true => Some(Ok(())),
-                false => None,
-            }
+        match presented_id_matches_reference_id(presented_id, ip_address) {
+            true => Some(Ok(())),
+            false => None,
+        }
+    });
+
+    match result {
+        Some(result) => return result,
+        #[cfg(feature = "alloc")]
+        None => {}
+        #[cfg(not(feature = "alloc"))]
+        None => Err(Error::UnexpectedCertNameSimple),
+    }
+
+    #[cfg(feature = "alloc")]
+    {
+        Err(Error::UnexpectedCertName {
+            expected: ServerName::from(*reference),
+            presented: NameIterator::new(None, cert.subject_alt_name)
+                .filter_map(|result| Some(format!("{:?}", result.ok()?)))
+                .collect(),
         })
-        .unwrap_or(Err(Error::CertNotValidForName))
+    }
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.6 says:

@@ -12,8 +12,15 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
+
+#[cfg(feature = "alloc")]
+use pki_types::ServerName;
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,9 +38,6 @@ pub enum Error {
     /// The certificate is expired; i.e. the time it is being validated for is
     /// later than the certificate's notAfter time.
     CertExpired,
-
-    /// The certificate is not valid for the name it is being validated for.
-    CertNotValidForName,
 
     /// The certificate is not valid yet; i.e. the time it is being validated
     /// for is earlier than the certificate's notBefore time.
@@ -127,6 +131,26 @@ pub enum Error {
     /// Trailing data was found while parsing DER-encoded input for the named type.
     TrailingData(DerTypeId),
 
+    /// The certificate is not valid for the name it is being validated for.
+    ///
+    /// Variant without context for use in no-`alloc` environments. See `UnexpectedCertName` for
+    /// the variant that is used in `alloc` environments.
+    UnexpectedCertNameSimple,
+
+    /// The certificate is not valid for the name it is being validated for.
+    ///
+    /// Variant with context for use in `alloc` environments. See `UnexpectedCertNameSimple`
+    /// for the variant that is used in no-`alloc` environments.
+    #[cfg(feature = "alloc")]
+    UnexpectedCertName {
+        /// Expected server name.
+        expected: ServerName<'static>,
+        /// The names presented in the end entity certificate.
+        ///
+        /// Unlike `expected`, these names might contain wildcard labels.
+        presented: Vec<String>,
+    },
+
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
 
@@ -216,7 +240,6 @@ impl Error {
         match &self {
             // Errors related to certificate validity
             Self::CertNotValidYet | Self::CertExpired => 290,
-            Self::CertNotValidForName => 280,
             Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
@@ -225,6 +248,9 @@ impl Error {
             Self::PathLenConstraintViolated => 220,
             Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
             Self::IssuerNotCrlSigner => 200,
+            Self::UnexpectedCertNameSimple => 280,
+            #[cfg(feature = "alloc")]
+            Self::UnexpectedCertName { .. } => 280,
 
             // Errors related to supported features used in an invalid way.
             Self::InvalidCertValidity => 190,
