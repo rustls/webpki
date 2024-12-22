@@ -659,7 +659,7 @@ mod alloc_tests {
         use std::boxed::Box;
         use std::net::IpAddr;
 
-        for &(presented, constraint_address, constraint_mask, expected_result) in
+        for (presented, constraint_address, constraint_mask, expected_result) in
             PRESENTED_MATCHES_CONSTRAINT
         {
             let presented_bytes: Box<[u8]> = match presented.parse::<IpAddr>().unwrap() {
@@ -680,7 +680,7 @@ mod alloc_tests {
                 untrusted::Input::from(&constraint_bytes),
             );
             assert_eq!(
-                actual_result, expected_result,
+                &actual_result, expected_result,
                 "presented_id_matches_constraint(\"{:?}\", \"{:?}\")",
                 presented_bytes, constraint_bytes
             );

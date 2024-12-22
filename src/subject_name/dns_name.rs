@@ -868,14 +868,14 @@ mod tests {
 
     #[test]
     fn presented_matches_reference_test() {
-        for &(presented, reference, expected_result) in PRESENTED_MATCHES_REFERENCE {
+        for (presented, reference, expected_result) in PRESENTED_MATCHES_REFERENCE {
             let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
                 IdRole::Reference,
                 untrusted::Input::from(reference),
             );
             assert_eq!(
-                actual_result, expected_result,
+                &actual_result, expected_result,
                 "presented_id_matches_reference_id(\"{:?}\", \"{:?}\")",
                 presented, reference
             );
@@ -945,14 +945,14 @@ mod tests {
 
     #[test]
     fn presented_matches_constraint_test() {
-        for &(presented, constraint, expected_result) in PRESENTED_MATCHES_CONSTRAINT {
+        for (presented, constraint, expected_result) in PRESENTED_MATCHES_CONSTRAINT {
             let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
                 IdRole::NameConstraint,
                 untrusted::Input::from(constraint),
             );
             assert_eq!(
-                actual_result, expected_result,
+                &actual_result, expected_result,
                 "presented_id_matches_constraint(\"{:?}\", \"{:?}\")",
                 presented, constraint,
             );
