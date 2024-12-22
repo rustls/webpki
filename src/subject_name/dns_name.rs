@@ -12,34 +12,57 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::format;
 use core::fmt::Write;
 
+#[cfg(feature = "alloc")]
+use pki_types::ServerName;
 use pki_types::{DnsName, InvalidDnsNameError};
 
 use super::verify::{GeneralName, NameIterator};
-use crate::{Cert, Error};
+use crate::cert::Cert;
+use crate::error::{Error, InvalidNameContext};
 
 pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Result<(), Error> {
     let dns_name = untrusted::Input::from(reference.as_ref().as_bytes());
-    NameIterator::new(Some(cert.subject), cert.subject_alt_name)
-        .find_map(|result| {
-            let name = match result {
-                Ok(name) => name,
-                Err(err) => return Some(Err(err)),
-            };
+    let result = NameIterator::new(Some(cert.subject), cert.subject_alt_name).find_map(|result| {
+        let name = match result {
+            Ok(name) => name,
+            Err(err) => return Some(Err(err)),
+        };
 
-            let presented_id = match name {
-                GeneralName::DnsName(presented) => presented,
-                _ => return None,
-            };
+        let presented_id = match name {
+            GeneralName::DnsName(presented) => presented,
+            _ => return None,
+        };
 
-            match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
-                Ok(true) => Some(Ok(())),
-                Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
-                Err(e) => Some(Err(e)),
-            }
-        })
-        .unwrap_or(Err(Error::CertNotValidForName))
+        match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
+            Ok(true) => Some(Ok(())),
+            Ok(false) | Err(Error::MalformedDnsIdentifier) => None,
+            Err(e) => Some(Err(e)),
+        }
+    });
+
+    match result {
+        Some(result) => return result,
+        #[cfg(feature = "alloc")]
+        None => {}
+        #[cfg(not(feature = "alloc"))]
+        None => Err(Error::CertNotValidForName(InvalidNameContext {})),
+    }
+
+    // Try to yield a more useful error. To avoid allocating on the happy path,
+    // we reconstruct the same `NameIterator` and replay it.
+    #[cfg(feature = "alloc")]
+    {
+        Err(Error::CertNotValidForName(InvalidNameContext {
+            expected: ServerName::DnsName(reference.to_owned()),
+            presented: NameIterator::new(Some(cert.subject), cert.subject_alt_name)
+                .filter_map(|result| Some(format!("{:?}", result.ok()?)))
+                .collect(),
+        }))
+    }
 }
 
 /// A reference to a DNS Name presented by a server that may include a wildcard.

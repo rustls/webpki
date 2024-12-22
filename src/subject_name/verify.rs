@@ -12,6 +12,11 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use core::fmt;
+
 use super::dns_name::{self, IdRole};
 use super::ip_address;
 use crate::der::{self, FromDer};
@@ -294,4 +299,149 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
     }
 
     const TYPE_ID: DerTypeId = DerTypeId::GeneralName;
+}
+
+#[cfg(feature = "alloc")]
+impl fmt::Debug for GeneralName<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GeneralName::DnsName(name) => write!(
+                f,
+                "DnsName(\"{}\")",
+                String::from_utf8_lossy(name.as_slice_less_safe())
+            ),
+            GeneralName::DirectoryName => write!(f, "DirectoryName"),
+            GeneralName::IpAddress(ip) => {
+                write!(f, "IpAddress({:?})", IpAddrSlice(ip.as_slice_less_safe()))
+            }
+            GeneralName::UniformResourceIdentifier(uri) => write!(
+                f,
+                "UniformResourceIdentifier(\"{}\")",
+                String::from_utf8_lossy(uri.as_slice_less_safe())
+            ),
+            GeneralName::Unsupported(tag) => write!(f, "Unsupported(0x{:02x})", tag),
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+struct IpAddrSlice<'a>(&'a [u8]);
+
+#[cfg(feature = "alloc")]
+impl fmt::Debug for IpAddrSlice<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.len() {
+            4 => {
+                let mut first = true;
+                for byte in self.0 {
+                    match first {
+                        true => first = false,
+                        false => f.write_str(".")?,
+                    }
+
+                    write!(f, "{}", byte)?;
+                }
+
+                Ok(())
+            }
+            16 => {
+                let (mut first, mut skipping) = (true, false);
+                for group in self.0.chunks_exact(2) {
+                    match (first, group == [0, 0], skipping) {
+                        (true, _, _) => first = false,
+                        (false, false, false) => f.write_str(":")?,
+                        (false, true, _) => {
+                            skipping = true;
+                            continue;
+                        }
+                        (false, false, true) => {
+                            skipping = false;
+                            f.write_str("::")?;
+                        }
+                    }
+
+                    if group[0] != 0 {
+                        write!(f, "{:x}", group[0])?;
+                    }
+
+                    match group[0] {
+                        0 => write!(f, "{:x}", group[1])?,
+                        _ => write!(f, "{:02x}", group[1])?,
+                    }
+                }
+                Ok(())
+            }
+            _ => {
+                f.write_str("[invalid: ")?;
+                let mut first = true;
+                for byte in self.0 {
+                    match first {
+                        true => first = false,
+                        false => f.write_str(", ")?,
+                    }
+                    write!(f, "{:02x}", byte)?;
+                }
+                f.write_str("]")
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_names() {
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::DnsName(untrusted::Input::from(b"example.com"))
+            ),
+            "DnsName(\"example.com\")"
+        );
+
+        assert_eq!(format!("{:?}", GeneralName::DirectoryName), "DirectoryName");
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::IpAddress(untrusted::Input::from(&[192, 0, 2, 1][..]))
+            ),
+            "IpAddress(192.0.2.1)"
+        );
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::IpAddress(untrusted::Input::from(
+                    &[0x20, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0d, 0xb8][..]
+                ))
+            ),
+            "IpAddress(2001::db8)"
+        );
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::IpAddress(untrusted::Input::from(&[1, 2, 3, 4, 5, 6][..]))
+            ),
+            "IpAddress([invalid: 01, 02, 03, 04, 05, 06])"
+        );
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::UniformResourceIdentifier(untrusted::Input::from(
+                    b"https://example.com"
+                ))
+            ),
+            "UniformResourceIdentifier(\"https://example.com\")"
+        );
+
+        assert_eq!(
+            format!("{:?}", GeneralName::Unsupported(0x66)),
+            "Unsupported(0x66)"
+        );
+    }
 }

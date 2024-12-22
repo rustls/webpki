@@ -79,7 +79,7 @@ pub use {
         UnknownStatusPolicy,
     },
     end_entity::EndEntityCert,
-    error::{DerTypeId, Error},
+    error::{DerTypeId, Error, InvalidNameContext},
     rpk_entity::RawPublicKeyEntity,
     signed_data::alg_id,
     trust_anchor::anchor_from_trusted_cert,
