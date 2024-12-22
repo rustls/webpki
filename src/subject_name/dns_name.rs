@@ -17,14 +17,11 @@ use core::fmt::Write;
 use pki_types::{DnsName, InvalidDnsNameError};
 
 use super::verify::{GeneralName, NameIterator};
-use crate::Error;
+use crate::{Cert, Error};
 
-pub(crate) fn verify_dns_names(
-    reference: &DnsName<'_>,
-    mut names: NameIterator<'_>,
-) -> Result<(), Error> {
+pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Result<(), Error> {
     let dns_name = untrusted::Input::from(reference.as_ref().as_bytes());
-    names
+    NameIterator::new(Some(cert.subject), cert.subject_alt_name)
         .find_map(|result| {
             let name = match result {
                 Ok(name) => name,

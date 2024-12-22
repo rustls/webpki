@@ -15,18 +15,15 @@
 use pki_types::IpAddr;
 
 use super::verify::{GeneralName, NameIterator};
-use crate::Error;
+use crate::{Cert, Error};
 
-pub(crate) fn verify_ip_address_names(
-    reference: &IpAddr,
-    mut names: NameIterator<'_>,
-) -> Result<(), Error> {
+pub(crate) fn verify_ip_address_names(reference: &IpAddr, cert: &Cert<'_>) -> Result<(), Error> {
     let ip_address = match reference {
         IpAddr::V4(ip) => untrusted::Input::from(ip.as_ref()),
         IpAddr::V6(ip) => untrusted::Input::from(ip.as_ref()),
     };
 
-    names
+    NameIterator::new(None, cert.subject_alt_name)
         .find_map(|result| {
             let name = match result {
                 Ok(name) => name,
