@@ -111,7 +111,8 @@ jobs:
           - --features=alloc
           - --all-features
           - --no-default-features
-          - --no-default-features --features alloc,std,aws-lc-rs
+          - --no-default-features --features alloc,std,aws_lc_rs
+          - --no-default-features --features alloc,std,ring
 
         mode:
           - # debug
@@ -127,7 +128,8 @@ jobs:
           - features: --features=alloc
           - features: --no-default-features
           - features: --no-default-features --features alloc,std
-          - features: --no-default-features --features alloc,std,aws-lc-rs
+          - features: --no-default-features --features alloc,std,aws_lc_rs
+          - features: --no-default-features --features alloc,std,ring
           - features: --all-features
             mode: --release
           - features: --all-features
@@ -204,6 +206,22 @@ jobs:
             rust_channel: stable
             host_os: ubuntu-latest
 
+          # check ring alone
+          - features: --no-default-features --features alloc,std,ring
+            mode: # debug
+            rust_channel: stable
+            host_os: macos-latest
+
+          - features: --no-default-features --features alloc,std,ring
+            mode: # debug
+            rust_channel: stable
+            host_os: windows-latest
+
+          - features: --no-default-features --features alloc,std,ring
+            mode: # debug
+            rust_channel: stable
+            host_os: ubuntu-latest
+
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -223,6 +241,7 @@ jobs:
         run: cargo test --locked -vv ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
         env:
           RUSTFLAGS: "-D warnings"
+          AWS_LC_SYS_PREBUILT_NASM: "1" # for benefit of rcgen
 
   msrv:
     name: MSRV
