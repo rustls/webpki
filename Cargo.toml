@@ -54,8 +54,6 @@ include = [
     "src/verify_cert.rs",
     "src/lib.rs",
 
-    "src/data/**/*",
-
     "tests/**",
 ]
 
@@ -81,7 +79,7 @@ std = ["alloc", "pki-types/std"]
 
 [dependencies]
 aws-lc-rs = { version = "1.9", optional = true, default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }
-pki-types = { package = "rustls-pki-types", version = "1.7", default-features = false }
+pki-types = { package = "rustls-pki-types", version = "1.11", default-features = false }
 ring = { version = "0.17", default-features = false, optional = true }
 untrusted = "0.9"
 
@@ -114,3 +112,6 @@ codegen-units = 1
 name = "benchmarks"
 path = "benches/benchmark.rs"
 harness = false
+
+[patch.crates-io]
+rustls-pki-types = { git = "https://github.com/rustls/pki-types.git", branch = "jbp-alg-ids" }
