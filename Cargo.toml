@@ -54,8 +54,6 @@ include = [
     "src/verify_cert.rs",
     "src/lib.rs",
 
-    "src/data/**/*",
-
     "tests/**",
 ]
 
