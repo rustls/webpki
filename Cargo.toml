@@ -73,7 +73,7 @@ allowed_external_types = [
 name = "webpki"
 
 [features]
-default = ["std", "ring"]
+default = ["std"]
 alloc = ["ring?/alloc", "pki-types/alloc"]
 aws-lc-rs = ["dep:aws-lc-rs", "aws-lc-rs/aws-lc-sys", "aws-lc-rs/prebuilt-nasm"]
 aws-lc-rs-fips = ["dep:aws-lc-rs", "aws-lc-rs/fips"]
