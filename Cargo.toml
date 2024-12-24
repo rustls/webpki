@@ -75,12 +75,13 @@ name = "webpki"
 [features]
 default = ["std", "ring"]
 alloc = ["ring?/alloc", "pki-types/alloc"]
-aws-lc-rs = ["dep:aws-lc-rs"]
+aws-lc-rs = ["dep:aws-lc-rs", "aws-lc-rs/aws-lc-sys", "aws-lc-rs/prebuilt-nasm"]
+aws-lc-rs-fips = ["dep:aws-lc-rs", "aws-lc-rs/fips"]
 ring = ["dep:ring"]
 std = ["alloc", "pki-types/std"]
 
 [dependencies]
-aws-lc-rs = { version = "1.9", optional = true, default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }
+aws-lc-rs = { version = "1.9", optional = true, default-features = false }
 pki-types = { package = "rustls-pki-types", version = "1.7", default-features = false }
 ring = { version = "0.17", default-features = false, optional = true }
 untrusted = "0.9"
