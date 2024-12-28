@@ -111,7 +111,7 @@ jobs:
           - --features=alloc
           - --all-features
           - --no-default-features
-          - --no-default-features --features alloc,std,aws_lc_rs
+          - --no-default-features --features alloc,std,aws-lc-rs
 
         mode:
           - # debug
@@ -127,7 +127,7 @@ jobs:
           - features: --features=alloc
           - features: --no-default-features
           - features: --no-default-features --features alloc,std
-          - features: --no-default-features --features alloc,std,aws_lc_rs
+          - features: --no-default-features --features alloc,std,aws-lc-rs
           - features: --all-features
             mode: --release
           - features: --all-features
@@ -189,17 +189,17 @@ jobs:
             host_os: ubuntu-latest
 
           # check aws-lc-rs alone
-          - features: --no-default-features --features alloc,std,aws_lc_rs
+          - features: --no-default-features --features alloc,std,aws-lc-rs
             mode: # debug
             rust_channel: stable
             host_os: macos-latest
 
-          - features: --no-default-features --features alloc,std,aws_lc_rs
+          - features: --no-default-features --features alloc,std,aws-lc-rs
             mode: # debug
             rust_channel: stable
             host_os: windows-latest
 
-          - features: --no-default-features --features alloc,std,aws_lc_rs
+          - features: --no-default-features --features alloc,std,aws-lc-rs
             mode: # debug
             rust_channel: stable
             host_os: ubuntu-latest

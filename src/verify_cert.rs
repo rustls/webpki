@@ -695,7 +695,7 @@ pub(crate) enum Role {
     EndEntity,
 }
 
-#[cfg(all(test, feature = "alloc", any(feature = "ring", feature = "aws_lc_rs")))]
+#[cfg(all(test, feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
 mod tests {
     use super::*;
     use crate::test_utils;

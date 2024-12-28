@@ -75,7 +75,7 @@ name = "webpki"
 [features]
 default = ["std", "ring"]
 alloc = ["ring?/alloc", "pki-types/alloc"]
-aws_lc_rs = ["dep:aws-lc-rs"]
+aws-lc-rs = ["dep:aws-lc-rs"]
 ring = ["dep:ring"]
 std = ["alloc", "pki-types/std"]
 
