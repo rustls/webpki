@@ -1,4 +1,4 @@
-#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws_lc_rs")))]
+#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
 
 use core::time::Duration;
 

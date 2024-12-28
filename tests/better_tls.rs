@@ -1,4 +1,4 @@
-#![cfg(any(feature = "ring", feature = "aws_lc_rs"))]
+#![cfg(any(feature = "ring", feature = "aws-lc-rs"))]
 
 use core::time::Duration;
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ use webpki::{anchor_from_trusted_cert, KeyUsage};
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
     #[cfg(feature = "ring")]
     webpki::ring::ECDSA_P256_SHA256,
-    #[cfg(feature = "aws_lc_rs")]
+    #[cfg(feature = "aws-lc-rs")]
     webpki::aws_lc_rs::ECDSA_P256_SHA256,
 ];
 
