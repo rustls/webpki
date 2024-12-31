@@ -21,7 +21,7 @@ license = "ISC"
 name = "rustls-webpki"
 readme = "README.md"
 repository = "https://github.com/rustls/webpki"
-version = "0.102.8"
+version = "0.103.0"
 
 include = [
     "Cargo.toml",
@@ -73,7 +73,7 @@ allowed_external_types = [
 name = "webpki"
 
 [features]
-default = ["std", "ring"]
+default = ["std"]
 alloc = ["ring?/alloc", "pki-types/alloc"]
 aws_lc_rs = ["dep:aws-lc-rs"]
 ring = ["dep:ring"]
