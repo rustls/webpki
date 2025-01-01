@@ -20,7 +20,7 @@ use pki_types::{
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
-use crate::subject_name::{verify_dns_names, verify_ip_address_names, NameIterator};
+use crate::subject_name::{verify_dns_names, verify_ip_address_names};
 use crate::verify_cert::{self, KeyUsage, VerifiedPath};
 use crate::{cert, signed_data};
 
@@ -125,16 +125,10 @@ impl EndEntityCert<'_> {
         server_name: &ServerName<'_>,
     ) -> Result<(), Error> {
         match server_name {
-            ServerName::DnsName(dns_name) => verify_dns_names(
-                dns_name,
-                NameIterator::new(Some(self.inner.subject), self.inner.subject_alt_name),
-            ),
+            ServerName::DnsName(dns_name) => verify_dns_names(dns_name, &self.inner),
             // IP addresses are not compared against the subject field;
             // only against Subject Alternative Names.
-            ServerName::IpAddress(ip_address) => verify_ip_address_names(
-                ip_address,
-                NameIterator::new(None, self.inner.subject_alt_name),
-            ),
+            ServerName::IpAddress(ip_address) => verify_ip_address_names(ip_address, &self.inner),
             _ => Err(Error::UnsupportedNameType),
         }
     }

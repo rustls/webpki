@@ -23,6 +23,7 @@ fn check_cert(
     ca: &[u8],
     valid_names: &[&str],
     invalid_names: &[&str],
+    presented_names: &[&str],
 ) -> Result<(), webpki::Error> {
     let ca_cert_der = CertificateDer::from(ca);
     let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
@@ -49,7 +50,10 @@ fn check_cert(
         let name = ServerName::try_from(*invalid).unwrap();
         assert_eq!(
             cert.verify_is_valid_for_subject_name(&name),
-            Err(webpki::Error::CertNotValidForName)
+            Err(webpki::Error::UnexpectedCertName {
+                expected: name.to_owned(),
+                presented: presented_names.iter().map(|n| n.to_string()).collect(),
+            })
         );
     }
 
@@ -63,7 +67,13 @@ fn no_name_constraints() {
     let ee = include_bytes!("tls_server_certs/no_name_constraints.ee.der");
     let ca = include_bytes!("tls_server_certs/no_name_constraints.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &["dns.example.com"], &["subject.example.com"]),
+        check_cert(
+            ee,
+            ca,
+            &["dns.example.com"],
+            &["subject.example.com"],
+            &["DnsName(\"dns.example.com\")", "DirectoryName"],
+        ),
         Ok(())
     );
 }
@@ -77,7 +87,12 @@ fn additional_dns_labels() {
             ee,
             ca,
             &["host1.example.com", "host2.example.com"],
-            &["subject.example.com"]
+            &["subject.example.com"],
+            &[
+                "DnsName(\"host1.example.com\")",
+                "DnsName(\"host2.example.com\")",
+                "DirectoryName"
+            ],
         ),
         Ok(())
     );
@@ -88,7 +103,13 @@ fn disallow_dns_san() {
     let ee = include_bytes!("tls_server_certs/disallow_dns_san.ee.der");
     let ca = include_bytes!("tls_server_certs/disallow_dns_san.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(
+            ee,
+            ca,
+            &[],
+            &[],
+            &["DnsName(\"disallowed.example.com\")", "DirectoryName"]
+        ),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -97,14 +118,26 @@ fn disallow_dns_san() {
 fn allow_subject_common_name() {
     let ee = include_bytes!("tls_server_certs/allow_subject_common_name.ee.der");
     let ca = include_bytes!("tls_server_certs/allow_subject_common_name.ca.der");
-    assert_eq!(check_cert(ee, ca, &[], &["allowed.example.com"]), Ok(()));
+    assert_eq!(
+        check_cert(ee, ca, &[], &["allowed.example.com"], &["DirectoryName"]),
+        Ok(())
+    );
 }
 
 #[test]
 fn allow_dns_san() {
     let ee = include_bytes!("tls_server_certs/allow_dns_san.ee.der");
     let ca = include_bytes!("tls_server_certs/allow_dns_san.ca.der");
-    assert_eq!(check_cert(ee, ca, &["allowed.example.com"], &[]), Ok(()));
+    assert_eq!(
+        check_cert(
+            ee,
+            ca,
+            &["allowed.example.com"],
+            &[],
+            &["DnsName(\"allowed.example.com\")", "DirectoryName"]
+        ),
+        Ok(())
+    );
 }
 
 #[test]
@@ -116,7 +149,8 @@ fn allow_dns_san_and_subject_common_name() {
             ee,
             ca,
             &["allowed-san.example.com"],
-            &["allowed-cn.example.com"]
+            &["allowed-cn.example.com"],
+            &["DnsName(\"allowed-san.example.com\")", "DirectoryName"],
         ),
         Ok(())
     );
@@ -129,7 +163,16 @@ fn disallow_dns_san_and_allow_subject_common_name() {
     let ca =
         include_bytes!("tls_server_certs/disallow_dns_san_and_allow_subject_common_name.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(
+            ee,
+            ca,
+            &[],
+            &[],
+            &[
+                "DnsName(\"allowed-san.example.com\")",
+                "DnsName(\"disallowed-san.example.com\")"
+            ]
+        ),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -142,7 +185,7 @@ fn we_incorrectly_ignore_name_constraints_on_name_in_subject() {
     let ca = include_bytes!(
         "tls_server_certs/we_incorrectly_ignore_name_constraints_on_name_in_subject.ca.der"
     );
-    assert_eq!(check_cert(ee, ca, &[], &[]), Ok(()));
+    assert_eq!(check_cert(ee, ca, &[], &[], &[]), Ok(()));
 }
 
 #[test]
@@ -150,7 +193,7 @@ fn reject_constraints_on_unimplemented_names() {
     let ee = include_bytes!("tls_server_certs/reject_constraints_on_unimplemented_names.ee.der");
     let ca = include_bytes!("tls_server_certs/reject_constraints_on_unimplemented_names.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(ee, ca, &[], &[], &[]),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -164,7 +207,13 @@ fn we_ignore_constraints_on_names_that_do_not_appear_in_cert() {
         "tls_server_certs/we_ignore_constraints_on_names_that_do_not_appear_in_cert.ca.der"
     );
     assert_eq!(
-        check_cert(ee, ca, &["notexample.com"], &["example.com"]),
+        check_cert(
+            ee,
+            ca,
+            &["notexample.com"],
+            &["example.com"],
+            &["DnsName(\"notexample.com\")", "DirectoryName"],
+        ),
         Ok(())
     );
 }
@@ -178,7 +227,8 @@ fn wildcard_san_accepted_if_in_subtree() {
             ee,
             ca,
             &["bob.example.com", "jane.example.com"],
-            &["example.com", "uh.oh.example.com"]
+            &["example.com", "uh.oh.example.com"],
+            &["DnsName(\"*.example.com\")", "DirectoryName"],
         ),
         Ok(())
     );
@@ -189,7 +239,13 @@ fn wildcard_san_rejected_if_in_excluded_subtree() {
     let ee = include_bytes!("tls_server_certs/wildcard_san_rejected_if_in_excluded_subtree.ee.der");
     let ca = include_bytes!("tls_server_certs/wildcard_san_rejected_if_in_excluded_subtree.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(
+            ee,
+            ca,
+            &[],
+            &[],
+            &["DnsName(\"*.example.com\")", "DirectoryName"]
+        ),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -201,7 +257,7 @@ fn ip4_address_san_rejected_if_in_excluded_subtree() {
     let ca =
         include_bytes!("tls_server_certs/ip4_address_san_rejected_if_in_excluded_subtree.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(ee, ca, &[], &[], &["IpAddress(12.34.56.78)"]),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -214,7 +270,10 @@ fn ip4_address_san_allowed_if_outside_excluded_subtree() {
     let ca = include_bytes!(
         "tls_server_certs/ip4_address_san_allowed_if_outside_excluded_subtree.ca.der"
     );
-    assert_eq!(check_cert(ee, ca, &["12.34.56.78"], &[]), Ok(()));
+    assert_eq!(
+        check_cert(ee, ca, &["12.34.56.78"], &[], &["IpAddress(12.34.56.78)"]),
+        Ok(())
+    );
 }
 
 #[test]
@@ -226,7 +285,7 @@ fn ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask() {
         "tls_server_certs/ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask.ca.der"
     );
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(ee, ca, &[], &[], &["IpAddress(12.34.56.79)"]),
         Err(webpki::Error::InvalidNetworkMaskConstraint)
     );
 }
@@ -244,7 +303,8 @@ fn ip4_address_san_allowed() {
                 "12.34.56.77",
                 "12.34.56.79",
                 "0000:0000:0000:0000:0000:ffff:0c22:384e"
-            ]
+            ],
+            &["IpAddress(12.34.56.78)"]
         ),
         Ok(())
     );
@@ -257,7 +317,7 @@ fn ip6_address_san_rejected_if_in_excluded_subtree() {
     let ca =
         include_bytes!("tls_server_certs/ip6_address_san_rejected_if_in_excluded_subtree.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(ee, ca, &[], &[], &["IpAddress(2001:db8:0:0:0:0:0:0001)"]),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -271,7 +331,13 @@ fn ip6_address_san_allowed_if_outside_excluded_subtree() {
         "tls_server_certs/ip6_address_san_allowed_if_outside_excluded_subtree.ca.der"
     );
     assert_eq!(
-        check_cert(ee, ca, &["2001:0db9:0000:0000:0000:0000:0000:0001"], &[]),
+        check_cert(
+            ee,
+            ca,
+            &["2001:0db9:0000:0000:0000:0000:0000:0001"],
+            &[],
+            &["IpAddress(2001:db9:0:0:0:0:0:0001)"]
+        ),
         Ok(())
     );
 }
@@ -285,7 +351,8 @@ fn ip6_address_san_allowed() {
             ee,
             ca,
             &["2001:0db9:0000:0000:0000:0000:0000:0001"],
-            &["12.34.56.78"]
+            &["12.34.56.78"],
+            &["IpAddress(2001:0db9:0:0:0:0:0:0001)"],
         ),
         Ok(())
     );
@@ -304,7 +371,11 @@ fn ip46_mixed_address_san_allowed() {
                 "12.34.56.77",
                 "12.34.56.79",
                 "0000:0000:0000:0000:0000:ffff:0c22:384e"
-            ]
+            ],
+            &[
+                "IpAddress(12.34.56.78)",
+                "IpAddress(2001:0db9:0:0:0:0:0:0001)"
+            ],
         ),
         Ok(())
     );
@@ -315,7 +386,7 @@ fn permit_directory_name_not_implemented() {
     let ee = include_bytes!("tls_server_certs/permit_directory_name_not_implemented.ee.der");
     let ca = include_bytes!("tls_server_certs/permit_directory_name_not_implemented.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(ee, ca, &[], &[], &[]),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -325,7 +396,16 @@ fn exclude_directory_name_not_implemented() {
     let ee = include_bytes!("tls_server_certs/exclude_directory_name_not_implemented.ee.der");
     let ca = include_bytes!("tls_server_certs/exclude_directory_name_not_implemented.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &[]),
+        check_cert(
+            ee,
+            ca,
+            &[],
+            &[],
+            &[
+                "DnsName(\"{invalid}.example.com\")",
+                "DnsName(\"dns.example.com\")"
+            ]
+        ),
         Err(webpki::Error::NameConstraintViolation)
     );
 }
@@ -334,5 +414,5 @@ fn exclude_directory_name_not_implemented() {
 fn invalid_dns_name_matching() {
     let ee = include_bytes!("tls_server_certs/invalid_dns_name_matching.ee.der");
     let ca = include_bytes!("tls_server_certs/invalid_dns_name_matching.ca.der");
-    assert_eq!(check_cert(ee, ca, &["dns.example.com"], &[]), Ok(()));
+    assert_eq!(check_cert(ee, ca, &["dns.example.com"], &[], &[]), Ok(()));
 }
