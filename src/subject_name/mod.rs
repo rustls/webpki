@@ -227,29 +227,27 @@ impl<'a> Iterator for NameIterator<'a> {
     type Item = Result<GeneralName<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(subject_alt_name) = &mut self.subject_alt_name {
-            // https://bugzilla.mozilla.org/show_bug.cgi?id=1143085: An empty
-            // subjectAltName is not legal, but some certificates have an empty
-            // subjectAltName. Since we don't support CN-IDs, the certificate
-            // will be rejected either way, but checking `at_end` before
-            // attempting to parse the first entry allows us to return a better
-            // error code.
+        let subject_alt_name = self.subject_alt_name.as_mut()?;
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1143085: An empty
+        // subjectAltName is not legal, but some certificates have an empty
+        // subjectAltName. Since we don't support CN-IDs, the certificate
+        // will be rejected either way, but checking `at_end` before
+        // attempting to parse the first entry allows us to return a better
+        // error code.
 
-            if !subject_alt_name.at_end() {
-                let err = match GeneralName::from_der(subject_alt_name) {
-                    Ok(name) => return Some(Ok(name)),
-                    Err(err) => err,
-                };
-
-                // Make sure we don't yield any items after this error.
-                self.subject_alt_name = None;
-                return Some(Err(err));
-            } else {
-                self.subject_alt_name = None;
-            }
+        if subject_alt_name.at_end() {
+            self.subject_alt_name = None;
+            return None;
         }
 
-        None
+        let err = match GeneralName::from_der(subject_alt_name) {
+            Ok(name) => return Some(Ok(name)),
+            Err(err) => err,
+        };
+
+        // Make sure we don't yield any items after this error.
+        self.subject_alt_name = None;
+        Some(Err(err))
     }
 }
 
