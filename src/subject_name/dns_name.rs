@@ -20,7 +20,7 @@ use core::fmt::Write;
 use pki_types::ServerName;
 use pki_types::{DnsName, InvalidDnsNameError};
 
-use super::verify::{GeneralName, NameIterator};
+use super::{GeneralName, NameIterator};
 use crate::cert::Cert;
 use crate::error::{Error, InvalidNameContext};
 
