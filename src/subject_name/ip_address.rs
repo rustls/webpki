@@ -19,7 +19,7 @@ use pki_types::IpAddr;
 #[cfg(feature = "alloc")]
 use pki_types::ServerName;
 
-use super::verify::{GeneralName, NameIterator};
+use super::{GeneralName, NameIterator};
 use crate::cert::Cert;
 use crate::error::{Error, InvalidNameContext};
 
