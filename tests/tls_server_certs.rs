@@ -73,7 +73,7 @@ fn no_name_constraints() {
             ca,
             &["dns.example.com"],
             &["subject.example.com"],
-            &["DnsName(\"dns.example.com\")", "DirectoryName"]
+            &["DnsName(\"dns.example.com\")"]
         ),
         Ok(())
     );
@@ -91,8 +91,7 @@ fn additional_dns_labels() {
             &["subject.example.com"],
             &[
                 "DnsName(\"host1.example.com\")",
-                "DnsName(\"host2.example.com\")",
-                "DirectoryName"
+                "DnsName(\"host2.example.com\")"
             ]
         ),
         Ok(())
@@ -114,7 +113,7 @@ fn allow_subject_common_name() {
     let ee = include_bytes!("tls_server_certs/allow_subject_common_name.ee.der");
     let ca = include_bytes!("tls_server_certs/allow_subject_common_name.ca.der");
     assert_eq!(
-        check_cert(ee, ca, &[], &["allowed.example.com"], &["DirectoryName"]),
+        check_cert(ee, ca, &[], &["allowed.example.com"], &[]),
         Ok(())
     );
 }
@@ -129,7 +128,7 @@ fn allow_dns_san() {
             ca,
             &["allowed.example.com"],
             &[],
-            &["DnsName(\"allowed.example.com\")", "DirectoryName"]
+            &["DnsName(\"allowed.example.com\")"]
         ),
         Ok(())
     );
@@ -145,7 +144,7 @@ fn allow_dns_san_and_subject_common_name() {
             ca,
             &["allowed-san.example.com"],
             &["allowed-cn.example.com"],
-            &["DnsName(\"allowed-san.example.com\")", "DirectoryName"]
+            &["DnsName(\"allowed-san.example.com\")"]
         ),
         Ok(())
     );
@@ -207,7 +206,7 @@ fn we_ignore_constraints_on_names_that_do_not_appear_in_cert() {
             ca,
             &["notexample.com"],
             &["example.com"],
-            &["DnsName(\"notexample.com\")", "DirectoryName"]
+            &["DnsName(\"notexample.com\")"]
         ),
         Ok(())
     );
@@ -223,7 +222,7 @@ fn wildcard_san_accepted_if_in_subtree() {
             ca,
             &["bob.example.com", "jane.example.com"],
             &["example.com", "uh.oh.example.com"],
-            &["DnsName(\"*.example.com\")", "DirectoryName"]
+            &["DnsName(\"*.example.com\")"]
         ),
         Ok(())
     );
@@ -399,8 +398,7 @@ fn invalid_dns_name_matching() {
             &[],
             &[
                 "DnsName(\"{invalid}.example.com\")",
-                "DnsName(\"dns.example.com\")",
-                "DirectoryName"
+                "DnsName(\"dns.example.com\")"
             ]
         ),
         Ok(())

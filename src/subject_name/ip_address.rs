@@ -29,7 +29,7 @@ pub(crate) fn verify_ip_address_names(reference: &IpAddr, cert: &Cert<'_>) -> Re
         IpAddr::V6(ip) => untrusted::Input::from(ip.as_ref()),
     };
 
-    let result = NameIterator::new(None, cert.subject_alt_name).find_map(|result| {
+    let result = NameIterator::new(cert.subject_alt_name).find_map(|result| {
         let name = match result {
             Ok(name) => name,
             Err(err) => return Some(Err(err)),
@@ -58,7 +58,7 @@ pub(crate) fn verify_ip_address_names(reference: &IpAddr, cert: &Cert<'_>) -> Re
     {
         Err(Error::CertNotValidForName(InvalidNameContext {
             expected: ServerName::from(*reference),
-            presented: NameIterator::new(None, cert.subject_alt_name)
+            presented: NameIterator::new(cert.subject_alt_name)
                 .filter_map(|result| Some(format!("{:?}", result.ok()?)))
                 .collect(),
         }))

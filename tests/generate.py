@@ -296,10 +296,6 @@ def generate_tls_server_cert_test(
             presented_names_str += f'"IpAddress({san.value})"'
 
     ip_addr_sans = all(isinstance(san, x509.IPAddress) for san in (sans or []))
-    if expected_error is None and not (ip_addr_sans and subject_common_name is None):
-        if presented_names_str:
-            presented_names_str += ", "
-        presented_names_str += '"DirectoryName"'
 
     print(
         """
