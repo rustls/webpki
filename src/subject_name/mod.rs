@@ -445,4 +445,12 @@ mod tests {
             "Unsupported(0x66)"
         );
     }
+
+    #[test]
+    fn name_iter_end_after_error() {
+        let input = untrusted::Input::from(&[0x30]);
+        let mut iter = NameIterator::new(Some(input));
+        assert_eq!(iter.next().unwrap().unwrap_err(), Error::BadDer);
+        assert!(iter.next().is_none());
+    }
 }
