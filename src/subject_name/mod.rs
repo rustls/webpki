@@ -53,20 +53,30 @@ pub(crate) fn check_name_constraints(
     let excluded_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed1)?;
 
     for path in path.iter() {
-        let result = NameIterator::new(Some(path.cert.subject), path.cert.subject_alt_name)
-            .find_map(|result| {
-                let name = match result {
-                    Ok(name) => name,
-                    Err(err) => return Some(Err(err)),
-                };
+        let result = NameIterator::new(path.cert.subject_alt_name).find_map(|result| {
+            let name = match result {
+                Ok(name) => name,
+                Err(err) => return Some(Err(err)),
+            };
 
-                check_presented_id_conforms_to_constraints(
-                    name,
-                    permitted_subtrees,
-                    excluded_subtrees,
-                    budget,
-                )
-            });
+            check_presented_id_conforms_to_constraints(
+                name,
+                permitted_subtrees,
+                excluded_subtrees,
+                budget,
+            )
+        });
+
+        if let Some(Err(err)) = result {
+            return Err(err);
+        }
+
+        let result = check_presented_id_conforms_to_constraints(
+            GeneralName::DirectoryName,
+            permitted_subtrees,
+            excluded_subtrees,
+            budget,
+        );
 
         if let Some(Err(err)) = result {
             return Err(err);
@@ -203,19 +213,12 @@ enum Subtrees {
 
 pub(crate) struct NameIterator<'a> {
     subject_alt_name: Option<untrusted::Reader<'a>>,
-    subject_directory_name: Option<untrusted::Input<'a>>,
 }
 
 impl<'a> NameIterator<'a> {
-    pub(crate) fn new(
-        subject: Option<untrusted::Input<'a>>,
-        subject_alt_name: Option<untrusted::Input<'a>>,
-    ) -> Self {
-        NameIterator {
+    pub(crate) fn new(subject_alt_name: Option<untrusted::Input<'a>>) -> Self {
+        Self {
             subject_alt_name: subject_alt_name.map(untrusted::Reader::new),
-
-            // If `subject` is present, we always consider it as a `DirectoryName`.
-            subject_directory_name: subject,
         }
     }
 }
@@ -240,15 +243,10 @@ impl<'a> Iterator for NameIterator<'a> {
 
                 // Make sure we don't yield any items after this error.
                 self.subject_alt_name = None;
-                self.subject_directory_name = None;
                 return Some(Err(err));
             } else {
                 self.subject_alt_name = None;
             }
-        }
-
-        if self.subject_directory_name.take().is_some() {
-            return Some(Ok(GeneralName::DirectoryName));
         }
 
         None

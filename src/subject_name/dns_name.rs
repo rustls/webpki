@@ -26,7 +26,7 @@ use crate::error::{Error, InvalidNameContext};
 
 pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Result<(), Error> {
     let dns_name = untrusted::Input::from(reference.as_ref().as_bytes());
-    let result = NameIterator::new(Some(cert.subject), cert.subject_alt_name).find_map(|result| {
+    let result = NameIterator::new(cert.subject_alt_name).find_map(|result| {
         let name = match result {
             Ok(name) => name,
             Err(err) => return Some(Err(err)),
@@ -58,7 +58,7 @@ pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Resu
     {
         Err(Error::CertNotValidForName(InvalidNameContext {
             expected: ServerName::DnsName(reference.to_owned()),
-            presented: NameIterator::new(Some(cert.subject), cert.subject_alt_name)
+            presented: NameIterator::new(cert.subject_alt_name)
                 .filter_map(|result| Some(format!("{:?}", result.ok()?)))
                 .collect(),
         }))

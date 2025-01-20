@@ -139,7 +139,7 @@ impl<'a> Cert<'a> {
     ///
     /// [EndEntityCert::verify_is_valid_for_subject_name]: crate::EndEntityCert::verify_is_valid_for_subject_name
     pub fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
-        NameIterator::new(Some(self.subject), self.subject_alt_name).filter_map(|result| {
+        NameIterator::new(self.subject_alt_name).filter_map(|result| {
             let presented_id = match result.ok()? {
                 GeneralName::DnsName(presented) => presented,
                 _ => return None,
