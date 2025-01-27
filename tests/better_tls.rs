@@ -6,10 +6,11 @@ use std::fs::File;
 
 use base64::{engine::general_purpose, Engine as _};
 use bzip2::read::BzDecoder;
-use pki_types::{ServerName, UnixTime};
+use pki_types::{
+    CertificateDer, ServerName, SignatureVerificationAlgorithm, TrustAnchor, UnixTime,
+};
 use serde::Deserialize;
 
-use webpki::types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor};
 use webpki::{anchor_from_trusted_cert, KeyUsage};
 
 // All of the BetterTLS testcases use P256 keys.
