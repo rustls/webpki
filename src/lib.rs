@@ -86,8 +86,6 @@ pub use {
     verify_cert::VerifiedPath,
 };
 
-pub use pki_types as types;
-
 #[cfg(feature = "alloc")]
 pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 
@@ -121,7 +119,7 @@ pub mod aws_lc_rs {
 /// An array of all the verification algorithms exported by this crate.
 ///
 /// This will be empty if the crate is built without the `ring` and `aws-lc-rs` features.
-pub static ALL_VERIFICATION_ALGS: &[&dyn types::SignatureVerificationAlgorithm] = &[
+pub static ALL_VERIFICATION_ALGS: &[&dyn pki_types::SignatureVerificationAlgorithm] = &[
     #[cfg(feature = "ring")]
     ring::ECDSA_P256_SHA256,
     #[cfg(feature = "ring")]
