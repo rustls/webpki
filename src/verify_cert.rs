@@ -381,7 +381,7 @@ fn check_validity(input: &mut untrusted::Reader<'_>, time: UnixTime) -> Result<(
         return Err(Error::CertNotValidYet { time, not_before });
     }
     if time > not_after {
-        return Err(Error::CertExpired);
+        return Err(Error::CertExpired { time, not_after });
     }
 
     // TODO: mozilla::pkix allows the TrustDomain to check not_before and
