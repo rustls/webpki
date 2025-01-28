@@ -320,3 +320,56 @@ fn expect_cert_dns_names<'name>(
 
     assert!(cert.valid_dns_names().eq(expected_names))
 }
+
+#[cfg(feature = "alloc")]
+#[test]
+fn cert_time_validity() {
+    let ee: &[u8] = include_bytes!("netflix/ee.der");
+    let inter = CertificateDer::from(&include_bytes!("netflix/inter.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
+
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+
+    let not_before = UnixTime::since_unix_epoch(Duration::from_secs(1_478_563_200));
+    let not_after = UnixTime::since_unix_epoch(Duration::from_secs(1_541_203_199));
+
+    let just_before = UnixTime::since_unix_epoch(Duration::from_secs(not_before.as_secs() - 1));
+    let just_after = UnixTime::since_unix_epoch(Duration::from_secs(not_after.as_secs() + 1));
+
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+
+    assert_eq!(
+        cert.verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            &anchors,
+            &[inter.clone()],
+            just_before,
+            KeyUsage::server_auth(),
+            None,
+            None,
+        )
+        .err(),
+        Some(webpki::Error::CertNotValidYet {
+            time: just_before,
+            not_before
+        })
+    );
+
+    assert_eq!(
+        cert.verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            &anchors,
+            &[inter],
+            just_after,
+            KeyUsage::server_auth(),
+            None,
+            None,
+        )
+        .err(),
+        Some(webpki::Error::CertExpired {
+            time: just_after,
+            not_after
+        })
+    );
+}
