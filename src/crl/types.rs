@@ -150,7 +150,7 @@ impl CertRevocationList<'_> {
         };
 
         if time >= next_update {
-            return Err(Error::CrlExpired);
+            return Err(Error::CrlExpired { time, next_update });
         }
 
         Ok(())
@@ -1254,8 +1254,10 @@ mod tests {
         let crl = CertRevocationList::from(BorrowedCertRevocationList::from_der(&crl[..]).unwrap());
         //  Friday, February 2, 2024 8:26:19 PM GMT
         let time = UnixTime::since_unix_epoch(Duration::from_secs(1_706_905_579));
-
-        assert!(matches!(crl.check_expiration(time), Err(Error::CrlExpired)));
+        assert!(matches!(
+            crl.check_expiration(time),
+            Err(Error::CrlExpired { .. })
+        ));
     }
 
     #[test]
