@@ -38,7 +38,12 @@ pub enum Error {
 
     /// The certificate is expired; i.e. the time it is being validated for is
     /// later than the certificate's notAfter time.
-    CertExpired,
+    CertExpired {
+        /// The validation time.
+        time: UnixTime,
+        /// The notAfter time of the certificate.
+        not_after: UnixTime,
+    },
 
     /// The certificate is not valid for the name it is being validated for.
     CertNotValidForName(InvalidNameContext),
@@ -228,7 +233,7 @@ impl Error {
     pub(crate) fn rank(&self) -> u32 {
         match &self {
             // Errors related to certificate validity
-            Self::CertNotValidYet { .. } | Self::CertExpired => 290,
+            Self::CertNotValidYet { .. } | Self::CertExpired { .. } => 290,
             Self::CertNotValidForName(_) => 280,
             Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
