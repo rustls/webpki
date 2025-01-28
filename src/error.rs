@@ -316,7 +316,75 @@ impl From<Error> for ControlFlow<Error, Error> {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Self::CertExpired { time, not_after } => write!(
+                f,
+                "certificate expired: current time is {}, \
+                 but certificate is not valid after {} \
+                 ({} seconds ago)",
+                time.as_secs(),
+                not_after.as_secs(),
+                time.as_secs().saturating_sub(not_after.as_secs())
+            ),
+
+            Self::CertNotValidYet { time, not_before } => write!(
+                f,
+                "certificate not valid yet: current time is {}, \
+                 but certificate is not valid before {} \
+                 ({} seconds in future)",
+                time.as_secs(),
+                not_before.as_secs(),
+                not_before.as_secs().saturating_sub(time.as_secs())
+            ),
+
+            Self::CrlExpired { time, next_update } => write!(
+                f,
+                "certificate revocation list expired: \
+                 current time is {}, \
+                 but CRL is not valid after {} \
+                 ({} seconds ago)",
+                time.as_secs(),
+                next_update.as_secs(),
+                time.as_secs().saturating_sub(next_update.as_secs())
+            ),
+
+            #[cfg(all(feature = "alloc", feature = "std"))]
+            Self::CertNotValidForName(InvalidNameContext {
+                expected,
+                presented,
+            }) => {
+                write!(
+                    f,
+                    "certificate not valid for name: {:?} is required, but certificate ",
+                    expected.to_str()
+                )?;
+
+                match presented.as_slice() {
+                    &[] => write!(
+                        f,
+                        "is not valid for any names (according to its subjectAltName extension)"
+                    ),
+                    [one] => write!(f, "is only valid for {}", one),
+                    many => {
+                        write!(f, "is only valid for ")?;
+
+                        let n = many.len();
+                        let all_but_last = &many[..n - 1];
+                        let last = &many[n - 1];
+
+                        for (i, name) in all_but_last.iter().enumerate() {
+                            write!(f, "{}", name)?;
+                            if i < n - 2 {
+                                write!(f, ", ")?;
+                            }
+                        }
+                        write!(f, " or {}", last)
+                    }
+                }
+            }
+
+            other => write!(f, "{:?}", other),
+        }
     }
 }
 
@@ -370,4 +438,101 @@ pub enum DerTypeId {
     RevokedCertificateExtension,
     RevokedCertEntry,
     IssuingDistributionPoint,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::string::ToString;
+    use std::time::Duration;
+
+    #[test]
+    fn error_display() {
+        assert_eq!(
+            "certificate expired: current time is 320, \
+             but certificate is not valid after 300 (20 seconds ago)",
+            Error::CertExpired {
+                time: UnixTime::since_unix_epoch(Duration::from_secs(320)),
+                not_after: UnixTime::since_unix_epoch(Duration::from_secs(300)),
+            }
+            .to_string(),
+        );
+
+        assert_eq!(
+            "certificate not valid yet: current time is 300, \
+             but certificate is not valid before 320 (20 seconds in future)",
+            Error::CertNotValidYet {
+                time: UnixTime::since_unix_epoch(Duration::from_secs(300)),
+                not_before: UnixTime::since_unix_epoch(Duration::from_secs(320)),
+            }
+            .to_string(),
+        );
+
+        assert_eq!(
+            "certificate revocation list expired: current time \
+            is 320, but CRL is not valid after 300 (20 seconds ago)",
+            Error::CrlExpired {
+                time: UnixTime::since_unix_epoch(Duration::from_secs(320)),
+                next_update: UnixTime::since_unix_epoch(Duration::from_secs(300)),
+            }
+            .to_string(),
+        );
+
+        // name errors
+        #[cfg(all(feature = "alloc", feature = "std"))]
+        {
+            assert_eq!(
+                "certificate not valid for name: \"example.com\" is required, \
+                 but certificate is not valid for any names (according to its \
+                 subjectAltName extension)",
+                Error::CertNotValidForName(InvalidNameContext {
+                    expected: "example.com".try_into().unwrap(),
+                    presented: vec![],
+                })
+                .to_string(),
+            );
+
+            assert_eq!(
+                "certificate not valid for name: \"example.com\" is required, \
+                 but certificate is only valid for DnsName(\"foo.com\")",
+                Error::CertNotValidForName(InvalidNameContext {
+                    expected: "example.com".try_into().unwrap(),
+                    presented: vec!["DnsName(\"foo.com\")".to_string(),],
+                })
+                .to_string(),
+            );
+
+            assert_eq!(
+                "certificate not valid for name: \"example.com\" is required, \
+                 but certificate is only valid for DnsName(\"foo.com\") \
+                 or DnsName(\"cowboy.org\")",
+                Error::CertNotValidForName(InvalidNameContext {
+                    expected: "example.com".try_into().unwrap(),
+                    presented: vec![
+                        "DnsName(\"foo.com\")".to_string(),
+                        "DnsName(\"cowboy.org\")".to_string(),
+                    ],
+                })
+                .to_string(),
+            );
+
+            assert_eq!(
+                "certificate not valid for name: \"example.com\" is required, \
+                 but certificate is only valid for DnsName(\"foo.com\"), \
+                 DnsName(\"cowboy.org\") or IpAddress(127.0.0.1)",
+                Error::CertNotValidForName(InvalidNameContext {
+                    expected: "example.com".try_into().unwrap(),
+                    presented: vec![
+                        "DnsName(\"foo.com\")".to_string(),
+                        "DnsName(\"cowboy.org\")".to_string(),
+                        "IpAddress(127.0.0.1)".to_string()
+                    ],
+                })
+                .to_string(),
+            );
+        }
+
+        // other errors (fall back to fmt::Debug)
+        assert_eq!("BadDerTime", Error::BadDerTime.to_string());
+    }
 }
