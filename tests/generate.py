@@ -2246,6 +2246,12 @@ def client_auth_revocation(force: bool) -> None:
         )
 
         # Providing a CRL that's expired should error if the expiration policy is set to enforce.
+        expected_error = """
+        CrlExpired {
+          time: UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d)),
+          next_update: UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d - 10)),
+        }
+        """
         _revocation_test(
             test_name=test_name,
             chain=no_ku_chain,
@@ -2253,7 +2259,7 @@ def client_auth_revocation(force: bool) -> None:
             depth=ChainDepth.CHAIN,
             policy=StatusRequirement.ALLOW_UNKNOWN,
             expiration=ExpirationPolicy.ENFORCE,
-            expected_error="CrlExpired",
+            expected_error=expected_error,
         )
 
     with trim_top("client_auth_revocation.rs") as output:

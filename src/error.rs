@@ -62,7 +62,12 @@ pub enum Error {
 
     /// The CRL is expired; i.e. the verification time is not before the time
     /// in the CRL nextUpdate field.
-    CrlExpired,
+    CrlExpired {
+        /// The validation time.
+        time: UnixTime,
+        /// The nextUpdate time of the CRL.
+        next_update: UnixTime,
+    },
 
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
@@ -235,7 +240,7 @@ impl Error {
             // Errors related to certificate validity
             Self::CertNotValidYet { .. } | Self::CertExpired { .. } => 290,
             Self::CertNotValidForName(_) => 280,
-            Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired => 270,
+            Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired { .. } => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
             Self::RequiredEkuNotFound => 240,

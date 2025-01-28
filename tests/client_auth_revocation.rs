@@ -1662,7 +1662,10 @@ fn expired_crl_enforce_expiration() {
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
-        Err(webpki::Error::CrlExpired)
+        Err(webpki::Error::CrlExpired {
+            time: UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d)),
+            next_update: UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d - 10)),
+        })
     );
 }
 
@@ -1691,6 +1694,9 @@ fn expired_crl_enforce_expiration_owned() {
     let revocation = Some(builder.build());
     assert_eq!(
         check_cert(ee, intermediates, ca, revocation),
-        Err(webpki::Error::CrlExpired)
+        Err(webpki::Error::CrlExpired {
+            time: UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d)),
+            next_update: UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d - 10)),
+        })
     );
 }
