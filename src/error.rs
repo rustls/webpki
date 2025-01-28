@@ -21,6 +21,7 @@ use core::ops::ControlFlow;
 
 #[cfg(feature = "alloc")]
 use pki_types::ServerName;
+use pki_types::UnixTime;
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,7 +45,12 @@ pub enum Error {
 
     /// The certificate is not valid yet; i.e. the time it is being validated
     /// for is earlier than the certificate's notBefore time.
-    CertNotValidYet,
+    CertNotValidYet {
+        /// The validation time.
+        time: UnixTime,
+        /// The notBefore time of the certificate.
+        not_before: UnixTime,
+    },
 
     /// The certificate, or one of its issuers, has been revoked.
     CertRevoked,
@@ -222,7 +228,7 @@ impl Error {
     pub(crate) fn rank(&self) -> u32 {
         match &self {
             // Errors related to certificate validity
-            Self::CertNotValidYet | Self::CertExpired => 290,
+            Self::CertNotValidYet { .. } | Self::CertExpired => 290,
             Self::CertNotValidForName(_) => 280,
             Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,

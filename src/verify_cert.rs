@@ -378,7 +378,7 @@ fn check_validity(input: &mut untrusted::Reader<'_>, time: UnixTime) -> Result<(
         return Err(Error::InvalidCertValidity);
     }
     if time < not_before {
-        return Err(Error::CertNotValidYet);
+        return Err(Error::CertNotValidYet { time, not_before });
     }
     if time > not_after {
         return Err(Error::CertExpired);
