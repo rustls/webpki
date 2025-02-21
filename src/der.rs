@@ -16,7 +16,7 @@
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::{error::DerTypeId, Error};
+use crate::{Error, error::DerTypeId};
 
 #[derive(Debug)]
 pub struct DerIterator<'a, T> {
@@ -551,7 +551,7 @@ mod tests {
 
     #[test]
     fn test_bit_string_with_no_unused_bits() {
-        use super::{bit_string_with_no_unused_bits, Error};
+        use super::{Error, bit_string_with_no_unused_bits};
 
         // Unexpected type
         assert_eq!(
@@ -593,7 +593,7 @@ mod tests {
 
     #[test]
     fn read_tag_and_get_value_default_limit() {
-        use super::{read_tag_and_get_value, Error};
+        use super::{Error, read_tag_and_get_value};
 
         let inputs = &[
             // DER with short-form length encoded as three bytes.
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn read_tag_and_get_value_limited_high_form() {
-        use super::{read_tag_and_get_value_limited, Error, LONG_FORM_LEN_TWO_BYTES_MAX};
+        use super::{Error, LONG_FORM_LEN_TWO_BYTES_MAX, read_tag_and_get_value_limited};
 
         let mut bytes = untrusted::Reader::new(untrusted::Input::from(&[0xFF]));
         // read_tag_and_get_value_limited_high_form should reject DER with "high tag number form" tags.
@@ -627,7 +627,7 @@ mod tests {
 
     #[test]
     fn read_tag_and_get_value_limited_non_canonical() {
-        use super::{read_tag_and_get_value_limited, Error, LONG_FORM_LEN_TWO_BYTES_MAX};
+        use super::{Error, LONG_FORM_LEN_TWO_BYTES_MAX, read_tag_and_get_value_limited};
 
         let inputs = &[
             // Two byte length, with expressed length < 128.
@@ -653,7 +653,7 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn read_tag_and_get_value_limited_limits() {
-        use super::{read_tag_and_get_value_limited, Error};
+        use super::{Error, read_tag_and_get_value_limited};
 
         let short_input = &[0xFF];
         let short_input_encoded = &[
@@ -741,7 +741,7 @@ mod tests {
 
     #[test]
     fn misencoded_bit_string_flags() {
-        use super::{bit_string_flags, Error};
+        use super::{Error, bit_string_flags};
 
         let bad_padding_example = untrusted::Input::from(&[
             0x08, // 8 bit of padding (illegal!).

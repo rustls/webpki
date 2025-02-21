@@ -23,7 +23,7 @@ use crate::verify_cert::{Budget, PathNode};
 
 mod dns_name;
 use dns_name::IdRole;
-pub(crate) use dns_name::{verify_dns_names, WildcardDnsNameRef};
+pub(crate) use dns_name::{WildcardDnsNameRef, verify_dns_names};
 
 mod ip_address;
 pub(crate) use ip_address::verify_ip_address_names;
@@ -271,8 +271,8 @@ pub(crate) enum GeneralName<'a> {
 
 impl<'a> FromDer<'a> for GeneralName<'a> {
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error> {
-        use der::{CONSTRUCTED, CONTEXT_SPECIFIC};
         use GeneralName::*;
+        use der::{CONSTRUCTED, CONTEXT_SPECIFIC};
 
         #[allow(clippy::identity_op)]
         const OTHER_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 0;

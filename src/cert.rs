@@ -16,12 +16,12 @@
 use pki_types::SubjectPublicKeyInfoDer;
 use pki_types::{CertificateDer, DnsName};
 
-use crate::der::{self, DerIterator, FromDer, Tag, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC, DerIterator, FromDer, Tag};
 use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
 use crate::signed_data::SignedData;
 use crate::subject_name::{GeneralName, NameIterator, WildcardDnsNameRef};
-use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
+use crate::x509::{DistributionPointName, Extension, remember_extension, set_extension_once};
 
 /// A parsed X509 certificate.
 pub struct Cert<'a> {

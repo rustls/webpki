@@ -16,7 +16,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, ServerName, UnixTime};
-use webpki::{anchor_from_trusted_cert, InvalidNameContext, KeyUsage};
+use webpki::{InvalidNameContext, KeyUsage, anchor_from_trusted_cert};
 
 #[track_caller]
 fn check_cert(

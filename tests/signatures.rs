@@ -778,7 +778,9 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_good_signature_rpk() {
 fn rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_2048.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA256_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -790,7 +792,9 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature() 
 fn rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_2048.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA256_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -830,7 +834,9 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_good_signature_rpk() {
 fn rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_2048.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA384_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -842,7 +848,9 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature() 
 fn rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_2048.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA384_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -882,7 +890,9 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_good_signature_rpk() {
 fn rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_2048.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA512_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -894,7 +904,9 @@ fn rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() 
 fn rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_2048.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_2048_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA512_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1126,7 +1138,9 @@ fn rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_good_signature_rpk() {
 fn rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_3072.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA256_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1138,7 +1152,9 @@ fn rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature() 
 fn rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_3072.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA256_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1178,7 +1194,9 @@ fn rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_good_signature_rpk() {
 fn rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_3072.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA384_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1190,7 +1208,9 @@ fn rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature() 
 fn rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_3072.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA384_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1230,7 +1250,9 @@ fn rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_good_signature_rpk() {
 fn rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_3072.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA512_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1242,7 +1264,9 @@ fn rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() 
 fn rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_3072.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_3072_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA512_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1530,7 +1554,9 @@ fn rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_good_signature_rpk() {
 fn rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_4096.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA256_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1542,7 +1568,9 @@ fn rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature() 
 fn rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_4096.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha256_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA256_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1582,7 +1610,9 @@ fn rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_good_signature_rpk() {
 fn rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_4096.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA384_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1594,7 +1624,9 @@ fn rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature() 
 fn rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_4096.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha384_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA384_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1634,7 +1666,9 @@ fn rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_good_signature_rpk() {
 fn rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() {
     let ee = include_bytes!("signatures/rsa_4096.ee.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig(ee, RSA_PSS_2048_8192_SHA512_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)
@@ -1646,7 +1680,9 @@ fn rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature() 
 fn rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature_rpk() {
     let rpk = include_bytes!("signatures/rsa_4096.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!("signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin");
+    let signature = include_bytes!(
+        "signatures/rsa_4096_key_and_rsa_pss_2048_8192_sha512_legacy_key_detects_bad_signature.sig.bin"
+    );
     assert_eq!(
         check_sig_rpk(rpk, RSA_PSS_2048_8192_SHA512_LEGACY_KEY, message, signature),
         Err(webpki::Error::InvalidSignatureForPublicKey)

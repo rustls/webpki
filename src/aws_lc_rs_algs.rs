@@ -1,5 +1,5 @@
 use aws_lc_rs::{signature, try_fips_mode};
-use pki_types::{alg_id, AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
+use pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm, alg_id};
 
 // nb. aws-lc-rs has an API that is broadly compatible with *ring*,
 // so this is very similar to ring_algs.rs.

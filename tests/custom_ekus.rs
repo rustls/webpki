@@ -3,7 +3,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{anchor_from_trusted_cert, KeyUsage};
+use webpki::{KeyUsage, anchor_from_trusted_cert};
 
 fn check_cert(
     ee: &[u8],
