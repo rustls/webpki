@@ -4,14 +4,14 @@ use core::time::Duration;
 use std::collections::HashMap;
 use std::fs::File;
 
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use bzip2::read::BzDecoder;
 use pki_types::{
     CertificateDer, ServerName, SignatureVerificationAlgorithm, TrustAnchor, UnixTime,
 };
 use serde::Deserialize;
 
-use webpki::{anchor_from_trusted_cert, KeyUsage};
+use webpki::{KeyUsage, anchor_from_trusted_cert};
 
 // All of the BetterTLS testcases use P256 keys.
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[

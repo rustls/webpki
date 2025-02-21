@@ -1,11 +1,11 @@
 #![allow(clippy::incompatible_msrv)]
 
-use bencher::{benchmark_group, benchmark_main, Bencher};
+use bencher::{Bencher, benchmark_group, benchmark_main};
 use once_cell::sync::Lazy;
 use rcgen::{
-    date_time_ymd, BasicConstraints, CertificateParams, CertificateRevocationListParams,
-    CertifiedKey, IsCa, KeyIdMethod, KeyPair, KeyUsagePurpose, RevocationReason, RevokedCertParams,
-    SerialNumber, PKCS_ECDSA_P256_SHA256,
+    BasicConstraints, CertificateParams, CertificateRevocationListParams, CertifiedKey, IsCa,
+    KeyIdMethod, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256, RevocationReason,
+    RevokedCertParams, SerialNumber, date_time_ymd,
 };
 
 use pki_types::CertificateRevocationListDer;

@@ -224,11 +224,7 @@ impl Error {
     // the most specific error.
     pub(crate) fn most_specific(self, new: Self) -> Self {
         // Assign an error a numeric value ranking it by specificity.
-        if self.rank() >= new.rank() {
-            self
-        } else {
-            new
-        }
+        if self.rank() >= new.rank() { self } else { new }
     }
 
     // Return a numeric indication of how specific the error is, where an error with a higher rank

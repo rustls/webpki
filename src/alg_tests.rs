@@ -16,7 +16,7 @@
 
 use std::prelude::v1::*;
 
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::Budget;

@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use crate::der::{self, DerIterator, FromDer, CONSTRUCTED, CONTEXT_SPECIFIC};
+use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC, DerIterator, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::subject_name::GeneralName;
 

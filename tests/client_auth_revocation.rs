@@ -18,8 +18,8 @@ use core::time::Duration;
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{
-    anchor_from_trusted_cert, KeyUsage, RevocationCheckDepth, RevocationOptions,
-    RevocationOptionsBuilder, UnknownStatusPolicy,
+    KeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
+    UnknownStatusPolicy, anchor_from_trusted_cert,
 };
 
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
