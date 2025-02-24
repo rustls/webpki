@@ -325,7 +325,7 @@ jobs:
           components: llvm-tools
 
       - name: Measure coverage
-        run: cargo llvm-cov --locked --all-features --lcov --output-path ./lcov.info
+        run: cargo llvm-cov --locked --all-features --lcov --output-path ./lcov.info -- --include-ignored
 
       - name: Report to codecov.io
         uses: codecov/codecov-action@v5
