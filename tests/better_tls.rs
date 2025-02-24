@@ -21,7 +21,7 @@ static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
     webpki::aws_lc_rs::ECDSA_P256_SHA256,
 ];
 
-#[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --ignored`
+#[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --include-ignored`
 #[test]
 fn path_building() {
     let better_tls = testdata();
@@ -40,7 +40,7 @@ fn path_building() {
     );
 }
 
-#[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --ignored`
+#[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --include-ignored`
 #[test]
 fn name_constraints() {
     let better_tls = testdata();

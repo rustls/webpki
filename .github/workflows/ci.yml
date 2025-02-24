@@ -238,7 +238,7 @@ jobs:
         uses: seanmiddleditch/gha-setup-ninja@v6
 
       - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
-        run: cargo test --locked ${{ matrix.features }} ${{ matrix.mode }} -- --ignored
+        run: cargo test --locked ${{ matrix.features }} ${{ matrix.mode }} -- --include-ignored
         env:
           RUSTFLAGS: "-D warnings"
           AWS_LC_SYS_PREBUILT_NASM: "1" # for benefit of rcgen
