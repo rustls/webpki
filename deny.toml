@@ -1,5 +1,10 @@
 [advisories]
 yanked = "deny"
+ignore = [
+  # paste (via aws-lc-rs) is unmaintained
+  # https://github.com/aws/aws-lc-rs/issues/722
+  "RUSTSEC-2024-0436" 
+]
 
 [licenses]
 allow = [
