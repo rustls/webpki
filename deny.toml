@@ -5,18 +5,10 @@ yanked = "deny"
 allow = [
     "Apache-2.0",
     "ISC",
-    "LicenseRef-ring",
     "LicenseRef-webpki",
     "MIT",
 ]
 confidence-threshold = 1.0
-
-[[licenses.clarify]]
-name = "ring"
-expression = "LicenseRef-ring"
-license-files = [
-    { path = "LICENSE", hash = 0xbd0eed23 },
-]
 
 # XXX: Figure out how to deal with the Google-source test data
 # https://github.com/briansmith/webpki/issues/148.
