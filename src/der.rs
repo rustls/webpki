@@ -222,7 +222,7 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
 pub(crate) fn asn1_wrap(tag: Tag, bytes: &[u8]) -> Vec<u8> {
     let len = bytes.len();
     // The length is encoded differently depending on how many bytes there are
-    if len < SHORT_FORM_LEN_MAX.into() {
+    if len < usize::from(SHORT_FORM_LEN_MAX) {
         // Short form: the length is encoded using a single byte
         // Contents: Tag byte, single length byte, and passed bytes
         let mut ret = Vec::with_capacity(2 + len);
