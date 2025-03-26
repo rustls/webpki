@@ -314,11 +314,8 @@ pub(crate) fn nested_of_mut<'a>(
     mut decoder: impl FnMut(&mut untrusted::Reader<'a>) -> Result<(), Error>,
 ) -> Result<(), Error> {
     nested(input, outer_tag, error.clone(), |outer| {
-        loop {
+        while !outer.at_end() {
             nested(outer, inner_tag, error.clone(), |inner| decoder(inner))?;
-            if outer.at_end() {
-                break;
-            }
         }
         Ok(())
     })
