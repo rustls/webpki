@@ -82,8 +82,7 @@ pub use {
     error::{DerTypeId, Error, InvalidNameContext},
     rpk_entity::RawPublicKeyEntity,
     trust_anchor::anchor_from_trusted_cert,
-    verify_cert::KeyUsage,
-    verify_cert::VerifiedPath,
+    verify_cert::{KeyUsage, RequiredEkuNotFoundContext, VerifiedPath},
 };
 
 #[cfg(feature = "alloc")]

@@ -23,6 +23,8 @@ use core::ops::ControlFlow;
 use pki_types::ServerName;
 use pki_types::UnixTime;
 
+use crate::verify_cert::RequiredEkuNotFoundContext;
+
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -141,7 +143,12 @@ pub enum Error {
 
     /// The certificate is not valid for the Extended Key Usage for which it is
     /// being validated.
+    #[deprecated(since = "0.103.2", note = "use RequiredEkuNotFoundContext instead")]
     RequiredEkuNotFound,
+
+    /// The certificate is not valid for the Extended Key Usage for which it is
+    /// being validated.
+    RequiredEkuNotFoundContext(RequiredEkuNotFoundContext),
 
     /// The algorithm in the TBSCertificate "signature" field of a certificate
     /// does not match the algorithm in the signature of the certificate.
@@ -239,7 +246,8 @@ impl Error {
             Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired { .. } => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
-            Self::RequiredEkuNotFound => 240,
+            #[allow(deprecated)]
+            Self::RequiredEkuNotFound | Self::RequiredEkuNotFoundContext(_) => 240,
             Self::NameConstraintViolation => 230,
             Self::PathLenConstraintViolated => 220,
             Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
