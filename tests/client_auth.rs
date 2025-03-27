@@ -16,7 +16,7 @@
 
 use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{KeyUsage, anchor_from_trusted_cert};
+use webpki::{KeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
 
 fn check_cert(ee: &[u8], ca: &[u8]) -> Result<(), webpki::Error> {
     let ca = CertificateDer::from(ca);
@@ -64,5 +64,17 @@ fn cert_with_both_ekus_accepted_for_client_auth() {
 fn cert_with_serverauth_eku_rejected_for_client_auth() {
     let ee = include_bytes!("client_auth/cert_with_serverauth_eku_rejected_for_client_auth.ee.der");
     let ca = include_bytes!("client_auth/cert_with_serverauth_eku_rejected_for_client_auth.ca.der");
-    assert_eq!(check_cert(ee, ca), Err(webpki::Error::RequiredEkuNotFound));
+    let err = check_cert(ee, ca).unwrap_err();
+    assert_eq!(
+        err,
+        webpki::Error::RequiredEkuNotFoundContext(RequiredEkuNotFoundContext {
+            required: KeyUsage::client_auth(),
+            present: vec![vec![43, 6, 1, 5, 5, 7, 3, 1]],
+        })
+    );
+
+    assert_eq!(
+        format!("{err}"),
+        "RequiredEkuNotFoundContext(RequiredEkuNotFoundContext { required: KeyUsage { inner: RequiredIfPresent(KeyPurposeId { oid_value: Input }) }, present: [[43, 6, 1, 5, 5, 7, 3, 1]] })"
+    )
 }
