@@ -110,16 +110,25 @@ impl<'a> Cert<'a> {
                         der::Tag::ContextSpecificConstructed3,
                         Error::TrailingData(DerTypeId::CertificateExtensions),
                         |tagged| {
-                            der::nested_of_mut(
+                            der::nested(
                                 tagged,
                                 der::Tag::Sequence,
-                                der::Tag::Sequence,
                                 Error::TrailingData(DerTypeId::Extension),
-                                |extension| {
-                                    remember_cert_extension(
-                                        &mut cert,
-                                        &Extension::from_der(extension)?,
-                                    )
+                                |outer| {
+                                    while !outer.at_end() {
+                                        der::nested(
+                                            outer,
+                                            der::Tag::Sequence,
+                                            Error::TrailingData(DerTypeId::Extension),
+                                            |extension| {
+                                                remember_cert_extension(
+                                                    &mut cert,
+                                                    &Extension::from_der(extension)?,
+                                                )
+                                            },
+                                        )?;
+                                    }
+                                    Ok(())
                                 },
                             )
                         },
