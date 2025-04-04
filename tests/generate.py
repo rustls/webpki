@@ -687,7 +687,7 @@ def signatures(force: bool) -> None:
     def _test(
         test_name: str, cert_type: str, algorithm: str, signature: bytes, expected: str
     ) -> None:
-        nonlocal message_path
+        nonlocal message_path  # noqa: F824
         cert_path: str = _cert_path(cert_type)
         rpk_path: str = _rpk_path(cert_type)
         lower_test_name: str = test_name.lower()
@@ -1170,7 +1170,7 @@ def client_auth_revocation(force: bool) -> None:
         intermediates_str: str = f"&[{int_a_str}, {int_b_str}]"
 
         def _write_revocation_test(*, owned: bool) -> None:
-            nonlocal crl_paths, expected_error, intermediates_str, test_name, ee_cert_path, root_cert_path
+            nonlocal crl_paths, expected_error, intermediates_str, test_name, ee_cert_path, root_cert_path  # noqa: F824
 
             test_name = test_name if not owned else test_name + "_owned"
 
