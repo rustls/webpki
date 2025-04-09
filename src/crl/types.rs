@@ -425,6 +425,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
                         Tag::Sequence,
                         Tag::Sequence,
                         Error::TrailingData(DerTypeId::CertRevocationListExtension),
+                        false,
                         |extension| {
                             // RFC 5280 §5.2:
                             //   If a CRL contains a critical extension
