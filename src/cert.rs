@@ -104,6 +104,16 @@ impl<'a> Cert<'a> {
                     der: CertificateDer::from(cert_der.as_slice_less_safe()),
                 };
 
+                // When used to read X509v3 Certificate.tbsCertificate.extensions, we allow
+                // the extensions to be empty.  This is in spite of RFC5280:
+                //
+                //   "If present, this field is a SEQUENCE of one or more certificate extensions."
+                //
+                // Unfortunately other implementations don't get this right, eg:
+                // - https://github.com/golang/go/issues/52319
+                // - https://github.com/openssl/openssl/issues/20877
+                const ALLOW_EMPTY: bool = true;
+
                 if !tbs.at_end() {
                     der::nested(
                         tbs,
@@ -115,6 +125,7 @@ impl<'a> Cert<'a> {
                                 der::Tag::Sequence,
                                 der::Tag::Sequence,
                                 Error::TrailingData(DerTypeId::Extension),
+                                ALLOW_EMPTY,
                                 |extension| {
                                     remember_cert_extension(
                                         &mut cert,
