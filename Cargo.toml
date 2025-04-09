@@ -53,8 +53,6 @@ include = [
     "src/x509.rs",
     "src/verify_cert.rs",
     "src/lib.rs",
-
-    "tests/**",
 ]
 
 [package.metadata.docs.rs]
