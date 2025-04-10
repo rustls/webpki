@@ -12,6 +12,9 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+use core::fmt;
 use core::ops::ControlFlow;
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
@@ -426,6 +429,43 @@ fn check_basic_constraints(
     }
 }
 
+/// Additional context for the `RequiredEkuNotFoundContext` error variant.
+///
+/// The contents of this type depend on whether the `alloc` feature is enabled.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RequiredEkuNotFoundContext {
+    /// The required ExtendedKeyUsage.
+    #[cfg(feature = "alloc")]
+    pub required: KeyUsage,
+    /// The ExtendedKeyUsage OIDs present in the certificate.
+    #[cfg(feature = "alloc")]
+    pub present: Vec<Vec<u8>>,
+}
+
+impl fmt::Debug for RequiredEkuNotFoundContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut builder = f.debug_struct("RequiredEkuNotFoundContext");
+        #[cfg(feature = "alloc")]
+        builder.field(
+            "required",
+            match &self.required.inner {
+                ExtendedKeyUsage::Required(inner) => inner,
+                ExtendedKeyUsage::RequiredIfPresent(inner) => inner,
+            },
+        );
+        #[cfg(feature = "alloc")]
+        builder.field(
+            "present",
+            &self
+                .present
+                .iter()
+                .map(|v| KeyPurposeId::new(v))
+                .collect::<Vec<_>>(),
+        );
+        builder.finish()
+    }
+}
+
 /// The expected key usage of a certificate.
 ///
 /// This type represents the expected key usage of an end entity certificate. Although for most
@@ -434,7 +474,7 @@ fn check_basic_constraints(
 /// is present, the certificate MUST only be used for one of the purposes indicated.
 ///
 /// <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct KeyUsage {
     inner: ExtendedKeyUsage,
 }
@@ -470,13 +510,13 @@ impl KeyUsage {
 }
 
 /// Extended Key Usage (EKU) of a certificate.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ExtendedKeyUsage {
     /// The certificate must contain the specified [`KeyPurposeId`] as EKU.
-    Required(KeyPurposeId),
+    Required(KeyPurposeId<'static>),
 
     /// If the certificate has EKUs, then the specified [`KeyPurposeId`] must be included.
-    RequiredIfPresent(KeyPurposeId),
+    RequiredIfPresent(KeyPurposeId<'static>),
 }
 
 impl ExtendedKeyUsage {
@@ -485,9 +525,20 @@ impl ExtendedKeyUsage {
         let input = match (input, self) {
             (Some(input), _) => input,
             (None, Self::RequiredIfPresent(_)) => return Ok(()),
-            (None, Self::Required(_)) => return Err(Error::RequiredEkuNotFound),
+            (None, Self::Required(_)) => {
+                return Err(Error::RequiredEkuNotFoundContext(
+                    RequiredEkuNotFoundContext {
+                        #[cfg(feature = "alloc")]
+                        required: KeyUsage { inner: *self },
+                        #[cfg(feature = "alloc")]
+                        present: Vec::new(),
+                    },
+                ));
+            }
         };
 
+        #[cfg(feature = "alloc")]
+        let mut present = Vec::new();
         loop {
             let value = der::expect_tag(input, der::Tag::OID)?;
             if self.key_purpose_id_equals(value) {
@@ -495,8 +546,17 @@ impl ExtendedKeyUsage {
                 break;
             }
 
+            #[cfg(feature = "alloc")]
+            present.push(value.as_slice_less_safe().to_vec());
             if input.at_end() {
-                return Err(Error::RequiredEkuNotFound);
+                return Err(Error::RequiredEkuNotFoundContext(
+                    RequiredEkuNotFoundContext {
+                        #[cfg(feature = "alloc")]
+                        required: KeyUsage { inner: *self },
+                        #[cfg(feature = "alloc")]
+                        present,
+                    },
+                ));
             }
         }
 
@@ -517,28 +577,41 @@ impl ExtendedKeyUsage {
 
 /// An OID value indicating an Extended Key Usage (EKU) key purpose.
 #[derive(Clone, Copy)]
-struct KeyPurposeId {
-    oid_value: untrusted::Input<'static>,
+struct KeyPurposeId<'a> {
+    oid_value: untrusted::Input<'a>,
 }
 
-impl KeyPurposeId {
+impl<'a> KeyPurposeId<'a> {
     /// Construct a new [`KeyPurposeId`].
     ///
     /// `oid` is the OBJECT IDENTIFIER in bytes.
-    const fn new(oid: &'static [u8]) -> Self {
+    const fn new(oid: &'a [u8]) -> Self {
         Self {
             oid_value: untrusted::Input::from(oid),
         }
     }
 }
 
-impl PartialEq<Self> for KeyPurposeId {
+impl fmt::Debug for KeyPurposeId<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "KeyPurposeId(")?;
+        for (i, byte) in self.oid_value.as_slice_less_safe().iter().enumerate() {
+            if i > 0 {
+                write!(f, ".")?;
+            }
+            write!(f, "{byte}")?;
+        }
+        write!(f, ")")
+    }
+}
+
+impl PartialEq<Self> for KeyPurposeId<'_> {
     fn eq(&self, other: &Self) -> bool {
         public_values_eq(self.oid_value, other.oid_value)
     }
 }
 
-impl Eq for KeyPurposeId {}
+impl Eq for KeyPurposeId<'_> {}
 
 // id-pkix            OBJECT IDENTIFIER ::= { 1 3 6 1 5 5 7 }
 // id-kp              OBJECT IDENTIFIER ::= { id-pkix 3 }
@@ -704,6 +777,22 @@ mod tests {
     use rcgen::{CertifiedKey, KeyPair};
     use std::dbg;
     use std::prelude::v1::*;
+
+    #[test]
+    fn eku_fail_empty() {
+        let err = ExtendedKeyUsage::Required(KeyPurposeId::new(EKU_SERVER_AUTH))
+            .check(None)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            Error::RequiredEkuNotFoundContext(RequiredEkuNotFoundContext {
+                #[cfg(feature = "alloc")]
+                required: KeyUsage::required(EKU_SERVER_AUTH),
+                #[cfg(feature = "alloc")]
+                present: Vec::new(),
+            })
+        );
+    }
 
     #[test]
     fn eku_key_purpose_id() {
