@@ -24,25 +24,6 @@ use webpki::{KeyUsage, anchor_from_trusted_cert};
 mod common;
 use common::{make_end_entity, make_issuer};
 
-fn check_cert(ee: &[u8], ca: &[u8]) -> Result<(), webpki::Error> {
-    let ca = CertificateDer::from(ca);
-    let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
-
-    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
-    let ee = CertificateDer::from(ee);
-    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    cert.verify_for_usage(
-        webpki::ALL_VERIFICATION_ALGS,
-        anchors,
-        &[],
-        time,
-        KeyUsage::client_auth(),
-        None,
-        None,
-    )
-    .map(|_| ())
-}
-
 #[test]
 fn cert_with_no_eku_accepted_for_client_auth() {
     let (ee, ca) = test_certs(vec![], "cert_with_no_eku_accepted_for_client_auth").unwrap();
@@ -83,6 +64,25 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
         check_cert(ee.der(), ca.der()),
         Err(webpki::Error::RequiredEkuNotFound)
     );
+}
+
+fn check_cert(ee: &[u8], ca: &[u8]) -> Result<(), webpki::Error> {
+    let ca = CertificateDer::from(ca);
+    let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
+
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    cert.verify_for_usage(
+        webpki::ALL_VERIFICATION_ALGS,
+        anchors,
+        &[],
+        time,
+        KeyUsage::client_auth(),
+        None,
+        None,
+    )
+    .map(|_| ())
 }
 
 fn test_certs(
