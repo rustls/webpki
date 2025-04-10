@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, padding
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
+from cryptography.x509.oid import NameOID
 import ipaddress
 import datetime
 import subprocess
@@ -833,85 +833,6 @@ fn %(test_name_lower)s() {
             cert_type="rsa_2048",
             algorithm="RSA_PKCS1_3072_8192_SHA384",
             signer=signer,
-        )
-
-
-def generate_client_auth_test(
-    output: TextIO,
-    test_name: str,
-    ekus: Optional[Iterable[x509.ObjectIdentifier]],
-    expected_error: Optional[str] = None,
-    force: bool = False,
-) -> None:
-    issuer_name: x509.Name = issuer_name_for_test(test_name)
-
-    # end-entity
-    ee_subject: x509.Name = x509.Name(
-        [x509.NameAttribute(NameOID.ORGANIZATION_NAME, test_name)]
-    )
-    ee_certificate: x509.Certificate = end_entity_cert(
-        subject_name=ee_subject,
-        ekus=ekus,
-        issuer_name=issuer_name,
-    )
-
-    output_dir: str = "client_auth"
-    if not os.path.isdir(output_dir):
-        os.mkdir(output_dir)
-
-    ee_cert_path: str = os.path.join(output_dir, f"{test_name}.ee.der")
-    write_der(ee_cert_path, ee_certificate.public_bytes(Encoding.DER), force)
-
-    # issuer
-    ca: x509.Certificate = ca_cert(
-        subject_name=issuer_name, subject_key=ROOT_PRIVATE_KEY
-    )
-
-    ca_cert_path: str = os.path.join(output_dir, f"{test_name}.ca.der")
-    write_der(ca_cert_path, ca.public_bytes(Encoding.DER), force)
-
-    expected: str = ""
-    if expected_error is None:
-        expected = "Ok(())"
-    else:
-        expected = "Err(webpki::Error::" + expected_error + ")"
-
-    print(
-        """
-#[test]
-fn %(test_name)s() {
-    let ee = include_bytes!("%(ee_cert_path)s");
-    let ca = include_bytes!("%(ca_cert_path)s");
-    assert_eq!(
-        check_cert(ee, ca),
-        %(expected)s
-    );
-}"""
-        % locals(),
-        file=output,
-    )
-
-
-def client_auth(force: bool) -> None:
-    with trim_top("client_auth.rs") as output:
-        generate_client_auth_test(
-            output, "cert_with_no_eku_accepted_for_client_auth", ekus=None
-        )
-        generate_client_auth_test(
-            output,
-            "cert_with_clientauth_eku_accepted_for_client_auth",
-            ekus=[ExtendedKeyUsageOID.CLIENT_AUTH],
-        )
-        generate_client_auth_test(
-            output,
-            "cert_with_both_ekus_accepted_for_client_auth",
-            ekus=[ExtendedKeyUsageOID.CLIENT_AUTH, ExtendedKeyUsageOID.SERVER_AUTH],
-        )
-        generate_client_auth_test(
-            output,
-            "cert_with_serverauth_eku_rejected_for_client_auth",
-            ekus=[ExtendedKeyUsageOID.SERVER_AUTH],
-            expected_error="RequiredEkuNotFound",
         )
 
 
@@ -2312,12 +2233,6 @@ if __name__ == "__main__":
         help="Generate signature testcases",
     )
     parser.add_argument(
-        "--client-auth",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Generate client auth testcases",
-    )
-    parser.add_argument(
         "--client-auth-revocation",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -2347,8 +2262,6 @@ if __name__ == "__main__":
         tls_server_certs(args.force)
     if args.signatures:
         signatures(args.force)
-    if args.client_auth:
-        client_auth(args.force)
     if args.client_auth_revocation:
         client_auth_revocation(args.force)
 
