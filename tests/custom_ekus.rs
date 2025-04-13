@@ -3,7 +3,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{KeyUsage, anchor_from_trusted_cert};
+use webpki::{KeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
 
 fn check_cert(
     ee: &[u8],
@@ -35,7 +35,6 @@ fn check_cert(
 
 #[test]
 pub fn verify_custom_eku_mdoc() {
-    let err = Err(webpki::Error::RequiredEkuNotFound);
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_609_459_200)); //  Jan 1 01:00:00 CET 2021
 
     let ee = include_bytes!("misc/mdoc_eku.ee.der");
@@ -43,9 +42,31 @@ pub fn verify_custom_eku_mdoc() {
 
     let eku_mdoc = KeyUsage::required(&[40, 129, 140, 93, 5, 1, 2]);
     check_cert(ee, ca, eku_mdoc, time, Ok(()));
-    check_cert(ee, ca, KeyUsage::server_auth(), time, err.clone());
+    check_cert(
+        ee,
+        ca,
+        KeyUsage::server_auth(),
+        time,
+        Err(webpki::Error::RequiredEkuNotFoundContext(
+            RequiredEkuNotFoundContext {
+                required: KeyUsage::server_auth(),
+                present: vec![vec![1, 0, 68701, 5, 1, 2]],
+            },
+        )),
+    );
     check_cert(ee, ca, eku_mdoc, time, Ok(()));
-    check_cert(ee, ca, KeyUsage::server_auth(), time, err);
+    check_cert(
+        ee,
+        ca,
+        KeyUsage::server_auth(),
+        time,
+        Err(webpki::Error::RequiredEkuNotFoundContext(
+            RequiredEkuNotFoundContext {
+                required: KeyUsage::server_auth(),
+                present: vec![vec![1, 0, 68701, 5, 1, 2]],
+            },
+        )),
+    );
 }
 
 #[test]
