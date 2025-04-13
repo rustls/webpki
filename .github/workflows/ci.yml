@@ -382,4 +382,4 @@ jobs:
           cargo hack check
           --feature-powerset
           --no-dev-deps
-          --mutually-exclusive-features aws-lc-rs,aws-lc-rs-fips
+          --mutually-exclusive-features aws-lc-rs,aws-lc-rs-fips,__aws-lc-rs-unstable
