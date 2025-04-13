@@ -1,3 +1,5 @@
+#[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+use aws_lc_rs::unstable;
 use aws_lc_rs::{signature, try_fips_mode};
 use pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm, alg_id};
 
@@ -53,6 +55,30 @@ impl SignatureVerificationAlgorithm for AwsLcRsAlgorithm {
         try_fips_mode().is_ok()
     }
 }
+
+/// ML-DSA signatures using the [4, 4] matrix (security strength category 2).
+#[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+pub static ML_DSA_44: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ML_DSA_44,
+    signature_alg_id: alg_id::ML_DSA_44,
+    verification_alg: &unstable::signature::MLDSA_44,
+};
+
+/// ML-DSA signatures using the [6, 5] matrix (security strength category 3).
+#[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+pub static ML_DSA_65: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ML_DSA_65,
+    signature_alg_id: alg_id::ML_DSA_65,
+    verification_alg: &unstable::signature::MLDSA_65,
+};
+
+/// ML-DSA signatures using the [8. 7] matrix (security strength category 5).
+#[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+pub static ML_DSA_87: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ML_DSA_87,
+    signature_alg_id: alg_id::ML_DSA_87,
+    verification_alg: &unstable::signature::MLDSA_87,
+};
 
 /// ECDSA signatures using the P-256 curve and SHA-256.
 pub static ECDSA_P256_SHA256: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
@@ -254,6 +280,12 @@ mod tests {
         // Algorithms deprecated because they are nonsensical combinations.
         super::ECDSA_P256_SHA384, // Truncates digest.
         super::ECDSA_P384_SHA256, // Digest is unnecessarily short.
+        #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+        super::ML_DSA_44,
+        #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+        super::ML_DSA_65,
+        #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+        super::ML_DSA_87,
     ];
 
     const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error =

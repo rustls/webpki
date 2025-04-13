@@ -117,6 +117,8 @@ pub mod aws_lc_rs {
         RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     };
+    #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+    pub use super::aws_lc_rs_algs::{ML_DSA_44, ML_DSA_65, ML_DSA_87};
 }
 
 /// An array of all the verification algorithms exported by this crate.
@@ -189,6 +191,12 @@ pub static ALL_VERIFICATION_ALGS: &[&dyn pki_types::SignatureVerificationAlgorit
     aws_lc_rs::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
     #[cfg(feature = "aws-lc-rs")]
     aws_lc_rs::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+    #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+    aws_lc_rs::ML_DSA_44,
+    #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+    aws_lc_rs::ML_DSA_65,
+    #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+    aws_lc_rs::ML_DSA_87,
 ];
 
 fn public_values_eq(a: untrusted::Input<'_>, b: untrusted::Input<'_>) -> bool {
