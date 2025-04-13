@@ -5,11 +5,11 @@ permissions:
 
 on:
   push:
-    branches: ['main', 'ci/*']
+    branches: ["main", "ci/*"]
   pull_request:
   merge_group:
   schedule:
-    - cron: '0 18 * * *'
+    - cron: "0 18 * * *"
   workflow_dispatch:
 
 jobs:
@@ -109,7 +109,7 @@ jobs:
     strategy:
       matrix:
         features:
-          - # Default
+          -  # Default
           - --features alloc
           - --all-features
           - --no-default-features
@@ -318,4 +318,4 @@ jobs:
           cargo hack check
           --feature-powerset
           --no-dev-deps
-          --mutually-exclusive-features aws-lc-rs,aws-lc-rs-fips
+          --mutually-exclusive-features aws-lc-rs,aws-lc-rs-fips,aws-lc-rs-unstable
