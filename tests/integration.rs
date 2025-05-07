@@ -48,6 +48,33 @@ fn netflix() {
     );
 }
 
+/// See also https://github.com/rustls/rustls/issues/2448
+#[test]
+fn sanofi_rsa_signature_with_absent_algorithm_params() {
+    let ee: &[u8] = include_bytes!("sanofi/ee.der");
+    let inter = CertificateDer::from(&include_bytes!("sanofi/inter.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("sanofi/ca.der")[..]);
+
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_746_549_566)); // 2025-05-06T17:39:26Z
+
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    assert!(
+        cert.verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            &anchors,
+            &[inter],
+            time,
+            KeyUsage::server_auth(),
+            None,
+            None,
+        )
+        .is_ok()
+    );
+}
+
 /* This is notable because it is a popular use of IP address subjectAltNames. */
 #[cfg(feature = "alloc")]
 #[test]

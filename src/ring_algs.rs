@@ -96,6 +96,69 @@ pub static RSA_PKCS1_2048_8192_SHA512: &dyn SignatureVerificationAlgorithm = &Ri
     verification_alg: &signature::RSA_PKCS1_2048_8192_SHA512,
 };
 
+/// RSA PKCS#1 1.5 signatures using SHA-256 for keys of 2048-8192 bits,
+/// with illegally absent AlgorithmIdentifier parameters.
+///
+/// RFC4055 says on sha256WithRSAEncryption and company:
+///
+/// >   When any of these four object identifiers appears within an
+/// >   AlgorithmIdentifier, the parameters MUST be NULL.  Implementations
+/// >   MUST accept the parameters being absent as well as present.
+///
+/// This algorithm covers the absent case, [`RSA_PKCS1_2048_8192_SHA256`] covers
+/// the present case.
+#[cfg(feature = "alloc")]
+pub static RSA_PKCS1_2048_8192_SHA256_ABSENT_PARAMS: &dyn SignatureVerificationAlgorithm =
+    &RingAlgorithm {
+        public_key_alg_id: alg_id::RSA_ENCRYPTION,
+        signature_alg_id: alg_id::AlgorithmIdentifier::from_slice(include_bytes!(
+            "data/alg-rsa-pkcs1-sha256-absent-params.der"
+        )),
+        verification_alg: &signature::RSA_PKCS1_2048_8192_SHA256,
+    };
+
+/// RSA PKCS#1 1.5 signatures using SHA-384 for keys of 2048-8192 bits,
+/// with illegally absent AlgorithmIdentifier parameters.
+///
+/// RFC4055 says on sha256WithRSAEncryption and company:
+///
+/// >   When any of these four object identifiers appears within an
+/// >   AlgorithmIdentifier, the parameters MUST be NULL.  Implementations
+/// >   MUST accept the parameters being absent as well as present.
+///
+/// This algorithm covers the absent case, [`RSA_PKCS1_2048_8192_SHA384`] covers
+/// the present case.
+#[cfg(feature = "alloc")]
+pub static RSA_PKCS1_2048_8192_SHA384_ABSENT_PARAMS: &dyn SignatureVerificationAlgorithm =
+    &RingAlgorithm {
+        public_key_alg_id: alg_id::RSA_ENCRYPTION,
+        signature_alg_id: alg_id::AlgorithmIdentifier::from_slice(include_bytes!(
+            "data/alg-rsa-pkcs1-sha384-absent-params.der"
+        )),
+        verification_alg: &signature::RSA_PKCS1_2048_8192_SHA384,
+    };
+
+/// RSA PKCS#1 1.5 signatures using SHA-512 for keys of 2048-8192 bits,
+/// with illegally absent AlgorithmIdentifier parameters.
+///
+/// RFC4055 says on sha256WithRSAEncryption and company:
+///
+/// >   When any of these four object identifiers appears within an
+/// >   AlgorithmIdentifier, the parameters MUST be NULL.  Implementations
+/// >   MUST accept the parameters being absent as well as present.
+///
+/// This algorithm covers the absent case, [`RSA_PKCS1_2048_8192_SHA512`] covers
+/// the present case.
+#[cfg(feature = "alloc")]
+pub static RSA_PKCS1_2048_8192_SHA512_ABSENT_PARAMS: &dyn SignatureVerificationAlgorithm =
+    &RingAlgorithm {
+        public_key_alg_id: alg_id::RSA_ENCRYPTION,
+        signature_alg_id: alg_id::AlgorithmIdentifier::from_slice(include_bytes!(
+            "data/alg-rsa-pkcs1-sha512-absent-params.der"
+        )),
+        verification_alg: &signature::RSA_PKCS1_2048_8192_SHA512,
+    };
+
 /// RSA PKCS#1 1.5 signatures using SHA-384 for keys of 3072-8192 bits.
 #[cfg(feature = "alloc")]
 pub static RSA_PKCS1_3072_8192_SHA384: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
