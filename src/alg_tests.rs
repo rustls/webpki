@@ -43,12 +43,15 @@ macro_rules! test_verify_signed_data {
     ($fn_name:ident, $file_name:expr, $expected_result:expr) => {
         #[test]
         fn $fn_name() {
-            test_verify_signed_data(test_file_bytes!($file_name), $expected_result);
+            assert_eq!(
+                test_verify_signed_data(test_file_bytes!($file_name)),
+                $expected_result
+            );
         }
     };
 }
 
-fn test_verify_signed_data(file_contents: &[u8], expected_result: Result<(), Error>) {
+fn test_verify_signed_data(file_contents: &[u8]) -> Result<(), Error> {
     let tsd = parse_test_signed_data(file_contents);
     let spki_value = untrusted::Input::from(&tsd.spki);
     let spki_value = spki_value
@@ -84,15 +87,12 @@ fn test_verify_signed_data(file_contents: &[u8], expected_result: Result<(), Err
         signature,
     };
 
-    assert_eq!(
-        expected_result,
-        signed_data::verify_signed_data(
-            SUPPORTED_ALGORITHMS_IN_TESTS,
-            spki_value,
-            &signed_data,
-            &mut Budget::default(),
-        )
-    );
+    signed_data::verify_signed_data(
+        SUPPORTED_ALGORITHMS_IN_TESTS,
+        spki_value,
+        &signed_data,
+        &mut Budget::default(),
+    )
 }
 
 // XXX: This is testing code that isn't even in this module.
@@ -100,22 +100,22 @@ macro_rules! test_verify_signed_data_signature_outer {
     ($fn_name:ident, $file_name:expr, $expected_result:expr) => {
         #[test]
         fn $fn_name() {
-            test_verify_signed_data_signature_outer(test_file_bytes!($file_name), $expected_result);
+            assert_eq!(
+                test_verify_signed_data_signature_outer(test_file_bytes!($file_name)),
+                Err($expected_result)
+            );
         }
     };
 }
 
-fn test_verify_signed_data_signature_outer(file_contents: &[u8], expected_error: Error) {
+fn test_verify_signed_data_signature_outer(file_contents: &[u8]) -> Result<(), Error> {
     let tsd = parse_test_signed_data(file_contents);
     let signature = untrusted::Input::from(&tsd.signature);
-    assert_eq!(
-        signature
-            .read_all(Error::TrailingData(DerTypeId::Signature), |input| {
-                der::bit_string_with_no_unused_bits(input)
-            })
-            .unwrap_err(),
-        expected_error,
-    );
+    signature.read_all(Error::TrailingData(DerTypeId::Signature), |input| {
+        der::bit_string_with_no_unused_bits(input)
+    })?;
+
+    Ok(())
 }
 
 // XXX: This is testing code that is not even in this module.
@@ -123,21 +123,22 @@ macro_rules! test_parse_spki_bad_outer {
     ($fn_name:ident, $file_name:expr, $error:expr) => {
         #[test]
         fn $fn_name() {
-            test_parse_spki_bad_outer(test_file_bytes!($file_name), $error)
+            assert_eq!(
+                test_parse_spki_bad_outer(test_file_bytes!($file_name)),
+                Err($error)
+            );
         }
     };
 }
 
-fn test_parse_spki_bad_outer(file_contents: &[u8], expected_error: Error) {
+fn test_parse_spki_bad_outer(file_contents: &[u8]) -> Result<(), Error> {
     let tsd = parse_test_signed_data(file_contents);
     let spki = untrusted::Input::from(&tsd.spki);
-    assert_eq!(
-        spki.read_all(Error::BadDer, |input| {
-            der::expect_tag(input, der::Tag::Sequence)
-        })
-        .unwrap_err(),
-        expected_error,
-    );
+    spki.read_all(Error::BadDer, |input| {
+        der::expect_tag(input, der::Tag::Sequence)
+    })?;
+
+    Ok(())
 }
 
 // XXX: Some of the BadDer tests should have better error codes, maybe?
