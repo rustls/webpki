@@ -230,6 +230,10 @@ pub enum Error {
     /// algorithm (e.g. ECC keys for unsupported curves), or the public key
     /// algorithm and the signature algorithm simply don't match (e.g.
     /// verifying an RSA signature with an ECC public key).
+    #[deprecated(
+        since = "0.103.4",
+        note = "use UnsupportedCrlSignatureAlgorithmForPublicKeyContext instead"
+    )]
     UnsupportedCrlSignatureAlgorithmForPublicKey,
 
     /// The signature's algorithm does not match the algorithm of the public
@@ -239,7 +243,33 @@ pub enum Error {
     /// algorithm (e.g. ECC keys for unsupported curves), or the public key
     /// algorithm and the signature algorithm simply don't match (e.g.
     /// verifying an RSA signature with an ECC public key).
+    UnsupportedCrlSignatureAlgorithmForPublicKeyContext(
+        UnsupportedSignatureAlgorithmForPublicKeyContext,
+    ),
+
+    /// The signature's algorithm does not match the algorithm of the public
+    /// key it is being validated for. This may be because the public key
+    /// algorithm's OID isn't recognized (e.g. DSA), or the public key
+    /// algorithm's parameters don't match the supported parameters for that
+    /// algorithm (e.g. ECC keys for unsupported curves), or the public key
+    /// algorithm and the signature algorithm simply don't match (e.g.
+    /// verifying an RSA signature with an ECC public key).
+    #[deprecated(
+        since = "0.103.4",
+        note = "use UnsupportedSignatureAlgorithmForPublicKeyContext instead"
+    )]
     UnsupportedSignatureAlgorithmForPublicKey,
+
+    /// The signature's algorithm does not match the algorithm of the public
+    /// key it is being validated for. This may be because the public key
+    /// algorithm's OID isn't recognized (e.g. DSA), or the public key
+    /// algorithm's parameters don't match the supported parameters for that
+    /// algorithm (e.g. ECC keys for unsupported curves), or the public key
+    /// algorithm and the signature algorithm simply don't match (e.g.
+    /// verifying an RSA signature with an ECC public key).
+    UnsupportedSignatureAlgorithmForPublicKeyContext(
+        UnsupportedSignatureAlgorithmForPublicKeyContext,
+    ),
 }
 
 impl Error {
@@ -276,8 +306,11 @@ impl Error {
             Self::InvalidCrlNumber => 160,
 
             // Errors related to unsupported features.
+            #[allow(deprecated)]
             Self::UnsupportedCrlSignatureAlgorithmForPublicKey
-            | Self::UnsupportedSignatureAlgorithmForPublicKey => 150,
+            | Self::UnsupportedCrlSignatureAlgorithmForPublicKeyContext(_)
+            | Self::UnsupportedSignatureAlgorithmForPublicKey
+            | Self::UnsupportedSignatureAlgorithmForPublicKeyContext(_) => 150,
             #[allow(deprecated)]
             Self::UnsupportedCrlSignatureAlgorithm
             | Self::UnsupportedCrlSignatureAlgorithmContext(_)
@@ -361,6 +394,19 @@ pub struct InvalidNameContext {
     /// with or without a wildcard label as well as IP address names.
     #[cfg(feature = "alloc")]
     pub presented: Vec<String>,
+}
+
+/// Additional context for the `UnsupportedSignatureAlgorithmForPublicKey` error variant.
+///
+/// The contents of this type depend on whether the `alloc` feature is enabled.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnsupportedSignatureAlgorithmForPublicKeyContext {
+    /// The signature algorithm OID.
+    #[cfg(feature = "alloc")]
+    pub signature_algorithm_id: Vec<u8>,
+    /// The public key algorithm OID.
+    #[cfg(feature = "alloc")]
+    pub public_key_algorithm_id: Vec<u8>,
 }
 
 /// Additional context for the `UnsupportedSignatureAlgorithm` error variant.
