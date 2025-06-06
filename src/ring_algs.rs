@@ -213,7 +213,7 @@ pub static ED25519: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
 #[cfg(test)]
 #[path = "."]
 mod tests {
-    use crate::Error;
+    use crate::error::{Error, UnsupportedSignatureAlgorithmContext};
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
@@ -239,29 +239,58 @@ mod tests {
         super::ECDSA_P384_SHA256, // Digest is unnecessarily short.
     ];
 
-    const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
-        Error::UnsupportedSignatureAlgorithmForPublicKey
-    } else {
-        Error::UnsupportedSignatureAlgorithm
-    };
-
-    const UNSUPPORTED_ECDSA_SHA512_SIGNATURE: Error = Error::UnsupportedSignatureAlgorithm;
-
-    const INVALID_SIGNATURE_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
-        Error::InvalidSignatureForPublicKey
-    } else {
-        Error::UnsupportedSignatureAlgorithm
-    };
-
-    const OK_IF_RSA_AVAILABLE: Result<(), Error> = if cfg!(feature = "alloc") {
-        Ok(())
-    } else {
-        Err(Error::UnsupportedSignatureAlgorithm)
-    };
-
     const OK_IF_POINT_COMPRESSION_SUPPORTED: Result<(), Error> =
         Err(Error::InvalidSignatureForPublicKey);
 
     #[path = "alg_tests.rs"]
     mod alg_tests;
+
+    fn maybe_rsa() -> Result<(), Error> {
+        #[cfg(feature = "alloc")]
+        {
+            Ok(())
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            Err(unsupported(&[]))
+        }
+    }
+
+    fn unsupported_for_rsa() -> Error {
+        #[cfg(feature = "alloc")]
+        {
+            Error::UnsupportedSignatureAlgorithmForPublicKey
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            unsupported(&[])
+        }
+    }
+
+    fn invalid_rsa_signature() -> Error {
+        #[cfg(feature = "alloc")]
+        {
+            Error::InvalidSignatureForPublicKey
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            unsupported(&[])
+        }
+    }
+
+    fn unsupported_for_ecdsa(sig_alg_id: &[u8]) -> Error {
+        unsupported(sig_alg_id)
+    }
+
+    fn unsupported(_sig_alg_id: &[u8]) -> Error {
+        Error::UnsupportedSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext {
+            #[cfg(feature = "alloc")]
+            signature_algorithm_id: _sig_alg_id.to_vec(),
+            #[cfg(feature = "alloc")]
+            supported_algorithms: SUPPORTED_ALGORITHMS_IN_TESTS
+                .iter()
+                .map(|&alg| alg.signature_alg_id())
+                .collect(),
+        })
+    }
 }
