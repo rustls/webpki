@@ -19,9 +19,9 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
 
-#[cfg(feature = "alloc")]
-use pki_types::ServerName;
 use pki_types::UnixTime;
+#[cfg(feature = "alloc")]
+use pki_types::{AlgorithmIdentifier, ServerName};
 
 use crate::verify_cert::RequiredEkuNotFoundContext;
 
@@ -201,11 +201,27 @@ pub enum Error {
 
     /// The signature algorithm for a signature over a CRL is not in the set of supported
     /// signature algorithms given.
+    #[deprecated(
+        since = "0.103.4",
+        note = "use UnsupportedCrlSignatureAlgorithmContext instead"
+    )]
     UnsupportedCrlSignatureAlgorithm,
 
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
+    UnsupportedCrlSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext),
+
+    /// The signature algorithm for a signature is not in the set of supported
+    /// signature algorithms given.
+    #[deprecated(
+        since = "0.103.4",
+        note = "use UnsupportedSignatureAlgorithmContext instead"
+    )]
     UnsupportedSignatureAlgorithm,
+
+    /// The signature algorithm for a signature is not in the set of supported
+    /// signature algorithms given.
+    UnsupportedSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext),
 
     /// The CRL signature's algorithm does not match the algorithm of the issuer
     /// public key it is being validated for. This may be because the public key
@@ -262,7 +278,11 @@ impl Error {
             // Errors related to unsupported features.
             Self::UnsupportedCrlSignatureAlgorithmForPublicKey
             | Self::UnsupportedSignatureAlgorithmForPublicKey => 150,
-            Self::UnsupportedCrlSignatureAlgorithm | Self::UnsupportedSignatureAlgorithm => 140,
+            #[allow(deprecated)]
+            Self::UnsupportedCrlSignatureAlgorithm
+            | Self::UnsupportedCrlSignatureAlgorithmContext(_)
+            | Self::UnsupportedSignatureAlgorithm
+            | Self::UnsupportedSignatureAlgorithmContext(_) => 140,
             Self::UnsupportedCriticalExtension => 130,
             Self::UnsupportedCertVersion => 130,
             Self::UnsupportedCrlVersion => 120,
@@ -341,6 +361,19 @@ pub struct InvalidNameContext {
     /// with or without a wildcard label as well as IP address names.
     #[cfg(feature = "alloc")]
     pub presented: Vec<String>,
+}
+
+/// Additional context for the `UnsupportedSignatureAlgorithm` error variant.
+///
+/// The contents of this type depend on whether the `alloc` feature is enabled.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnsupportedSignatureAlgorithmContext {
+    /// The signature algorithm OID that was unsupported.
+    #[cfg(feature = "alloc")]
+    pub signature_algorithm_id: Vec<u8>,
+    /// Supported algorithms that were available for signature verification.
+    #[cfg(feature = "alloc")]
+    pub supported_algorithms: Vec<AlgorithmIdentifier>,
 }
 
 /// Trailing data was found while parsing DER-encoded input for the named type.

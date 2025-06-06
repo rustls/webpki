@@ -260,7 +260,7 @@ pub static ED25519: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
 #[cfg(test)]
 #[path = "."]
 mod tests {
-    use crate::Error;
+    use crate::error::{Error, UnsupportedSignatureAlgorithmContext};
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
@@ -288,17 +288,36 @@ mod tests {
         super::ML_DSA_87,
     ];
 
-    const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error =
-        Error::UnsupportedSignatureAlgorithmForPublicKey;
-
-    const UNSUPPORTED_ECDSA_SHA512_SIGNATURE: Error =
-        Error::UnsupportedSignatureAlgorithmForPublicKey;
-
-    const INVALID_SIGNATURE_FOR_RSA_KEY: Error = Error::InvalidSignatureForPublicKey;
-
-    const OK_IF_RSA_AVAILABLE: Result<(), Error> = Ok(());
     const OK_IF_POINT_COMPRESSION_SUPPORTED: Result<(), Error> = Ok(());
 
     #[path = "alg_tests.rs"]
     mod alg_tests;
+
+    fn maybe_rsa() -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn unsupported_for_rsa() -> Error {
+        Error::UnsupportedSignatureAlgorithmForPublicKey
+    }
+
+    fn invalid_rsa_signature() -> Error {
+        Error::InvalidSignatureForPublicKey
+    }
+
+    fn unsupported_for_ecdsa(_: &[u8]) -> Error {
+        Error::UnsupportedSignatureAlgorithmForPublicKey
+    }
+
+    fn unsupported(_sig_alg_id: &[u8]) -> Error {
+        Error::UnsupportedSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext {
+            #[cfg(feature = "alloc")]
+            signature_algorithm_id: _sig_alg_id.to_vec(),
+            #[cfg(feature = "alloc")]
+            supported_algorithms: SUPPORTED_ALGORITHMS_IN_TESTS
+                .iter()
+                .map(|&alg| alg.signature_alg_id())
+                .collect(),
+        })
+    }
 }
