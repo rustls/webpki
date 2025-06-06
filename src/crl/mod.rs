@@ -210,7 +210,9 @@ impl KeyUsageMode {
 // signature, not a certificate.
 fn crl_signature_err(err: Error) -> Error {
     match err {
+        #[allow(deprecated)]
         Error::UnsupportedSignatureAlgorithm => Error::UnsupportedCrlSignatureAlgorithm,
+        Error::UnsupportedSignatureAlgorithmContext(cx) => Error::UnsupportedCrlSignatureAlgorithmContext(cx),
         Error::UnsupportedSignatureAlgorithmForPublicKey => {
             Error::UnsupportedCrlSignatureAlgorithmForPublicKey
         }

@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use crate::der::{self, FromDer};
-use crate::error::{DerTypeId, Error};
+use crate::error::{DerTypeId, Error, UnsupportedSignatureAlgorithmContext};
 use crate::verify_cert::Budget;
 
 use pki_types::SignatureVerificationAlgorithm;
@@ -204,7 +204,17 @@ pub(crate) fn verify_signed_data(
     if found_signature_alg_match {
         Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
     } else {
-        Err(Error::UnsupportedSignatureAlgorithm)
+        Err(Error::UnsupportedSignatureAlgorithmContext(
+            UnsupportedSignatureAlgorithmContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: signed_data.algorithm.as_slice_less_safe().to_vec(),
+                #[cfg(feature = "alloc")]
+                supported_algorithms: supported_algorithms
+                    .iter()
+                    .map(|&alg| alg.signature_alg_id())
+                    .collect(),
+            },
+        ))
     }
 }
 
