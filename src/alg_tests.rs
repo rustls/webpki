@@ -18,7 +18,7 @@ use std::prelude::v1::*;
 
 use base64::{Engine as _, engine::general_purpose};
 
-use crate::error::{DerTypeId, Error};
+use crate::error::{DerTypeId, Error, UnsupportedSignatureAlgorithmForPublicKeyContext};
 use crate::verify_cert::Budget;
 use crate::{der, signed_data};
 
@@ -112,9 +112,10 @@ fn test_ecdsa_prime256v1_sha512_spki_params_null() {
         test_verify_signed_data(test_file_bytes!(
             "ecdsa-prime256v1-sha512-spki-params-null.pem"
         )),
-        Err(unsupported_for_ecdsa(&[
-            6, 8, 42, 134, 72, 206, 61, 4, 3, 4
-        ]))
+        Err(unsupported_for_ecdsa(
+            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &[6, 7, 42, 134, 72, 206, 61, 2, 1, 5, 0]
+        ))
     );
 }
 
@@ -136,9 +137,10 @@ fn test_ecdsa_prime256v1_sha512_using_ecdh_key() {
         test_verify_signed_data(test_file_bytes!(
             "ecdsa-prime256v1-sha512-using-ecdh-key.pem"
         )),
-        Err(unsupported_for_ecdsa(&[
-            6, 8, 42, 134, 72, 206, 61, 4, 3, 4
-        ]))
+        Err(unsupported_for_ecdsa(
+            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &[6, 5, 43, 129, 4, 1, 12, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7]
+        ))
     );
 }
 
@@ -150,9 +152,10 @@ fn test_ecdsa_prime256v1_sha512_using_ecmqv_key() {
         test_verify_signed_data(test_file_bytes!(
             "ecdsa-prime256v1-sha512-using-ecmqv-key.pem"
         )),
-        Err(unsupported_for_ecdsa(&[
-            6, 8, 42, 134, 72, 206, 61, 4, 3, 4
-        ]))
+        Err(unsupported_for_ecdsa(
+            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &[6, 5, 43, 129, 4, 1, 13, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7]
+        ))
     );
 }
 
@@ -162,7 +165,12 @@ fn test_ecdsa_prime256v1_sha512_using_rsa_algorithm() {
         test_verify_signed_data(test_file_bytes!(
             "ecdsa-prime256v1-sha512-using-rsa-algorithm.pem"
         )),
-        Err(unsupported_for_rsa())
+        Err(unsupported_for_rsa(
+            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 13, 5, 0],
+            &[
+                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
+            ]
+        ))
     );
 }
 
@@ -174,9 +182,12 @@ fn test_ecdsa_prime256v1_sha512_wrong_signature_format() {
         test_verify_signed_data(test_file_bytes!(
             "ecdsa-prime256v1-sha512-wrong-signature-format.pem"
         )),
-        Err(unsupported_for_ecdsa(&[
-            6, 8, 42, 134, 72, 206, 61, 4, 3, 4
-        ]))
+        Err(unsupported_for_ecdsa(
+            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &[
+                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
+            ]
+        ))
     );
 }
 
@@ -185,9 +196,12 @@ fn test_ecdsa_prime256v1_sha512_wrong_signature_format() {
 fn test_ecdsa_prime256v1_sha512() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("ecdsa-prime256v1-sha512.pem")),
-        Err(unsupported_for_ecdsa(&[
-            6, 8, 42, 134, 72, 206, 61, 4, 3, 4
-        ]))
+        Err(unsupported_for_ecdsa(
+            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &[
+                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
+            ]
+        ))
     );
 }
 
@@ -213,7 +227,14 @@ fn test_ecdsa_secp384r1_sha256() {
 fn test_ecdsa_using_rsa_key() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("ecdsa-using-rsa-key.pem")),
-        Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+            UnsupportedSignatureAlgorithmForPublicKeyContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: vec![6, 8, 42, 134, 72, 206, 61, 4, 3, 2],
+                #[cfg(feature = "alloc")]
+                public_key_algorithm_id: vec![6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0],
+            }
+        ))
     );
 }
 
@@ -300,7 +321,10 @@ fn test_rsa_pkcs1_sha256_spki_non_null_params() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pkcs1-sha256-spki-non-null-params.pem"
         )),
-        Err(unsupported_for_rsa())
+        Err(unsupported_for_rsa(
+            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0],
+            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 2, 0]
+        ))
     );
 }
 
@@ -310,7 +334,14 @@ fn test_rsa_pkcs1_sha256_using_ecdsa_algorithm() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pkcs1-sha256-using-ecdsa-algorithm.pem"
         )),
-        Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+            UnsupportedSignatureAlgorithmForPublicKeyContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: vec![6, 8, 42, 134, 72, 206, 61, 4, 3, 2],
+                #[cfg(feature = "alloc")]
+                public_key_algorithm_id: vec![6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0],
+            }
+        ))
     );
 }
 
@@ -318,7 +349,10 @@ fn test_rsa_pkcs1_sha256_using_ecdsa_algorithm() {
 fn test_rsa_pkcs1_sha256_using_id_ea_rsa() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pkcs1-sha256-using-id-ea-rsa.pem")),
-        Err(unsupported_for_rsa())
+        Err(unsupported_for_rsa(
+            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0],
+            &[6, 4, 85, 8, 1, 1, 5, 0]
+        ))
     );
 }
 
@@ -478,7 +512,12 @@ fn test_rsa_pss_sha512_salt64_corrupted_data() {
 fn test_rsa_using_ec_key() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-using-ec-key.pem")),
-        Err(unsupported_for_rsa())
+        Err(unsupported_for_rsa(
+            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0],
+            &[
+                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
+            ]
+        ))
     );
 }
 

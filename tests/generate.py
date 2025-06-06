@@ -772,10 +772,10 @@ def signatures(force: bool) -> None:
 fn %(test_name_lower)s() {
     let ee = include_bytes!("%(cert_path)s");
     for algorithm in &[ %(unusable_algs_str)s ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }"""
             % locals(),

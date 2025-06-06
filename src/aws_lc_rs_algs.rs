@@ -234,7 +234,10 @@ pub static ED25519: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
 #[cfg(test)]
 #[path = "."]
 mod tests {
-    use crate::error::{Error, UnsupportedSignatureAlgorithmContext};
+    use crate::error::{
+        Error, UnsupportedSignatureAlgorithmContext,
+        UnsupportedSignatureAlgorithmForPublicKeyContext,
+    };
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
@@ -265,16 +268,30 @@ mod tests {
         Ok(())
     }
 
-    fn unsupported_for_rsa() -> Error {
-        Error::UnsupportedSignatureAlgorithmForPublicKey
+    fn unsupported_for_rsa(_sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
+        Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+            UnsupportedSignatureAlgorithmForPublicKeyContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: _sig_alg_id.to_vec(),
+                #[cfg(feature = "alloc")]
+                public_key_algorithm_id: _public_key_alg_id.to_vec(),
+            },
+        )
     }
 
     fn invalid_rsa_signature() -> Error {
         Error::InvalidSignatureForPublicKey
     }
 
-    fn unsupported_for_ecdsa(_: &[u8]) -> Error {
-        Error::UnsupportedSignatureAlgorithmForPublicKey
+    fn unsupported_for_ecdsa(_sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
+        Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+            UnsupportedSignatureAlgorithmForPublicKeyContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: _sig_alg_id.to_vec(),
+                #[cfg(feature = "alloc")]
+                public_key_algorithm_id: _public_key_alg_id.to_vec(),
+            },
+        )
     }
 
     fn unsupported(_sig_alg_id: &[u8]) -> Error {

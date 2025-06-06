@@ -123,10 +123,10 @@ fn ed25519_key_rejected_by_other_algorithms() {
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 
@@ -245,10 +245,10 @@ fn ecdsa_p256_key_rejected_by_other_algorithms() {
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 
@@ -367,10 +367,10 @@ fn ecdsa_p384_key_rejected_by_other_algorithms() {
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 
@@ -544,10 +544,10 @@ fn ecdsa_p521_key_rejected_by_other_algorithms() {
         RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
         RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 
@@ -879,10 +879,10 @@ fn rsa_2048_key_rejected_by_other_algorithms() {
         ECDSA_P384_SHA384,
         ED25519,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 
@@ -1266,10 +1266,10 @@ fn rsa_3072_key_rejected_by_other_algorithms() {
         ECDSA_P384_SHA384,
         ED25519,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 
@@ -1653,10 +1653,10 @@ fn rsa_4096_key_rejected_by_other_algorithms() {
         ECDSA_P384_SHA384,
         ED25519,
     ] {
-        assert_eq!(
+        assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey)
-        );
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+        ));
     }
 }
 

@@ -213,6 +213,8 @@ pub static ED25519: &dyn SignatureVerificationAlgorithm = &RingAlgorithm {
 #[cfg(test)]
 #[path = "."]
 mod tests {
+    #[cfg(feature = "alloc")]
+    use crate::error::UnsupportedSignatureAlgorithmForPublicKeyContext;
     use crate::error::{Error, UnsupportedSignatureAlgorithmContext};
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
@@ -256,14 +258,19 @@ mod tests {
         }
     }
 
-    fn unsupported_for_rsa() -> Error {
+    fn unsupported_for_rsa(sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
         #[cfg(feature = "alloc")]
         {
-            Error::UnsupportedSignatureAlgorithmForPublicKey
+            Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+                UnsupportedSignatureAlgorithmForPublicKeyContext {
+                    signature_algorithm_id: sig_alg_id.to_vec(),
+                    public_key_algorithm_id: _public_key_alg_id.to_vec(),
+                },
+            )
         }
         #[cfg(not(feature = "alloc"))]
         {
-            unsupported(&[])
+            unsupported(sig_alg_id)
         }
     }
 
@@ -278,7 +285,7 @@ mod tests {
         }
     }
 
-    fn unsupported_for_ecdsa(sig_alg_id: &[u8]) -> Error {
+    fn unsupported_for_ecdsa(sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
         unsupported(sig_alg_id)
     }
 
