@@ -479,6 +479,62 @@ fn test_ecdsa_prime256v1_sha256_spki_inside_spki() {
     );
 }
 
+#[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
+mod aws_lc_rs_unstable {
+    use pki_types::CertificateDer;
+    use pki_types::pem::PemObject;
+    use untrusted::Input;
+
+    use super::*;
+    use crate::cert::Cert;
+    use crate::signed_data::verify_signed_data;
+
+    /// From <https://www.ietf.org/archive/id/draft-ietf-lamps-dilithium-certificates-11.html#name-example-certificates>.
+    #[test]
+    fn self_signed_ml_dsa_44() {
+        let pem = include_bytes!("../tests/tls_server_certs/ml-dsa-44-certificate.pem");
+        let der = CertificateDer::from_pem_slice(pem).unwrap();
+        let cert = Cert::from_der(Input::from(&der)).unwrap();
+        verify_signed_data(
+            SUPPORTED_ALGORITHMS_IN_TESTS,
+            cert.spki,
+            &cert.signed_data,
+            &mut Budget::default(),
+        )
+        .unwrap();
+    }
+
+    /// From <https://www.ietf.org/archive/id/draft-ietf-lamps-dilithium-certificates-11.html#name-example-certificates>.
+    #[test]
+    fn self_signed_ml_dsa_65() {
+        let pem = include_bytes!("../tests/tls_server_certs/ml-dsa-65-certificate.pem");
+        let der = CertificateDer::from_pem_slice(pem).unwrap();
+        let cert = Cert::from_der(Input::from(&der)).unwrap();
+        verify_signed_data(
+            SUPPORTED_ALGORITHMS_IN_TESTS,
+            cert.spki,
+            &cert.signed_data,
+            &mut Budget::default(),
+        )
+        .unwrap();
+    }
+
+    /// From <https://www.ietf.org/archive/id/draft-ietf-lamps-dilithium-certificates-11.html#name-example-certificates>.
+    #[test]
+    fn self_signed_ml_dsa_87() {
+        let pem = include_bytes!("../tests/tls_server_certs/ml-dsa-87-certificate.pem");
+        let der = CertificateDer::from_pem_slice(pem).unwrap();
+        let cert = Cert::from_der(Input::from(&der)).unwrap();
+        verify_signed_data(
+            SUPPORTED_ALGORITHMS_IN_TESTS,
+            cert.spki,
+            &cert.signed_data,
+            &mut Budget::default(),
+        )
+        .unwrap();
+    }
+}
+
 struct TestSignedData {
     spki: Vec<u8>,
     data: Vec<u8>,
