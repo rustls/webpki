@@ -118,8 +118,10 @@ jobs:
           - --no-default-features --features ring
           - --no-default-features --features alloc,aws-lc-rs
           - --no-default-features --features alloc,ring
-          - --features aws-lc-rs # `std` is enabled by default
-          - --features ring # `std` is enabled by default
+          # `std` is enabled by default
+          - --features aws-lc-rs
+          - --features aws-lc-rs-unstable
+          - --features ring
 
         host_os:
           - ubuntu-latest
