@@ -694,13 +694,14 @@ def signatures(force: bool) -> None:
 
         sig_path: str = os.path.join(output_dir, f"{lower_test_name}.sig.bin")
         write_der(sig_path, signature, force)
-        feature_gate = feature_gates.get(algorithm, 'feature = "alloc"')
+        feature_gate: str = feature_gates.get(algorithm, "")
+        if feature_gate:
+            feature_gate = f"#[cfg({feature_gate})]\n"
 
         print(
             """
 #[test]
-#[cfg(%(feature_gate)s)]
-fn %(lower_test_name)s() {
+%(feature_gate)sfn %(lower_test_name)s() {
     let ee = include_bytes!("%(cert_path)s");
     let message = include_bytes!("%(message_path)s");
     let signature = include_bytes!("%(sig_path)s");
@@ -716,8 +717,7 @@ fn %(lower_test_name)s() {
         print(
             """
 #[test]
-#[cfg(%(feature_gate)s)]
-fn %(lower_test_name)s_rpk() {
+%(feature_gate)sfn %(lower_test_name)s_rpk() {
     let rpk = include_bytes!("%(rpk_path)s");
     let message = include_bytes!("%(message_path)s");
     let signature = include_bytes!("%(sig_path)s");
@@ -769,7 +769,6 @@ fn %(lower_test_name)s_rpk() {
         print(
             """
 #[test]
-#[cfg(feature = "alloc")]
 fn %(test_name_lower)s() {
     let ee = include_bytes!("%(cert_path)s");
     for algorithm in &[ %(unusable_algs_str)s ] {
