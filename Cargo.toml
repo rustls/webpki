@@ -112,3 +112,6 @@ codegen-units = 1
 name = "benchmarks"
 path = "benches/benchmark.rs"
 harness = false
+
+[package.metadata.cargo-semver-checks.lints]
+enum_variant_marked_deprecated = "warn"
