@@ -110,117 +110,53 @@ jobs:
       matrix:
         features:
           - # Default
-          - --features=alloc
+          - --features alloc
           - --all-features
           - --no-default-features
-          - --no-default-features --features alloc,std,aws_lc_rs
-          - --no-default-features --features alloc,std,ring
+          - --no-default-features --features alloc
+          - --no-default-features --features aws-lc-rs
+          - --no-default-features --features ring
+          - --no-default-features --features alloc,aws-lc-rs
+          - --no-default-features --features alloc,ring
+          - --features aws-lc-rs # `std` is enabled by default
+          - --features ring # `std` is enabled by default
 
-        mode:
-          - # debug
-          - --release
+        host_os:
+          - ubuntu-latest
 
         rust_channel:
           - stable
-          - nightly
-          - beta
-
-        exclude:
-          - features: # Default
-          - features: --features=alloc
-          - features: --no-default-features
-          - features: --no-default-features --features alloc,std
-          - features: --no-default-features --features alloc,std,aws_lc_rs
-          - features: --no-default-features --features alloc,std,ring
-          - features: --all-features
-            mode: --release
-          - features: --all-features
-            mode: # debug
-            rust_channel: nightly
-          - features: --all-features
-            mode: # debug
-            rust_channel: beta
 
         include:
-          - features: # Default
-            mode: # debug
-            rust_channel: stable
-            host_os: ubuntu-latest
-
-          - features: --features=alloc
-            mode: # debug
-            rust_channel: stable
-            host_os: ubuntu-latest
-
-          - features: --no-default-features
-            mode: # debug
-            rust_channel: stable
-            host_os: ubuntu-latest
-
-          - features: --no-default-features --features alloc,std
-            mode: # debug
-            rust_channel: stable
-            host_os: ubuntu-latest
-
-          - features: --all-features
-            mode: --release
-            rust_channel: stable
-            host_os: ubuntu-latest
-
-          - features: --all-features
-            mode: # debug
-            rust_channel: nightly
-            host_os: ubuntu-latest
-
-          - features: --all-features
-            mode: # debug
+          # Test aws-lc-rs across Rust channels
+          - features: --features aws-lc-rs
             rust_channel: beta
             host_os: ubuntu-latest
 
-          - features: --all-features
-            mode: # debug
-            rust_channel: stable
-            host_os: macos-latest
-
-          - features: --all-features
-            mode: # debug
-            rust_channel: stable
-            host_os: windows-latest
-
-          - features: --all-features
-            mode: # debug
-            rust_channel: stable
+          - features: --features aws-lc-rs
+            rust_channel: nightly
             host_os: ubuntu-latest
 
-          # check aws-lc-rs alone
-          - features: --no-default-features --features alloc,std,aws-lc-rs
-            mode: # debug
+          # Test aws-lc-rs across OSes
+          - features: --features aws-lc-rs
             rust_channel: stable
             host_os: macos-latest
 
-          - features: --no-default-features --features alloc,std,aws-lc-rs
-            mode: # debug
+          - features: --features aws-lc-rs
             rust_channel: stable
             host_os: windows-latest
 
-          - features: --no-default-features --features alloc,std,aws-lc-rs
-            mode: # debug
-            rust_channel: stable
-            host_os: ubuntu-latest
-
-          # check ring alone
-          - features: --no-default-features --features alloc,std,ring
-            mode: # debug
+          # Test ring across OSes
+          - features: --features ring
             rust_channel: stable
             host_os: macos-latest
 
-          - features: --no-default-features --features alloc,std,ring
-            mode: # debug
+          - features: --features ring
             rust_channel: stable
             host_os: windows-latest
 
-          - features: --no-default-features --features alloc,std,ring
-            mode: # debug
+          # Test aws-lc-rs-fips on Linux only (stable only)
+          - features: --features aws-lc-rs-fips
             rust_channel: stable
             host_os: ubuntu-latest
 
@@ -239,8 +175,8 @@ jobs:
         if: runner.os == 'Windows'
         uses: seanmiddleditch/gha-setup-ninja@v6
 
-      - name: cargo test (${{ matrix.mode }}, ${{ matrix.features }})
-        run: cargo test --locked ${{ matrix.features }} ${{ matrix.mode }} -- --include-ignored
+      - name: cargo test (${{ matrix.features }})
+        run: cargo test --locked ${{ matrix.features }} -- --include-ignored
         env:
           RUSTFLAGS: "-D warnings"
           AWS_LC_SYS_PREBUILT_NASM: "1" # for benefit of rcgen
