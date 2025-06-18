@@ -49,6 +49,7 @@ fn netflix() {
 }
 
 /// See also https://github.com/rustls/rustls/issues/2448
+#[cfg(feature = "alloc")]
 #[test]
 fn sanofi_rsa_signature_with_absent_algorithm_params() {
     let ee: &[u8] = include_bytes!("sanofi/ee.der");

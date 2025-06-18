@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: ISC
-#![cfg(any(feature = "ring", feature = "aws-lc-rs"))]
+#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
 
 use core::time::Duration;
 
