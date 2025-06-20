@@ -115,7 +115,7 @@ fn test_ecdsa_prime256v1_sha512_spki_params_null() {
         )),
         Err(unsupported_for_ecdsa(
             &alg_id::ECDSA_SHA512,
-            &[6, 7, 42, 134, 72, 206, 61, 2, 1, 5, 0]
+            include_bytes!("data/test/id-ecpublickey-params-null.der")
         ))
     );
 }
