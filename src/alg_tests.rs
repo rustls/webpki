@@ -140,7 +140,7 @@ fn test_ecdsa_prime256v1_sha512_using_ecdh_key() {
         )),
         Err(unsupported_for_ecdsa(
             &alg_id::ECDSA_SHA512,
-            &[6, 5, 43, 129, 4, 1, 12, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7]
+            include_bytes!("data/test/ecdh-secp256r1.der")
         ))
     );
 }
