@@ -312,7 +312,7 @@ fn test_rsa_pkcs1_sha256_spki_non_null_params() {
         )),
         Err(unsupported_for_rsa(
             &alg_id::RSA_PKCS1_SHA256,
-            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 2, 0]
+            include_bytes!("data/test/rsae-bad-params.der")
         ))
     );
 }
