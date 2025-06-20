@@ -168,9 +168,7 @@ fn test_ecdsa_prime256v1_sha512_using_rsa_algorithm() {
         )),
         Err(unsupported_for_rsa(
             &alg_id::RSA_PKCS1_SHA512,
-            &[
-                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
-            ]
+            &alg_id::ECDSA_P256,
         ))
     );
 }
@@ -185,9 +183,7 @@ fn test_ecdsa_prime256v1_sha512_wrong_signature_format() {
         )),
         Err(unsupported_for_ecdsa(
             &alg_id::ECDSA_SHA512,
-            &[
-                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
-            ]
+            &alg_id::ECDSA_P256,
         ))
     );
 }
@@ -199,9 +195,7 @@ fn test_ecdsa_prime256v1_sha512() {
         test_verify_signed_data(test_file_bytes!("ecdsa-prime256v1-sha512.pem")),
         Err(unsupported_for_ecdsa(
             &alg_id::ECDSA_SHA512,
-            &[
-                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
-            ]
+            &alg_id::ECDSA_P256,
         ))
     );
 }
