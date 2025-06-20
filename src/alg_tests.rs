@@ -353,9 +353,7 @@ fn test_rsa_pss_sha1_salt20_using_pss_key_no_params() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pss-sha1-salt20-using-pss-key-no-params.pem"
         )),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 0
-        ]))
+        Err(unsupported(include_bytes!("data/test/rsapss-defaults.der")))
     );
 }
 
@@ -365,18 +363,14 @@ fn test_rsa_pss_sha1_salt20_using_pss_key_with_null_params() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pss-sha1-salt20-using-pss-key-with-null-params.pem"
         )),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 0
-        ]))
+        Err(unsupported(include_bytes!("data/test/rsapss-defaults.der")))
     );
 }
 #[test]
 fn test_rsa_pss_sha1_salt20() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pss-sha1-salt20.pem")),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 0
-        ]))
+        Err(unsupported(include_bytes!("data/test/rsapss-defaults.der")))
     );
 }
 
