@@ -378,9 +378,7 @@ fn test_rsa_pss_sha1_salt20() {
 fn test_rsa_pss_sha1_wrong_salt() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pss-sha1-wrong-salt.pem")),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 5, 162, 3, 2, 1, 23
-        ]))
+        Err(unsupported(include_bytes!("data/test/rsapss-salt23.der")))
     );
 }
 
