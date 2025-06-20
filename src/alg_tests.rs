@@ -225,7 +225,7 @@ fn test_ecdsa_using_rsa_key() {
         Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
-                signature_algorithm_id: vec![6, 8, 42, 134, 72, 206, 61, 4, 3, 2],
+                signature_algorithm_id: alg_id::ECDSA_SHA256.as_ref().to_vec(),
                 #[cfg(feature = "alloc")]
                 public_key_algorithm_id: vec![6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0],
             }
@@ -332,7 +332,7 @@ fn test_rsa_pkcs1_sha256_using_ecdsa_algorithm() {
         Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
-                signature_algorithm_id: vec![6, 8, 42, 134, 72, 206, 61, 4, 3, 2],
+                signature_algorithm_id: alg_id::ECDSA_SHA256.as_ref().to_vec(),
                 #[cfg(feature = "alloc")]
                 public_key_algorithm_id: vec![6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0],
             }
