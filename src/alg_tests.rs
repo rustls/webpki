@@ -487,9 +487,7 @@ fn test_rsa_using_ec_key() {
         test_verify_signed_data(test_file_bytes!("rsa-using-ec-key.pem")),
         Err(unsupported_for_rsa(
             &alg_id::RSA_PKCS1_SHA256,
-            &[
-                6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
-            ]
+            &alg_id::ECDSA_P256
         ))
     );
 }
