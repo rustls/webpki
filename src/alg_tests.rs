@@ -167,7 +167,7 @@ fn test_ecdsa_prime256v1_sha512_using_rsa_algorithm() {
             "ecdsa-prime256v1-sha512-using-rsa-algorithm.pem"
         )),
         Err(unsupported_for_rsa(
-            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 13, 5, 0],
+            &alg_id::RSA_PKCS1_SHA512,
             &[
                 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
             ]
