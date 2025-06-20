@@ -398,11 +398,9 @@ fn test_rsa_pss_sha256_salt10_using_pss_key_with_params() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pss-sha256-salt10-using-pss-key-with-params.pem"
         )),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 52, 160, 15, 48, 13, 6, 9, 96, 134, 72,
-            1, 101, 3, 4, 2, 1, 5, 0, 161, 28, 48, 26, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 8,
-            48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 1, 5, 0, 162, 3, 2, 1, 10
-        ]))
+        Err(unsupported(include_bytes!(
+            "data/test/rsapss-sha256-mgf1-sha256-salt10.der"
+        )))
     );
 }
 #[test]
@@ -411,11 +409,9 @@ fn test_rsa_pss_sha256_salt10_using_pss_key_with_wrong_params() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pss-sha256-salt10-using-pss-key-with-wrong-params.pem"
         )),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 52, 160, 15, 48, 13, 6, 9, 96, 134, 72,
-            1, 101, 3, 4, 2, 1, 5, 0, 161, 28, 48, 26, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 8,
-            48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 1, 5, 0, 162, 3, 2, 1, 10
-        ]))
+        Err(unsupported(include_bytes!(
+            "data/test/rsapss-sha256-mgf1-sha256-salt10.der"
+        )))
     );
 }
 
@@ -423,11 +419,9 @@ fn test_rsa_pss_sha256_salt10_using_pss_key_with_wrong_params() {
 fn test_rsa_pss_sha256_salt10() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pss-sha256-salt10.pem")),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 52, 160, 15, 48, 13, 6, 9, 96, 134, 72,
-            1, 101, 3, 4, 2, 1, 5, 0, 161, 28, 48, 26, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 8,
-            48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 1, 5, 0, 162, 3, 2, 1, 10
-        ]))
+        Err(unsupported(include_bytes!(
+            "data/test/rsapss-sha256-mgf1-sha256-salt10.der"
+        )))
     );
 }
 
