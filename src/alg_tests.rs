@@ -17,6 +17,7 @@
 use std::prelude::v1::*;
 
 use base64::{Engine as _, engine::general_purpose};
+use pki_types::alg_id;
 
 use crate::error::{DerTypeId, Error, UnsupportedSignatureAlgorithmForPublicKeyContext};
 use crate::verify_cert::Budget;
@@ -113,7 +114,7 @@ fn test_ecdsa_prime256v1_sha512_spki_params_null() {
             "ecdsa-prime256v1-sha512-spki-params-null.pem"
         )),
         Err(unsupported_for_ecdsa(
-            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &alg_id::ECDSA_SHA512,
             &[6, 7, 42, 134, 72, 206, 61, 2, 1, 5, 0]
         ))
     );
@@ -138,7 +139,7 @@ fn test_ecdsa_prime256v1_sha512_using_ecdh_key() {
             "ecdsa-prime256v1-sha512-using-ecdh-key.pem"
         )),
         Err(unsupported_for_ecdsa(
-            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &alg_id::ECDSA_SHA512,
             &[6, 5, 43, 129, 4, 1, 12, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7]
         ))
     );
@@ -153,7 +154,7 @@ fn test_ecdsa_prime256v1_sha512_using_ecmqv_key() {
             "ecdsa-prime256v1-sha512-using-ecmqv-key.pem"
         )),
         Err(unsupported_for_ecdsa(
-            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &alg_id::ECDSA_SHA512,
             &[6, 5, 43, 129, 4, 1, 13, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7]
         ))
     );
@@ -183,7 +184,7 @@ fn test_ecdsa_prime256v1_sha512_wrong_signature_format() {
             "ecdsa-prime256v1-sha512-wrong-signature-format.pem"
         )),
         Err(unsupported_for_ecdsa(
-            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &alg_id::ECDSA_SHA512,
             &[
                 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
             ]
@@ -197,7 +198,7 @@ fn test_ecdsa_prime256v1_sha512() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("ecdsa-prime256v1-sha512.pem")),
         Err(unsupported_for_ecdsa(
-            &[6, 8, 42, 134, 72, 206, 61, 4, 3, 4],
+            &alg_id::ECDSA_SHA512,
             &[
                 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
             ]
