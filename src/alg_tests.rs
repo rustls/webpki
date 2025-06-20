@@ -340,7 +340,7 @@ fn test_rsa_pkcs1_sha256_using_id_ea_rsa() {
         test_verify_signed_data(test_file_bytes!("rsa-pkcs1-sha256-using-id-ea-rsa.pem")),
         Err(unsupported_for_rsa(
             &alg_id::RSA_PKCS1_SHA256,
-            &[6, 4, 85, 8, 1, 1, 5, 0]
+            include_bytes!("data/test/rsa-null-params.der")
         ))
     );
 }
