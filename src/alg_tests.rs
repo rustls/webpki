@@ -386,11 +386,9 @@ fn test_rsa_pss_sha1_wrong_salt() {
 fn test_rsa_pss_sha256_mgf1_sha512_salt33() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pss-sha256-mgf1-sha512-salt33.pem")),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 10, 48, 52, 160, 15, 48, 13, 6, 9, 96, 134, 72,
-            1, 101, 3, 4, 2, 1, 5, 0, 161, 28, 48, 26, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 8,
-            48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 3, 5, 0, 162, 3, 2, 1, 33
-        ]))
+        Err(unsupported(include_bytes!(
+            "data/test/rsapss-sha256-mgf1-sha512-salt33.der"
+        )))
     );
 }
 
