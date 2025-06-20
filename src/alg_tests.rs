@@ -253,9 +253,7 @@ fn test_rsa_pkcs1_sha1_bad_key_der_null() {
 fn test_rsa_pkcs1_sha1_key_params_absent() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pkcs1-sha1-key-params-absent.pem")),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 5, 5, 0
-        ]))
+        Err(unsupported(include_bytes!("data/test/rsae-sha1.der")))
     );
 }
 
@@ -265,9 +263,7 @@ fn test_rsa_pkcs1_sha1_using_pss_key_no_params() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pkcs1-sha1-using-pss-key-no-params.pem"
         )),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 5, 5, 0
-        ],))
+        Err(unsupported(include_bytes!("data/test/rsae-sha1.der")))
     );
 }
 
@@ -283,9 +279,7 @@ fn test_rsa_pkcs1_sha1_wrong_algorithm() {
 fn test_rsa_pkcs1_sha1() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pkcs1-sha1.pem")),
-        Err(unsupported(&[
-            6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 5, 5, 0
-        ]))
+        Err(unsupported(include_bytes!("data/test/rsae-sha1.der")))
     );
 }
 
