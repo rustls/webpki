@@ -311,7 +311,7 @@ fn test_rsa_pkcs1_sha256_spki_non_null_params() {
             "rsa-pkcs1-sha256-spki-non-null-params.pem"
         )),
         Err(unsupported_for_rsa(
-            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0],
+            &alg_id::RSA_PKCS1_SHA256,
             &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 2, 0]
         ))
     );
@@ -339,7 +339,7 @@ fn test_rsa_pkcs1_sha256_using_id_ea_rsa() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-pkcs1-sha256-using-id-ea-rsa.pem")),
         Err(unsupported_for_rsa(
-            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0],
+            &alg_id::RSA_PKCS1_SHA256,
             &[6, 4, 85, 8, 1, 1, 5, 0]
         ))
     );
@@ -502,7 +502,7 @@ fn test_rsa_using_ec_key() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("rsa-using-ec-key.pem")),
         Err(unsupported_for_rsa(
-            &[6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0],
+            &alg_id::RSA_PKCS1_SHA256,
             &[
                 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7
             ]
