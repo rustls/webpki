@@ -227,7 +227,7 @@ fn test_ecdsa_using_rsa_key() {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: alg_id::ECDSA_SHA256.as_ref().to_vec(),
                 #[cfg(feature = "alloc")]
-                public_key_algorithm_id: vec![6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0],
+                public_key_algorithm_id: alg_id::RSA_ENCRYPTION.as_ref().to_vec(),
             }
         ))
     );
@@ -328,7 +328,7 @@ fn test_rsa_pkcs1_sha256_using_ecdsa_algorithm() {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: alg_id::ECDSA_SHA256.as_ref().to_vec(),
                 #[cfg(feature = "alloc")]
-                public_key_algorithm_id: vec![6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0],
+                public_key_algorithm_id: alg_id::RSA_ENCRYPTION.as_ref().to_vec(),
             }
         ))
     );
