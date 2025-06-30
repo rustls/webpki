@@ -340,7 +340,7 @@ impl fmt::Debug for IpAddrSlice<'_> {
                         false => f.write_str(".")?,
                     }
 
-                    write!(f, "{}", byte)?;
+                    write!(f, "{byte}")?;
                 }
 
                 Ok(())
@@ -380,7 +380,7 @@ impl fmt::Debug for IpAddrSlice<'_> {
                         true => first = false,
                         false => f.write_str(", ")?,
                     }
-                    write!(f, "{:02x}", byte)?;
+                    write!(f, "{byte:02x}")?;
                 }
                 f.write_str("]")
             }
