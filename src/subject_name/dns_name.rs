@@ -896,8 +896,7 @@ mod tests {
             );
             assert_eq!(
                 &actual_result, expected_result,
-                "presented_id_matches_reference_id(\"{:?}\", \"{:?}\")",
-                presented, reference
+                "presented_id_matches_reference_id(\"{presented:?}\", \"{reference:?}\")"
             );
         }
     }
@@ -973,8 +972,7 @@ mod tests {
             );
             assert_eq!(
                 &actual_result, expected_result,
-                "presented_id_matches_constraint(\"{:?}\", \"{:?}\")",
-                presented, constraint,
+                "presented_id_matches_constraint(\"{presented:?}\", \"{constraint:?}\")",
             );
         }
     }

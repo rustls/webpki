@@ -62,7 +62,7 @@ fn load_or_generate(
         }
         Err(e) => match e.kind() {
             ErrorKind::NotFound => match File::create(crl_path) {
-                Err(e) => panic!("unexpected err creating CRL file: {:?}", e),
+                Err(e) => panic!("unexpected err creating CRL file: {e:?}"),
                 Ok(mut crl_file) => {
                     let new_crl = generate_crl(revoked_count);
                     crl_file.write_all(&new_crl).unwrap();
@@ -70,7 +70,7 @@ fn load_or_generate(
                 }
             },
             e => {
-                panic!("unexpected err opening CRL file: {:?}", e);
+                panic!("unexpected err opening CRL file: {e:?}");
             }
         },
     }

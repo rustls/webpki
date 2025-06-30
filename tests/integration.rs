@@ -112,7 +112,7 @@ fn cloudflare_dns() {
             Ok(()),
             cert.verify_is_valid_for_subject_name(&subject_name_ref)
         );
-        println!("{:?} ok as name", name);
+        println!("{name:?} ok as name");
     };
 
     let check_addr = |addr: &str| {
@@ -121,7 +121,7 @@ fn cloudflare_dns() {
             Ok(()),
             cert.verify_is_valid_for_subject_name(&subject_name_ref)
         );
-        println!("{:?} ok as address", addr);
+        println!("{addr:?} ok as address");
     };
 
     check_name("cloudflare-dns.com");

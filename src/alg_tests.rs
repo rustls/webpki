@@ -624,7 +624,7 @@ use alloc::str::Lines;
 
 fn read_pem_section(lines: &mut Lines<'_>, section_name: &str) -> Vec<u8> {
     // Skip comments and header
-    let begin_section = format!("-----BEGIN {}-----", section_name);
+    let begin_section = format!("-----BEGIN {section_name}-----");
     loop {
         let line = lines.next().unwrap();
         if line == begin_section {
@@ -634,7 +634,7 @@ fn read_pem_section(lines: &mut Lines<'_>, section_name: &str) -> Vec<u8> {
 
     let mut base64 = String::new();
 
-    let end_section = format!("-----END {}-----", section_name);
+    let end_section = format!("-----END {section_name}-----");
     loop {
         let line = lines.next().unwrap();
         if line == end_section {
