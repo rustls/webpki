@@ -699,8 +699,7 @@ mod alloc_tests {
             );
             assert_eq!(
                 &actual_result, expected_result,
-                "presented_id_matches_constraint(\"{:?}\", \"{:?}\")",
-                presented_bytes, constraint_bytes
+                "presented_id_matches_constraint(\"{presented_bytes:?}\", \"{constraint_bytes:?}\")"
             );
         }
     }

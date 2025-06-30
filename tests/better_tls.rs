@@ -94,9 +94,9 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
             });
 
         match testcase.expected {
-            ExpectedResult::Accept => assert!(result.is_ok(), "expected success, got {:?}", result),
+            ExpectedResult::Accept => assert!(result.is_ok(), "expected success, got {result:?}"),
             ExpectedResult::Reject => {
-                assert!(result.is_err(), "expected failure, got {:?}", result)
+                assert!(result.is_err(), "expected failure, got {result:?}")
             }
         }
     }

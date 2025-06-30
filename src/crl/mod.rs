@@ -302,7 +302,7 @@ mod tests {
         #[cfg(feature = "alloc")]
         {
             // The builder should be debug, and clone when alloc is enabled
-            std::println!("{:?}", builder);
+            std::println!("{builder:?}");
             _ = builder.clone();
         }
         let opts = builder.build();
