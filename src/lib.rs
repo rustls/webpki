@@ -79,7 +79,10 @@ pub use {
         UnknownStatusPolicy,
     },
     end_entity::EndEntityCert,
-    error::{DerTypeId, Error, InvalidNameContext},
+    error::{
+        DerTypeId, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
+        UnsupportedSignatureAlgorithmForPublicKeyContext,
+    },
     rpk_entity::RawPublicKeyEntity,
     trust_anchor::anchor_from_trusted_cert,
     verify_cert::{KeyUsage, RequiredEkuNotFoundContext, VerifiedPath},
