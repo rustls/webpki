@@ -99,7 +99,7 @@ fn test_certs(
     ekus: Vec<ExtendedKeyUsagePurpose>,
     name: &str,
 ) -> Result<(Certificate, Certificate), Box<dyn StdError>> {
-    let issuer = make_issuer(name)?;
-    let end_entity = make_end_entity(ekus, name, &issuer.cert, &issuer.key_pair)?;
-    Ok((end_entity.cert, issuer.cert))
+    let (issuer, issuer_cert) = make_issuer(name)?;
+    let end_entity = make_end_entity(ekus, name, &issuer)?;
+    Ok((end_entity.cert, issuer_cert))
 }

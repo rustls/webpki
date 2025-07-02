@@ -1,26 +1,24 @@
 #![cfg(feature = "alloc")]
 use std::prelude::v1::*;
 
+use rcgen::{Certificate, CertifiedKey, Issuer, KeyPair, SigningKey};
+
 #[cfg_attr(not(feature = "ring"), allow(dead_code))]
-pub(crate) fn make_end_entity(
-    issuer: &rcgen::Certificate,
-    issuer_key: &rcgen::KeyPair,
-) -> rcgen::CertifiedKey {
-    let key_pair = rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
-    rcgen::CertifiedKey {
+pub(crate) fn make_end_entity(issuer: &Issuer<'_, impl SigningKey>) -> CertifiedKey<KeyPair> {
+    let signing_key = KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
+    CertifiedKey {
         cert: end_entity_params(vec!["example.com".into()])
-            .signed_by(&key_pair, issuer, issuer_key)
+            .signed_by(&signing_key, issuer)
             .unwrap(),
-        key_pair,
+        signing_key,
     }
 }
 
-pub(crate) fn make_issuer(org_name: impl Into<String>) -> rcgen::CertifiedKey {
-    let key_pair = rcgen::KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
-    rcgen::CertifiedKey {
-        cert: issuer_params(org_name).self_signed(&key_pair).unwrap(),
-        key_pair,
-    }
+pub(crate) fn make_issuer(org_name: impl Into<String>) -> (Issuer<'static, KeyPair>, Certificate) {
+    let params = issuer_params(org_name);
+    let key_pair = KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
+    let cert = params.self_signed(&key_pair).unwrap();
+    (Issuer::new(params, key_pair), cert)
 }
 
 /// Populate a [CertificateParams] that describes an unconstrained issuer certificate capable
