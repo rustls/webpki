@@ -1037,42 +1037,39 @@ mod tests {
         ));
     }
 
+    /// This test builds a PKI like the following diagram depicts. We first verify
+    /// that we can build a path EE -> B -> A -> TA. Next we supply a custom path verification
+    /// function that rejects the B->A path, and verify that we build a path EE -> B -> C -> TA.
+    ///
+    ///        ┌───────────┐
+    ///        │           │
+    ///        │     TA    │
+    ///        │           │
+    ///        └───┬───┬───┘
+    ///            │   │
+    ///            │   │
+    /// ┌────────┐◄┘   └──►┌────────┐
+    /// │        │         │        │
+    /// │   A    │         │   C    │
+    /// │        │         │        │
+    /// └────┬───┘         └───┬────┘
+    ///      │                 │
+    ///      │                 │
+    ///      │   ┌─────────┐   │
+    ///      └──►│         │◄──┘
+    ///          │    B    │
+    ///          │         │
+    ///          └────┬────┘
+    ///               │
+    ///               │
+    ///               │
+    ///          ┌────▼────┐
+    ///          │         │
+    ///          │    EE   │
+    ///          │         │
+    ///          └─────────┘
     #[test]
     fn test_reject_candidate_path() {
-        /*
-         This test builds a PKI like the following diagram depicts. We first verify
-         that we can build a path EE -> B -> A -> TA. Next we supply a custom path verification
-         function that rejects the B->A path, and verify that we build a path EE -> B -> C -> TA.
-
-               ┌───────────┐
-               │           │
-               │     TA    │
-               │           │
-               └───┬───┬───┘
-                   │   │
-                   │   │
-        ┌────────┐◄┘   └──►┌────────┐
-        │        │         │        │
-        │   A    │         │   C    │
-        │        │         │        │
-        └────┬───┘         └───┬────┘
-             │                 │
-             │                 │
-             │   ┌─────────┐   │
-             └──►│         │◄──┘
-                 │    B    │
-                 │         │
-                 └────┬────┘
-                      │
-                      │
-                      │
-                 ┌────▼────┐
-                 │         │
-                 │    EE   │
-                 │         │
-                 └─────────┘
-          */
-
         // Create a trust anchor, and use it to issue two distinct intermediate certificates, each
         // with a unique subject and keypair.
         let (trust_anchor, trust_anchor_cert) = make_issuer("Trust Anchor");
