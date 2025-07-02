@@ -862,7 +862,7 @@ mod tests {
     use crate::test_utils;
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
     use crate::trust_anchor::anchor_from_trusted_cert;
-    use rcgen::{Issuer, KeyPair};
+    use rcgen::{Certificate, Issuer, KeyPair, SigningKey};
     use std::dbg;
     use std::prelude::v1::*;
 
@@ -1081,41 +1081,23 @@ mod tests {
             Cert::from_der(untrusted::Input::from(trust_anchor_cert_der)).unwrap();
         let trust_anchors = &[anchor_from_trusted_cert(trust_anchor_cert_der).unwrap()];
 
-        let intermediate_a = issuer_params("Intermediate A");
-        let intermediate_a_kp = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
-        let intermediate_a_cert = intermediate_a
-            .signed_by(&intermediate_a_kp, &trust_anchor)
-            .unwrap();
-        let intermediate_a = Issuer::new(intermediate_a, intermediate_a_kp);
-        let intermediate_a_cert =
-            Cert::from_der(untrusted::Input::from(intermediate_a_cert.der())).unwrap();
-
-        let intermediate_c = issuer_params("Intermediate C");
-        let intermediate_c_kp = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
-
-        let intermediate_c_cert = intermediate_c
-            .signed_by(&intermediate_c_kp, &trust_anchor)
-            .unwrap();
-        let intermediate_c = Issuer::new(intermediate_c, intermediate_c_kp);
-        let intermediate_c_cert =
-            Cert::from_der(untrusted::Input::from(intermediate_c_cert.der())).unwrap();
+        let intermediate_a = make_intermediate("Intermediate A", &trust_anchor);
+        let intermediate_c = make_intermediate("Intermediate C", &trust_anchor);
 
         // Next, create an intermediate that is issued by both of the intermediates above.
         // Both should share the same subject, and key pair, but will differ in the issuer.
-        let intermediate_b_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
-        let intermediate_b_params = issuer_params("Intermediate");
-        let intermediate_b_a_cert = intermediate_b_params
-            .clone()
-            .signed_by(&intermediate_b_key, &intermediate_a)
-            .unwrap();
-        let intermediate_b_c_cert = intermediate_b_params
-            .signed_by(&intermediate_b_key, &intermediate_c)
-            .unwrap();
-        let intermediate_b = Issuer::new(intermediate_b_params, intermediate_b_key);
+        let (intermediate_b, intermediate_b_a_cert, intermediate_b_c_cert) = {
+            let key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+            let params = issuer_params("Intermediate");
+            let intermediate_b_a_cert = params.signed_by(&key, &intermediate_a.0).unwrap();
+            let intermediate_b_c_cert = params.signed_by(&key, &intermediate_c.0).unwrap();
+            let issuer = Issuer::new(params, key);
+            (issuer, intermediate_b_a_cert, intermediate_b_c_cert)
+        };
 
         let intermediates = &[
-            intermediate_a_cert.der().clone(),
-            intermediate_c_cert.der().clone(),
+            intermediate_a.1.der().clone(),
+            intermediate_c.1.der().clone(),
             intermediate_b_a_cert.der().clone(),
             intermediate_b_c_cert.der().clone(),
         ];
@@ -1130,6 +1112,8 @@ mod tests {
 
         // We expect that without applying any additional constraints, that the path will be
         // EE -> intermediate_b_a -> intermediate_a -> trust_anchor.
+        let intermediate_a_cert =
+            Cert::from_der(untrusted::Input::from(intermediate_a.1.der())).unwrap();
         assert_eq!(path_intermediates.len(), 2);
         assert_eq!(
             path_intermediates[0].issuer(),
@@ -1162,12 +1146,24 @@ mod tests {
 
         // We expect that the path will now be
         // EE -> intermediate_b_c -> intermediate_c -> trust_anchor.
+        let intermediate_c_cert =
+            Cert::from_der(untrusted::Input::from(intermediate_c.1.der())).unwrap();
         assert_eq!(path_intermediates.len(), 2);
         assert_eq!(
             path_intermediates[0].issuer(),
             intermediate_c_cert.subject()
         );
         assert_eq!(path_intermediates[1].issuer(), trust_anchor_cert.subject());
+    }
+
+    fn make_intermediate(
+        org_name: impl Into<String>,
+        issuer: &Issuer<'_, impl SigningKey>,
+    ) -> (Issuer<'static, KeyPair>, Certificate) {
+        let params = issuer_params(org_name);
+        let key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let cert = params.signed_by(&key, issuer).unwrap();
+        (Issuer::new(params, key), cert)
     }
 
     fn build_and_verify_degenerate_chain(
