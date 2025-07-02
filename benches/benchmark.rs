@@ -3,7 +3,7 @@
 use bencher::{Bencher, benchmark_group, benchmark_main};
 use once_cell::sync::Lazy;
 use rcgen::{
-    BasicConstraints, CertificateParams, CertificateRevocationListParams, CertifiedKey, IsCa,
+    BasicConstraints, CertificateParams, CertificateRevocationListParams, IsCa, Issuer,
     KeyIdMethod, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256, RevocationReason,
     RevokedCertParams, SerialNumber, date_time_ymd,
 };
@@ -19,7 +19,7 @@ use webpki::{BorrowedCertRevocationList, CertRevocationList, OwnedCertRevocation
 
 /// Lazy initialized CRL issuer to be used when generating CRL data. Includes
 /// `KeyUsagePurpose::CrlSign` key usage bit.
-static CRL_ISSUER: Lazy<Mutex<CertifiedKey>> = Lazy::new(|| {
+static CRL_ISSUER: Lazy<Mutex<Issuer<'static, KeyPair>>> = Lazy::new(|| {
     let mut issuer_params =
         CertificateParams::new(vec!["crl.issuer.example.com".to_string()]).unwrap();
     issuer_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
@@ -29,8 +29,7 @@ static CRL_ISSUER: Lazy<Mutex<CertifiedKey>> = Lazy::new(|| {
         KeyUsagePurpose::CrlSign,
     ];
     let key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256).unwrap();
-    let cert = issuer_params.self_signed(&key_pair).unwrap();
-    Mutex::new(CertifiedKey { cert, key_pair })
+    Mutex::new(Issuer::new(issuer_params, key_pair))
 });
 
 /// Number of revoked certificates to include in the small benchmark CRL. Produces a CRL roughly
@@ -97,9 +96,7 @@ fn generate_crl(revoked_count: usize) -> CertificateRevocationListDer<'static> {
         revoked_certs,
     };
     let issuer = CRL_ISSUER.lock().unwrap();
-    crl.signed_by(&issuer.cert, &issuer.key_pair)
-        .unwrap()
-        .into()
+    crl.signed_by(&issuer).unwrap().into()
 }
 
 /// Benchmark parsing a small CRL file into a borrowed representation.
