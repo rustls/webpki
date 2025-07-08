@@ -560,6 +560,7 @@ def signatures(force: bool) -> None:
     all_key_types: dict[str, ANY_PRIV_KEY] = {
         "ed25519": ed25519.Ed25519PrivateKey.generate(),
         "ecdsa_p256": ec.generate_private_key(ec.SECP256R1(), backend),
+        "ecdsa_p256k1": ec.generate_private_key(ec.SECP256K1(), backend),
         "ecdsa_p384": ec.generate_private_key(ec.SECP384R1(), backend),
         "ecdsa_p521": ec.generate_private_key(ec.SECP521R1(), backend),
         "rsa_1024_not_supported": rsa.generate_private_key(
@@ -588,6 +589,7 @@ def signatures(force: bool) -> None:
     webpki_algs: dict[str, Iterable[str]] = {
         "ed25519": ["ED25519"],
         "ecdsa_p256": ["ECDSA_P256_SHA384", "ECDSA_P256_SHA256"],
+        "ecdsa_p256k1": ["ECDSA_P256K1_SHA256"],
         "ecdsa_p384": ["ECDSA_P384_SHA384", "ECDSA_P384_SHA256"],
         "ecdsa_p521": ["ECDSA_P521_SHA512", "ECDSA_P521_SHA256", "ECDSA_P521_SHA384"],
         "rsa_2048": rsa_types,
@@ -607,6 +609,9 @@ def signatures(force: bool) -> None:
 
     how_to_sign: dict[str, SIGNER] = {
         "ED25519": lambda key, message: key.sign(message),
+        "ECDSA_P256K1_SHA256": lambda key, message: key.sign(
+            message, ec.ECDSA(hashes.SHA256())
+        ),
         "ECDSA_P256_SHA256": lambda key, message: key.sign(
             message, ec.ECDSA(hashes.SHA256())
         ),

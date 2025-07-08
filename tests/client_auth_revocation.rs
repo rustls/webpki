@@ -26,6 +26,8 @@ static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
     #[cfg(feature = "ring")]
     webpki::ring::ECDSA_P256_SHA256,
     #[cfg(feature = "aws-lc-rs")]
+    webpki::aws_lc_rs::ECDSA_P256K1_SHA256,
+    #[cfg(feature = "aws-lc-rs")]
     webpki::aws_lc_rs::ECDSA_P256_SHA256,
 ];
 

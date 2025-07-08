@@ -32,7 +32,7 @@ impl SignatureVerificationAlgorithm for AwsLcRsAlgorithm {
     ) -> Result<(), InvalidSignature> {
         if matches!(
             self.public_key_alg_id,
-            alg_id::ECDSA_P256 | alg_id::ECDSA_P384 | alg_id::ECDSA_P521
+            alg_id::ECDSA_P256 | alg_id::ECDSA_P256K1 | alg_id::ECDSA_P384 | alg_id::ECDSA_P521
         ) {
             // Restrict the allowed encodings of EC public keys.
             //
@@ -84,6 +84,14 @@ pub static ML_DSA_87: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
     signature_alg_id: alg_id::ML_DSA_87,
     verification_alg: &unstable::signature::ML_DSA_87,
     // Not included in AWS-LC-FIPS 3.0 FIPS scope
+    in_fips_submission: false,
+};
+
+/// ECDSA signatures using the K-256 curve and SHA-256.
+pub static ECDSA_P256K1_SHA256: &dyn SignatureVerificationAlgorithm = &AwsLcRsAlgorithm {
+    public_key_alg_id: alg_id::ECDSA_P256K1,
+    signature_alg_id: alg_id::ECDSA_SHA256,
+    verification_alg: &signature::ECDSA_P256K1_SHA256_ASN1,
     in_fips_submission: false,
 };
 
@@ -308,6 +316,7 @@ mod tests {
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
+        super::ECDSA_P256K1_SHA256,
         super::ECDSA_P256_SHA256,
         super::ECDSA_P384_SHA384,
         super::ECDSA_P521_SHA256,
