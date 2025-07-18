@@ -1,8 +1,8 @@
 use std::error::Error as StdError;
 
 use rcgen::{
-    Certificate, CertificateParams, CertifiedKey, DnType, DnValue, ExtendedKeyUsagePurpose, IsCa,
-    Issuer, KeyPair, KeyUsagePurpose, SignatureAlgorithm, SigningKey,
+    CertificateParams, CertifiedIssuer, CertifiedKey, DnType, DnValue, ExtendedKeyUsagePurpose,
+    IsCa, Issuer, KeyPair, KeyUsagePurpose, SignatureAlgorithm, SigningKey,
 };
 
 #[cfg_attr(not(feature = "ring"), allow(dead_code))]
@@ -21,11 +21,10 @@ pub fn make_end_entity(
 
 pub fn make_issuer(
     org_name: impl Into<String>,
-) -> Result<(Issuer<'static, KeyPair>, Certificate), Box<dyn StdError>> {
+) -> Result<CertifiedIssuer<'static, KeyPair>, Box<dyn StdError>> {
     let params = issuer_params(org_name)?;
     let signing_key = KeyPair::generate_for(RCGEN_SIGNATURE_ALG)?;
-    let cert = params.self_signed(&signing_key)?;
-    Ok((Issuer::new(params, signing_key), cert))
+    Ok(CertifiedIssuer::self_signed(params, signing_key)?)
 }
 
 /// Populate a [CertificateParams] that describes an unconstrained issuer certificate.

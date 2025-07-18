@@ -191,7 +191,7 @@ mod tests {
     fn printable_string_common_name() {
         const DNS_NAME: &str = "test.example.com";
 
-        let issuer = test_utils::make_issuer("Test").0;
+        let issuer = test_utils::make_issuer("Test");
 
         let ee_cert = {
             let mut params = test_utils::end_entity_params(vec![DNS_NAME.to_string()]);
