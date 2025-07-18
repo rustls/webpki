@@ -1,7 +1,7 @@
 #![cfg(feature = "alloc")]
 use std::prelude::v1::*;
 
-use rcgen::{Certificate, CertifiedKey, Issuer, KeyPair, SigningKey};
+use rcgen::{CertifiedIssuer, CertifiedKey, Issuer, KeyPair, SigningKey};
 
 #[cfg_attr(not(feature = "ring"), allow(dead_code))]
 pub(crate) fn make_end_entity(issuer: &Issuer<'_, impl SigningKey>) -> CertifiedKey<KeyPair> {
@@ -14,11 +14,10 @@ pub(crate) fn make_end_entity(issuer: &Issuer<'_, impl SigningKey>) -> Certified
     }
 }
 
-pub(crate) fn make_issuer(org_name: impl Into<String>) -> (Issuer<'static, KeyPair>, Certificate) {
+pub(crate) fn make_issuer(org_name: impl Into<String>) -> CertifiedIssuer<'static, KeyPair> {
     let params = issuer_params(org_name);
     let key_pair = KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
-    let cert = params.self_signed(&key_pair).unwrap();
-    (Issuer::new(params, key_pair), cert)
+    CertifiedIssuer::self_signed(params, key_pair).unwrap()
 }
 
 /// Populate a [CertificateParams] that describes an unconstrained issuer certificate capable
