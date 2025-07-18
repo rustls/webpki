@@ -1160,7 +1160,7 @@ mod tests {
         trust_anchor: ChainTrustAnchor,
     ) -> ControlFlow<Error, Error> {
         let ca = make_issuer("Bogus Subject");
-        let mut intermediate_chain = build_linear_chain(&ca, intermediate_count, true);
+        let mut intermediate_chain = IntermediateChain::new(intermediate_count, true, &ca);
 
         let verify_trust_anchor = match trust_anchor {
             ChainTrustAnchor::InChain => make_issuer("Bogus Trust Anchor"),
@@ -1197,7 +1197,7 @@ mod tests {
 
     fn build_and_verify_linear_chain(chain_length: usize) -> Result<(), ControlFlow<Error, Error>> {
         let ca = make_issuer(format!("Bogus Subject {chain_length}"));
-        let intermediate_chain = build_linear_chain(&ca, chain_length, false);
+        let intermediate_chain = IntermediateChain::new(chain_length, false, &ca);
 
         let anchor = anchor_from_trusted_cert(ca.der()).unwrap();
         let anchors = &[anchor.clone()];
@@ -1246,41 +1246,39 @@ mod tests {
         .map(|_| ())
     }
 
-    fn build_linear_chain(
-        ca_cert: &Issuer<'_, KeyPair>,
-        chain_length: usize,
-        all_same_subject: bool,
-    ) -> IntermediateChain {
-        let mut chain = Vec::with_capacity(chain_length);
-
-        let mut prev = None;
-        for i in 0..chain_length {
-            let issuer = match &prev {
-                Some(prev) => prev,
-                None => ca_cert,
-            };
-
-            let intermediate = issuer_params(match all_same_subject {
-                true => "Bogus Subject".to_string(),
-                false => format!("Bogus Subject {i}"),
-            });
-
-            let key_pair = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
-            let cert = intermediate.signed_by(&key_pair, issuer).unwrap();
-
-            chain.push(cert.der().clone());
-            prev = Some(Issuer::new(intermediate, key_pair));
-        }
-
-        IntermediateChain {
-            last_issuer: prev.unwrap(),
-            chain,
-        }
-    }
-
     struct IntermediateChain {
         last_issuer: Issuer<'static, KeyPair>,
         chain: Vec<CertificateDer<'static>>,
+    }
+
+    impl IntermediateChain {
+        fn new(chain_length: usize, all_same_subject: bool, ca_cert: &Issuer<'_, KeyPair>) -> Self {
+            let mut chain = Vec::with_capacity(chain_length);
+
+            let mut prev = None;
+            for i in 0..chain_length {
+                let issuer = match &prev {
+                    Some(prev) => prev,
+                    None => ca_cert,
+                };
+
+                let intermediate = issuer_params(match all_same_subject {
+                    true => "Bogus Subject".to_string(),
+                    false => format!("Bogus Subject {i}"),
+                });
+
+                let key_pair = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+                let cert = intermediate.signed_by(&key_pair, issuer).unwrap();
+
+                chain.push(cert.der().clone());
+                prev = Some(Issuer::new(intermediate, key_pair));
+            }
+
+            Self {
+                last_issuer: prev.unwrap(),
+                chain,
+            }
+        }
     }
 
     fn verify_chain<'a>(
