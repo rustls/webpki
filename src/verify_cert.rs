@@ -865,6 +865,7 @@ mod tests {
     use rcgen::{CertifiedIssuer, Issuer, KeyPair, SigningKey};
     use std::dbg;
     use std::prelude::v1::*;
+    use std::slice;
 
     #[test]
     fn roundtrip() {
@@ -1200,7 +1201,7 @@ mod tests {
         let intermediate_chain = IntermediateChain::new(chain_length, false, &ca);
 
         let anchor = anchor_from_trusted_cert(ca.der()).unwrap();
-        let anchors = &[anchor.clone()];
+        let anchors = slice::from_ref(&anchor);
 
         let ee_cert = make_end_entity(&intermediate_chain.last_issuer);
         let ee_cert = EndEntityCert::try_from(ee_cert.cert.der()).unwrap();
