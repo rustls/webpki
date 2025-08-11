@@ -14,6 +14,8 @@
 
 #![cfg(any(feature = "ring", feature = "aws-lc-rs"))]
 
+#[cfg(feature = "alloc")]
+use core::slice;
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
@@ -376,7 +378,7 @@ fn cert_time_validity() {
         cert.verify_for_usage(
             webpki::ALL_VERIFICATION_ALGS,
             &anchors,
-            &[inter.clone()],
+            slice::from_ref(&inter),
             just_before,
             KeyUsage::server_auth(),
             None,
