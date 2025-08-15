@@ -116,3 +116,6 @@ harness = false
 
 [package.metadata.cargo-semver-checks.lints]
 enum_variant_marked_deprecated = "warn"
+
+[patch.crates-io]
+aws-lc-rs = { git = "https://github.com/aws/aws-lc-rs", rev = "35ee4e4" }
