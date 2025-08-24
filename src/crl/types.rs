@@ -264,10 +264,12 @@ impl<'a> BorrowedCertRevocationList<'a> {
     }
 
     fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
+        use crate::x509::ExtensionOid::*;
+
         remember_extension(extension, |id| {
             match id {
                 // id-ce-cRLNumber 2.5.29.20 - RFC 5280 §5.2.3
-                20 => {
+                Standard(20) => {
                     // RFC 5280 §5.2.3:
                     //   CRL verifiers MUST be able to handle CRLNumber values
                     //   up to 20 octets.  Conforming CRL issuers MUST NOT use CRLNumber
@@ -289,17 +291,17 @@ impl<'a> BorrowedCertRevocationList<'a> {
 
                 // id-ce-deltaCRLIndicator 2.5.29.27 - RFC 5280 §5.2.4
                 // We explicitly do not support delta CRLs.
-                27 => Err(Error::UnsupportedDeltaCrl),
+                Standard(27) => Err(Error::UnsupportedDeltaCrl),
 
                 // id-ce-issuingDistributionPoint 2.5.29.28 - RFC 5280 §5.2.4
                 // We recognize the extension and retain its value for use.
-                28 => {
+                Standard(28) => {
                     set_extension_once(&mut self.issuing_distribution_point, || Ok(extension.value))
                 }
 
                 // id-ce-authorityKeyIdentifier 2.5.29.35 - RFC 5280 §5.2.1, §4.2.1.1
                 // We recognize the extension but don't retain its value for use.
-                35 => Ok(()),
+                Standard(35) => Ok(()),
 
                 // Unsupported extension
                 _ => extension.unsupported(),
@@ -758,13 +760,17 @@ impl<'a> BorrowedRevokedCert<'a> {
     }
 
     fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
+        use crate::x509::ExtensionOid::*;
+
         remember_extension(extension, |id| {
             match id {
                 // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
-                21 => set_extension_once(&mut self.reason_code, || der::read_all(extension.value)),
+                Standard(21) => {
+                    set_extension_once(&mut self.reason_code, || der::read_all(extension.value))
+                }
 
                 // id-ce-invalidityDate 2.5.29.24 - RFC 5280 §5.3.2.
-                24 => set_extension_once(&mut self.invalidity_date, || {
+                Standard(24) => set_extension_once(&mut self.invalidity_date, || {
                     extension.value.read_all(Error::BadDer, UnixTime::from_der)
                 }),
 
@@ -775,7 +781,7 @@ impl<'a> BorrowedRevokedCert<'a> {
                 //   extension.
                 // We choose not to support indirect CRLs and so turn this into a more specific
                 // error rather than simply letting it fail as an unsupported critical extension.
-                29 => Err(Error::UnsupportedIndirectCrl),
+                Standard(29) => Err(Error::UnsupportedIndirectCrl),
 
                 // Unsupported extension
                 _ => extension.unsupported(),

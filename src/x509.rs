@@ -63,11 +63,11 @@ pub(crate) fn set_extension_once<T>(
 
 pub(crate) fn remember_extension(
     extension: &Extension<'_>,
-    mut handler: impl FnMut(u8) -> Result<(), Error>,
+    mut handler: impl FnMut(ExtensionOid) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    match extension.id.as_slice_less_safe() {
-        [first, second, x] if [*first, *second] == ID_CE => handler(*x),
-        _ => extension.unsupported(),
+    match ExtensionOid::lookup(extension.id) {
+        Some(oid) => handler(oid),
+        None => extension.unsupported(),
     }
 }
 
@@ -99,6 +99,22 @@ impl<'a> FromDer<'a> for DistributionPointName<'a> {
     }
 
     const TYPE_ID: DerTypeId = DerTypeId::DistributionPointName;
+}
+
+/// Simplified representation of supported extension OIDs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExtensionOid {
+    /// Extensions whose OID is under `id-ce` arc.
+    Standard(u8),
+}
+
+impl ExtensionOid {
+    fn lookup(id: untrusted::Input<'_>) -> Option<Self> {
+        match id.as_slice_less_safe() {
+            [first, second, x] if [*first, *second] == ID_CE => Some(Self::Standard(*x)),
+            _ => None,
+        }
+    }
 }
 
 /// ISO arc for standard certificate and CRL extensions.

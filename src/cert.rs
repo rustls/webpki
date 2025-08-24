@@ -21,7 +21,9 @@ use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
 use crate::signed_data::SignedData;
 use crate::subject_name::{GeneralName, NameIterator, WildcardDnsNameRef};
-use crate::x509::{DistributionPointName, Extension, remember_extension, set_extension_once};
+use crate::x509::{
+    DistributionPointName, Extension, ExtensionOid, remember_extension, set_extension_once,
+};
 
 /// A parsed X509 certificate.
 pub struct Cert<'a> {
@@ -263,25 +265,27 @@ fn remember_cert_extension<'a>(
     // all policy-related stuff. We assume that the policy-related extensions
     // are not marked critical.
 
+    use ExtensionOid::*;
+
     remember_extension(extension, |id| {
         let out = match id {
             // id-ce-keyUsage 2.5.29.15.
-            15 => &mut cert.key_usage,
+            Standard(15) => &mut cert.key_usage,
 
             // id-ce-subjectAltName 2.5.29.17
-            17 => &mut cert.subject_alt_name,
+            Standard(17) => &mut cert.subject_alt_name,
 
             // id-ce-basicConstraints 2.5.29.19
-            19 => &mut cert.basic_constraints,
+            Standard(19) => &mut cert.basic_constraints,
 
             // id-ce-nameConstraints 2.5.29.30
-            30 => &mut cert.name_constraints,
+            Standard(30) => &mut cert.name_constraints,
 
             // id-ce-cRLDistributionPoints 2.5.29.31
-            31 => &mut cert.crl_distribution_points,
+            Standard(31) => &mut cert.crl_distribution_points,
 
             // id-ce-extKeyUsage 2.5.29.37
-            37 => &mut cert.eku,
+            Standard(37) => &mut cert.eku,
 
             // Unsupported extension
             _ => return extension.unsupported(),
@@ -291,7 +295,7 @@ fn remember_cert_extension<'a>(
             extension.value.read_all(Error::BadDer, |value| match id {
                 // Unlike the other extensions we remember KU is a BitString and not a Sequence. We
                 // read the raw bytes here and parse at the time of use.
-                15 => Ok(value.read_bytes_to_end()),
+                Standard(15) => Ok(value.read_bytes_to_end()),
                 // All other remembered certificate extensions are wrapped in a Sequence.
                 _ => der::expect_tag(value, Tag::Sequence),
             })
