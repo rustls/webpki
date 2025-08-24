@@ -67,6 +67,7 @@ pub(crate) fn remember_extension(
 ) -> Result<(), Error> {
     match extension.id.as_slice_less_safe() {
         [first, second, x] if [*first, *second] == ID_CE => handler(ExtensionOid::Standard(*x)),
+        v if v == SCT_LIST_OID => handler(ExtensionOid::SignedCertificateTimestampList),
         _ => extension.unsupported(),
     }
 }
@@ -79,6 +80,21 @@ pub(crate) fn remember_extension(
 ///
 /// <https://www.rfc-editor.org/rfc/rfc5280#appendix-A.2>
 const ID_CE: [u8; 2] = oid!(2, 5, 29);
+
+/// This is 1.3.6.1.4.1.11129.2.4.2, as defined in RFC6962
+///
+/// In full this is:
+///
+/// ```text
+/// {iso(1) identified-organization(3) dod(6) internet(1)
+///  private(4) enterprise(1) google(11129) 2 4 2}
+/// ```
+///
+/// Note that the `oid!` macro doesn't work for OIDs with any
+/// limb greater than 7 bits, so this is a manual expansion.
+///
+/// <https://datatracker.ietf.org/doc/html/rfc6962#section-3.3>
+const SCT_LIST_OID: [u8; 10] = [40 + 3, 6, 1, 4, 1, 214, 121, 2, 4, 2];
 
 /// A certificate revocation list (CRL) distribution point name, describing a source of
 /// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
@@ -115,4 +131,6 @@ impl<'a> FromDer<'a> for DistributionPointName<'a> {
 pub(crate) enum ExtensionOid {
     /// Extensions whose OID is under `id-ce` arc.
     Standard(u8),
+    /// The OID given by `SCT_LIST_OID`.
+    SignedCertificateTimestampList,
 }
