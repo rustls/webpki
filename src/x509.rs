@@ -65,19 +65,10 @@ pub(crate) fn remember_extension(
     extension: &Extension<'_>,
     mut handler: impl FnMut(u8) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    // ISO arc for standard certificate and CRL extensions.
-    // https://www.rfc-editor.org/rfc/rfc5280#appendix-A.2
-    static ID_CE: [u8; 2] = oid![2, 5, 29];
-
-    if extension.id.len() != ID_CE.len() + 1
-        || !extension.id.as_slice_less_safe().starts_with(&ID_CE)
-    {
-        return extension.unsupported();
+    match extension.id.as_slice_less_safe() {
+        [first, second, x] if [*first, *second] == ID_CE => handler(*x),
+        _ => extension.unsupported(),
     }
-
-    // safety: we verify len is non-zero and has the correct prefix above.
-    let last_octet = *extension.id.as_slice_less_safe().last().unwrap();
-    handler(last_octet)
 }
 
 /// A certificate revocation list (CRL) distribution point name, describing a source of
@@ -109,3 +100,12 @@ impl<'a> FromDer<'a> for DistributionPointName<'a> {
 
     const TYPE_ID: DerTypeId = DerTypeId::DistributionPointName;
 }
+
+/// ISO arc for standard certificate and CRL extensions.
+///
+/// ```text
+/// id-ce OBJECT IDENTIFIER  ::=  {joint-iso-ccitt(2) ds(5) 29}
+/// ```
+///
+/// <https://www.rfc-editor.org/rfc/rfc5280#appendix-A.2>
+const ID_CE: [u8; 2] = oid!(2, 5, 29);
