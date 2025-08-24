@@ -44,6 +44,7 @@ pub struct Cert<'a> {
     pub(crate) name_constraints: Option<untrusted::Input<'a>>,
     pub(crate) subject_alt_name: Option<untrusted::Input<'a>>,
     pub(crate) crl_distribution_points: Option<untrusted::Input<'a>>,
+    pub(crate) scts: Option<untrusted::Input<'a>>,
 
     der: CertificateDer<'a>,
 }
@@ -102,6 +103,7 @@ impl<'a> Cert<'a> {
                     name_constraints: None,
                     subject_alt_name: None,
                     crl_distribution_points: None,
+                    scts: None,
 
                     der: CertificateDer::from(cert_der.as_slice_less_safe()),
                 };
@@ -320,6 +322,9 @@ fn remember_cert_extension<'a>(
             // id-ce-extKeyUsage 2.5.29.37
             Standard(37) => &mut cert.eku,
 
+            // signedCertificateTimestampList 1.3.6.1.4.1.11129.2.4.2
+            SignedCertificateTimestampList => &mut cert.scts,
+
             // Unsupported extension
             _ => return extension.unsupported(),
         };
@@ -329,6 +334,10 @@ fn remember_cert_extension<'a>(
                 // Unlike the other extensions we remember KU is a BitString and not a Sequence. We
                 // read the raw bytes here and parse at the time of use.
                 Standard(15) => Ok(value.read_bytes_to_end()),
+
+                // signedCertificateTimestampList is an OCTET STRING
+                SignedCertificateTimestampList => der::expect_tag(value, Tag::OctetString),
+
                 // All other remembered certificate extensions are wrapped in a Sequence.
                 _ => der::expect_tag(value, Tag::Sequence),
             })
