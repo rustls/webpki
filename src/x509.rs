@@ -106,16 +106,34 @@ impl<'a> FromDer<'a> for DistributionPointName<'a> {
 pub(crate) enum ExtensionOid {
     /// Extensions whose OID is under `id-ce` arc.
     Standard(u8),
+    /// The OID given by `SCT_LIST_OID`.
+    SignedCertificateTimestampList,
 }
 
 impl ExtensionOid {
     fn lookup(id: untrusted::Input<'_>) -> Option<Self> {
         match id.as_slice_less_safe() {
+            v if v == SCT_LIST_OID => Some(Self::SignedCertificateTimestampList),
             [first, second, x] if [*first, *second] == ID_CE => Some(Self::Standard(*x)),
             _ => None,
         }
     }
 }
+
+/// This is 1.3.6.1.4.1.11129.2.4.2, as defined in RFC6962
+///
+/// In full this is:
+///
+/// ```text
+/// {iso(1) identified-organization(3) dod(6) internet(1)
+///  private(4) enterprise(1) google(11129) 2 4 2}
+/// ```
+///
+/// Note that the `oid!` macro doesn't work for OIDs with any
+/// limb greater than 7 bits, so this is a manual expansion.
+///
+/// <https://datatracker.ietf.org/doc/html/rfc6962#section-3.3>
+const SCT_LIST_OID: [u8; 10] = [40 + 3, 6, 1, 4, 1, 214, 121, 2, 4, 2];
 
 /// ISO arc for standard certificate and CRL extensions.
 ///
