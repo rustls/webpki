@@ -17,6 +17,8 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
 
+#[cfg(feature = "alloc")]
+use pki_types::SubjectPublicKeyInfoDer;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::cert::Cert;
@@ -213,6 +215,18 @@ impl<'p> VerifiedPath<'p> {
     /// Yields the trust anchor for this path.
     pub fn anchor(&self) -> &'p TrustAnchor<'p> {
         self.anchor
+    }
+
+    /// Get the `SubjectPublicKeyInfo` of the issuer of the end-entity certificate.
+    #[cfg(feature = "alloc")]
+    pub fn issuer_spki(&self) -> SubjectPublicKeyInfoDer<'p> {
+        match self.intermediate_certificates().next() {
+            Some(issuer) => issuer.subject_public_key_info(),
+            None => SubjectPublicKeyInfoDer::from(der::asn1_wrap(
+                crate::der::Tag::Sequence,
+                self.anchor.subject_public_key_info.as_ref(),
+            )),
+        }
     }
 }
 
