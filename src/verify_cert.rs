@@ -451,6 +451,7 @@ impl fmt::Debug for RequiredEkuNotFoundContext {
             match &self.required.inner {
                 ExtendedKeyUsage::Required(inner) => inner,
                 ExtendedKeyUsage::RequiredIfPresent(inner) => inner,
+                ExtendedKeyUsage::XRequiredIfYPresent { required_oid, .. } => required_oid,
             },
         );
         #[cfg(feature = "alloc")]
@@ -526,12 +527,32 @@ impl KeyUsage {
         }
     }
 
+    /// Construct a new [`KeyUsage`] requiring OID X to be present if OID Y is present in the certificate's EKU extension.
+    ///
+    /// For example, to require server-auth when client-auth is present:
+    /// ```
+    /// # use webpki::KeyUsage;
+    /// let eku = KeyUsage::x_required_if_y_present(
+    ///     &[1, 3, 6, 1, 5, 5, 7, 3, 1], // server-auth
+    ///     &[1, 3, 6, 1, 5, 5, 7, 3, 2]  // client-auth
+    /// );
+    /// ```
+    pub const fn x_required_if_y_present(oid_x: &'static [u8], oid_y: &'static [u8]) -> Self {
+        Self {
+            inner: ExtendedKeyUsage::XRequiredIfYPresent {
+                required_oid: KeyPurposeId::new(oid_x),
+                trigger_oid: KeyPurposeId::new(oid_y),
+            },
+        }
+    }
+
     /// Yield the OID values of the required extended key usage.
     pub fn oid_values(&self) -> impl Iterator<Item = usize> + '_ {
         OidDecoder::new(
             match &self.inner {
                 ExtendedKeyUsage::Required(eku) => eku,
                 ExtendedKeyUsage::RequiredIfPresent(eku) => eku,
+                ExtendedKeyUsage::XRequiredIfYPresent { required_oid, .. } => required_oid,
             }
             .oid_value
             .as_slice_less_safe(),
@@ -552,6 +573,12 @@ enum ExtendedKeyUsage {
 
     /// If the certificate has EKUs, then the specified [`KeyPurposeId`] must be included.
     RequiredIfPresent(KeyPurposeId<'static>),
+
+    /// If the certificate has `trigger_oid` EKU then `required_oid` must also be included.
+    XRequiredIfYPresent {
+        required_oid: KeyPurposeId<'static>,
+        trigger_oid: KeyPurposeId<'static>,
+    },
 }
 
 impl ExtendedKeyUsage {
@@ -560,6 +587,7 @@ impl ExtendedKeyUsage {
         let input = match (input, self) {
             (Some(input), _) => input,
             (None, Self::RequiredIfPresent(_)) => return Ok(()),
+            (None, Self::XRequiredIfYPresent { .. }) => return Ok(()),
             (None, Self::Required(_)) => {
                 return Err(Error::RequiredEkuNotFoundContext(
                     RequiredEkuNotFoundContext {
@@ -572,26 +600,70 @@ impl ExtendedKeyUsage {
             }
         };
 
-        #[cfg(feature = "alloc")]
-        let mut present = Vec::new();
-        loop {
-            let value = der::expect_tag(input, der::Tag::OID)?;
-            if self.key_purpose_id_equals(value) {
-                input.skip_to_end();
-                break;
-            }
+        match self {
+            Self::Required(_) | Self::RequiredIfPresent(_) => {
+                #[cfg(feature = "alloc")]
+                let mut present = Vec::new();
+                loop {
+                    let value = der::expect_tag(input, der::Tag::OID)?;
+                    if self.key_purpose_id_equals(value) {
+                        input.skip_to_end();
+                        break;
+                    }
 
-            #[cfg(feature = "alloc")]
-            present.push(OidDecoder::new(value.as_slice_less_safe()).collect());
-            if input.at_end() {
-                return Err(Error::RequiredEkuNotFoundContext(
-                    RequiredEkuNotFoundContext {
-                        #[cfg(feature = "alloc")]
-                        required: KeyUsage { inner: *self },
-                        #[cfg(feature = "alloc")]
-                        present,
-                    },
-                ));
+                    #[cfg(feature = "alloc")]
+                    present.push(OidDecoder::new(value.as_slice_less_safe()).collect());
+                    if input.at_end() {
+                        return Err(Error::RequiredEkuNotFoundContext(
+                            RequiredEkuNotFoundContext {
+                                #[cfg(feature = "alloc")]
+                                required: KeyUsage { inner: *self },
+                                #[cfg(feature = "alloc")]
+                                present,
+                            },
+                        ));
+                    }
+                }
+            }
+            Self::XRequiredIfYPresent {
+                required_oid,
+                trigger_oid,
+            } => {
+                #[cfg(feature = "alloc")]
+                let mut present = Vec::new();
+                let mut trigger_found = false;
+                let mut required_found = false;
+
+                // First pass: scan all EKUs to check if trigger OID is present and if required OID is present
+                loop {
+                    let value = der::expect_tag(input, der::Tag::OID)?;
+
+                    if public_values_eq(trigger_oid.oid_value, value) {
+                        trigger_found = true;
+                    }
+                    if public_values_eq(required_oid.oid_value, value) {
+                        required_found = true;
+                    }
+
+                    #[cfg(feature = "alloc")]
+                    present.push(OidDecoder::new(value.as_slice_less_safe()).collect());
+
+                    if input.at_end() {
+                        break;
+                    }
+                }
+
+                // If trigger OID is present but required OID is not, this is an error
+                if trigger_found && !required_found {
+                    return Err(Error::RequiredEkuNotFoundContext(
+                        RequiredEkuNotFoundContext {
+                            #[cfg(feature = "alloc")]
+                            required: KeyUsage { inner: *self },
+                            #[cfg(feature = "alloc")]
+                            present,
+                        },
+                    ));
+                }
             }
         }
 
@@ -603,6 +675,7 @@ impl ExtendedKeyUsage {
             match self {
                 Self::Required(eku) => *eku,
                 Self::RequiredIfPresent(eku) => *eku,
+                Self::XRequiredIfYPresent { required_oid, .. } => *required_oid,
             }
             .oid_value,
             value,
@@ -909,6 +982,56 @@ mod tests {
             ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH))
                 .key_purpose_id_equals(KeyPurposeId::new(EKU_SERVER_AUTH).oid_value)
         )
+    }
+
+    #[test]
+    fn x_required_if_y_present_no_ekus() {
+        let eku = ExtendedKeyUsage::XRequiredIfYPresent {
+            required_oid: KeyPurposeId::new(EKU_SERVER_AUTH),
+            trigger_oid: KeyPurposeId::new(EKU_CLIENT_AUTH),
+        };
+        assert!(eku.check(None).is_ok());
+    }
+
+    #[test]
+    fn x_required_if_y_present_key_purpose_id() {
+        let eku = ExtendedKeyUsage::XRequiredIfYPresent {
+            required_oid: KeyPurposeId::new(EKU_SERVER_AUTH),
+            trigger_oid: KeyPurposeId::new(EKU_CLIENT_AUTH),
+        };
+        assert!(eku.key_purpose_id_equals(KeyPurposeId::new(EKU_SERVER_AUTH).oid_value));
+        assert!(!eku.key_purpose_id_equals(KeyPurposeId::new(EKU_CLIENT_AUTH).oid_value));
+    }
+
+    #[test]
+    fn x_required_if_y_present_debug_formatting() {
+        let non_existent_oid = &[99, 99, 99, 99, 99, 99, 99, 99];
+        let client_auth_oid = EKU_CLIENT_AUTH;
+        let eku = ExtendedKeyUsage::XRequiredIfYPresent {
+            required_oid: KeyPurposeId::new(non_existent_oid),
+            trigger_oid: KeyPurposeId::new(client_auth_oid),
+        };
+
+        let context = RequiredEkuNotFoundContext {
+            required: KeyUsage { inner: eku },
+            present: Vec::new(),
+        };
+
+        let debug_output = format!("{:?}", context);
+        assert!(debug_output.contains("RequiredEkuNotFoundContext"));
+    }
+
+    #[test]
+    fn x_required_if_y_present_oid_values() {
+        let server_auth_oid = EKU_SERVER_AUTH;
+        let client_auth_oid = EKU_CLIENT_AUTH;
+        let eku = KeyUsage::x_required_if_y_present(server_auth_oid, client_auth_oid);
+
+        let oid_values: Vec<usize> = eku.oid_values().collect();
+
+        // EKU_SERVER_AUTH uses oid!(1, 3, 6, 1, 5, 5, 7, 3, 1) which encodes to [43, 6, 1, 5, 5, 7, 3, 1]
+        // and decodes back to [1, 3, 6, 1, 5, 5, 7, 3, 1]
+        assert_eq!(oid_values, KeyUsage::SERVER_AUTH_REPR);
     }
 
     #[test]
