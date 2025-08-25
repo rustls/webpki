@@ -19,6 +19,7 @@ use core::slice;
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
+use webpki::sct::LogIdAndTimestamp;
 use webpki::{ExtendedKeyUsage, anchor_from_trusted_cert};
 
 /* Checks we can verify netflix's cert chain.  This is notable
@@ -472,4 +473,53 @@ fn anchor_spki() {
     let spki = webpki::spki_for_anchor(&anchor);
 
     assert_eq!(Some(&0x30), spki.first()); // starts with SEQUENCE
+}
+
+#[test]
+fn with_scts() {
+    let ee: &[u8] = include_bytes!("cloudflare_dns/ee.der");
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+
+    let expect_scts = vec![
+        LogIdAndTimestamp {
+            log_id: [
+                41, 121, 190, 240, 158, 57, 57, 33, 240, 86, 115, 159, 99, 165, 119, 229, 190, 87,
+                125, 156, 96, 10, 248, 249, 77, 93, 38, 92, 37, 93, 199, 132,
+            ],
+            timestamp_ms: 1635197764079,
+        },
+        LogIdAndTimestamp {
+            log_id: [
+                81, 163, 176, 245, 253, 1, 121, 156, 86, 109, 184, 55, 120, 143, 12, 164, 122, 204,
+                27, 39, 203, 247, 158, 136, 66, 154, 13, 254, 212, 139, 5, 229,
+            ],
+            timestamp_ms: 1635197764090,
+        },
+        LogIdAndTimestamp {
+            log_id: [
+                65, 200, 202, 177, 223, 34, 70, 74, 16, 198, 161, 58, 9, 66, 135, 94, 78, 49, 139,
+                27, 3, 235, 235, 75, 199, 104, 240, 144, 98, 150, 6, 246,
+            ],
+            timestamp_ms: 1635197764024,
+        },
+    ];
+    assert_eq!(
+        Ok(expect_scts),
+        cert.sct_log_timestamps()
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+    );
+}
+
+#[test]
+fn no_scts() {
+    let der = CertificateDer::from(&include_bytes!("misc/uri_san_ee.der")[..]);
+    let cert = webpki::EndEntityCert::try_from(&der).unwrap();
+    assert_eq!(
+        Ok(vec![]),
+        cert.sct_log_timestamps()
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+    );
 }
