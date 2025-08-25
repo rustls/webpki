@@ -66,6 +66,8 @@ mod error;
 #[cfg(feature = "ring")]
 mod ring_algs;
 mod rpk_entity;
+#[allow(missing_docs, dead_code)]
+pub mod sct;
 mod signed_data;
 mod subject_name;
 mod time;
