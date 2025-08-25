@@ -166,6 +166,35 @@ impl EndEntityCert<'_> {
             untrusted::Input::from(signature),
         )
     }
+
+    /// Returns the SCT logs that contributed to the SCTs included in the certificate.
+    ///
+    /// Note this method does not verify the SCTs themselves, but does require that
+    /// the certificate chain was previously verified by the caller.  This is demonstrated
+    /// by the `verified_path` parameter.
+    ///
+    /// If the certificate does not contain an SCT extension, this method returns
+    /// `Ok(Vec::new())`.
+    #[cfg(feature = "alloc")]
+    pub fn sct_log_timestamps(
+        &self,
+        //verified_path: VerifiedPath<'_>,
+    ) -> Result<alloc::vec::Vec<(crate::sct::LogId, crate::sct::Timestamp)>, crate::sct::Error>
+    {
+        //let _ = verified_path;
+
+        let Some(sct_encoding) = self.scts else {
+            return Ok(alloc::vec::Vec::new());
+        };
+
+        let mut r = alloc::vec::Vec::new();
+        for sct in crate::sct::iter_scts(sct_encoding)? {
+            let sct = sct?;
+            r.push((sct.log_id, sct.timestamp));
+        }
+
+        Ok(r)
+    }
 }
 
 impl<'a> Deref for EndEntityCert<'a> {
