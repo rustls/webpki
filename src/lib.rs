@@ -54,6 +54,8 @@ mod error;
 #[cfg(feature = "ring")]
 mod ring_algs;
 mod rpk_entity;
+/// Processing of certificate transparency SCTs.
+pub mod sct;
 mod signed_data;
 mod subject_name;
 mod time;
