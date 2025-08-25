@@ -97,3 +97,62 @@ pub fn verify_custom_eku_required_if_present() {
     let ca = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ca.der");
     check_cert(ee, ca, eku, time, Ok(()));
 }
+
+#[test]
+pub fn verify_x_required_if_y_present_without_y() {
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+
+    let server_auth_oid = &[43, 6, 1, 5, 5, 7, 3, 1]; // id-kp-serverAuth
+    let client_auth_oid = &[43, 6, 1, 5, 5, 7, 3, 2]; // id-kp-clientAuth
+
+    let eku = KeyUsage::x_required_if_y_present(server_auth_oid, client_auth_oid);
+
+    let ee = include_bytes!("custom_ekus/cert_with_no_eku_accepted_for_client_auth.ee.der");
+    let ca = include_bytes!("custom_ekus/cert_with_no_eku_accepted_for_client_auth.ca.der");
+    check_cert(ee, ca, eku, time, Ok(()));
+}
+
+#[test]
+pub fn verify_x_required_if_y_present_with_other_ekus() {
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+
+    let server_auth_oid = &[43, 6, 1, 5, 5, 7, 3, 1]; // id-kp-serverAuth
+    let client_auth_oid = &[43, 6, 1, 5, 5, 7, 3, 2]; // id-kp-clientAuth
+
+    let eku = KeyUsage::x_required_if_y_present(server_auth_oid, client_auth_oid);
+
+    let ee = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ee.der");
+    let ca = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ca.der");
+    check_cert(ee, ca, eku, time, Ok(()));
+}
+
+#[test]
+pub fn verify_x_required_if_y_present_negative_case() {
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+
+    // Negative test: require a non-existent EKU when client-auth is present
+    // Using a made-up OID that definitely won't be in any certificate
+    let non_existent_oid = &[99, 99, 99, 99, 99, 99, 99, 99]; // mock non-existent OID
+    let client_auth_oid = &[43, 6, 1, 5, 5, 7, 3, 2]; // id-kp-clientAuth
+
+    let eku = KeyUsage::x_required_if_y_present(non_existent_oid, client_auth_oid);
+
+    let ee = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ee.der");
+    let ca = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ca.der");
+
+    check_cert(
+        ee,
+        ca,
+        eku,
+        time,
+        Err(webpki::Error::RequiredEkuNotFoundContext(
+            RequiredEkuNotFoundContext {
+                required: eku,
+                present: vec![
+                    vec![1, 3, 6, 1, 5, 5, 7, 3, 2], // id-kp-clientAuth (decoded)
+                    vec![1, 3, 6, 1, 5, 5, 7, 3, 1], // id-kp-serverAuth (decoded)
+                ],
+            },
+        )),
+    );
+}
