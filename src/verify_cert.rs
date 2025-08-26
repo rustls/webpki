@@ -575,14 +575,17 @@ impl ExtendedKeyUsage {
         #[cfg(feature = "alloc")]
         let mut present = Vec::new();
         loop {
-            let value = der::expect_tag(input, der::Tag::OID)?;
-            if self.key_purpose_id_equals(value) {
+            let id = KeyPurposeId {
+                oid_value: der::expect_tag(input, der::Tag::OID)?,
+            };
+
+            if self.id() == id {
                 input.skip_to_end();
                 break;
             }
 
             #[cfg(feature = "alloc")]
-            present.push(OidDecoder::new(value.as_slice_less_safe()).collect());
+            present.push(OidDecoder::new(id.oid_value.as_slice_less_safe()).collect());
             if input.at_end() {
                 return Err(Error::RequiredEkuNotFoundContext(
                     RequiredEkuNotFoundContext {
@@ -598,15 +601,11 @@ impl ExtendedKeyUsage {
         Ok(())
     }
 
-    fn key_purpose_id_equals(&self, value: untrusted::Input<'_>) -> bool {
-        public_values_eq(
-            match self {
-                Self::Required(eku) => *eku,
-                Self::RequiredIfPresent(eku) => *eku,
-            }
-            .oid_value,
-            value,
-        )
+    fn id(&self) -> KeyPurposeId<'static> {
+        match self {
+            Self::Required(id) => *id,
+            Self::RequiredIfPresent(id) => *id,
+        }
     }
 }
 
@@ -905,8 +904,8 @@ mod tests {
     #[test]
     fn eku_key_purpose_id() {
         assert!(
-            ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH))
-                .key_purpose_id_equals(KeyPurposeId::new(EKU_SERVER_AUTH).oid_value)
+            ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH)).id()
+                == KeyPurposeId::new(EKU_SERVER_AUTH)
         )
     }
 
