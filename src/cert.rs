@@ -171,22 +171,33 @@ impl<'a> Cert<'a> {
         })
     }
 
-    /// Raw DER encoded certificate serial number.
+    /// Raw certificate serial number.
+    ///
+    /// This is in big-endian byte order, in twos-complement encoding.
+    ///
+    /// If the caller were to add an `INTEGER` tag and suitable length, this
+    /// would become a valid DER encoding.
     pub fn serial(&self) -> &[u8] {
         self.serial.as_slice_less_safe()
     }
 
-    /// Raw DER encoded certificate issuer.
+    /// Raw DER-encoded certificate issuer.
+    ///
+    /// This does not include the outer `SEQUENCE` tag or length.
     pub fn issuer(&self) -> &[u8] {
         self.issuer.as_slice_less_safe()
     }
 
     /// Raw DER encoded certificate subject.
+    ///
+    /// This does not include the outer `SEQUENCE` tag or length.
     pub fn subject(&self) -> &[u8] {
         self.subject.as_slice_less_safe()
     }
 
     /// Get the RFC 5280-compliant [`SubjectPublicKeyInfoDer`] (SPKI) of this [`Cert`].
+    ///
+    /// This **does** include the outer `SEQUENCE` tag and length.
     #[cfg(feature = "alloc")]
     pub fn subject_public_key_info(&self) -> SubjectPublicKeyInfoDer<'static> {
         // Our SPKI representation contains only the content of the RFC 5280 SEQUENCE
@@ -204,7 +215,7 @@ impl<'a> Cert<'a> {
         self.crl_distribution_points.map(DerIterator::new)
     }
 
-    /// Raw DER encoded representation of the certificate.
+    /// Raw DER-encoded representation of the certificate.
     pub fn der(&self) -> CertificateDer<'a> {
         self.der.clone() // This is cheap, just cloning a reference.
     }
