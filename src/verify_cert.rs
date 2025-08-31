@@ -60,7 +60,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
     ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
         let role = path.node().role();
 
-        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, self.eku.inner)?;
+        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, self.eku)?;
 
         // TODO: HPKP checks.
 
@@ -349,7 +349,7 @@ fn check_issuer_independent_properties(
     time: UnixTime,
     role: Role,
     sub_ca_count: usize,
-    eku: ExtendedKeyUsage,
+    eku: KeyUsage,
 ) -> Result<(), Error> {
     // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
     // TODO: Check signature algorithm like mozilla::pkix.
@@ -531,6 +531,39 @@ impl KeyUsage {
         }
     }
 
+    // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+    fn check<'a>(
+        &self,
+        iter: impl Iterator<Item = Result<KeyPurposeId<'a>, Error>>,
+    ) -> Result<(), Error> {
+        let mut empty = true;
+        #[cfg(feature = "alloc")]
+        let mut present = Vec::new();
+
+        for id in iter {
+            empty = false;
+            let id = id?;
+            if self.inner.id() == id {
+                return Ok(());
+            }
+
+            #[cfg(feature = "alloc")]
+            present.push(OidDecoder::new(id.oid_value.as_slice_less_safe()).collect());
+        }
+
+        match (empty, self.inner) {
+            (true, ExtendedKeyUsage::RequiredIfPresent(_)) => Ok(()),
+            _ => Err(Error::RequiredEkuNotFoundContext(
+                RequiredEkuNotFoundContext {
+                    #[cfg(feature = "alloc")]
+                    required: KeyUsage { inner: self.inner },
+                    #[cfg(feature = "alloc")]
+                    present,
+                },
+            )),
+        }
+    }
+
     /// Yield the OID values of the required extended key usage.
     pub fn oid_values(&self) -> impl Iterator<Item = usize> + '_ {
         OidDecoder::new(
@@ -560,39 +593,6 @@ enum ExtendedKeyUsage {
 }
 
 impl ExtendedKeyUsage {
-    // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-    fn check<'a>(
-        &self,
-        iter: impl Iterator<Item = Result<KeyPurposeId<'a>, Error>>,
-    ) -> Result<(), Error> {
-        let mut empty = true;
-        #[cfg(feature = "alloc")]
-        let mut present = Vec::new();
-
-        for id in iter {
-            empty = false;
-            let id = id?;
-            if self.id() == id {
-                return Ok(());
-            }
-
-            #[cfg(feature = "alloc")]
-            present.push(OidDecoder::new(id.oid_value.as_slice_less_safe()).collect());
-        }
-
-        match (empty, self) {
-            (true, ExtendedKeyUsage::RequiredIfPresent(_)) => Ok(()),
-            _ => Err(Error::RequiredEkuNotFoundContext(
-                RequiredEkuNotFoundContext {
-                    #[cfg(feature = "alloc")]
-                    required: KeyUsage { inner: *self },
-                    #[cfg(feature = "alloc")]
-                    present,
-                },
-            )),
-        }
-    }
-
     fn id(&self) -> KeyPurposeId<'static> {
         match self {
             Self::Required(id) => *id,
@@ -902,7 +902,7 @@ mod tests {
 
     #[test]
     fn eku_fail_empty() {
-        let err = ExtendedKeyUsage::Required(KeyPurposeId::new(EKU_SERVER_AUTH))
+        let err = KeyUsage::required(EKU_SERVER_AUTH)
             .check(KeyPurposeIdIter {
                 input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
             })
