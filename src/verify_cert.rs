@@ -28,15 +28,15 @@ use crate::{public_values_eq, signed_data, subject_name};
 
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
 // the `VerifiedPath`.
-pub(crate) struct ChainOptions<'a, 'p> {
-    pub(crate) eku: KeyUsage,
+pub(crate) struct ChainOptions<'a, 'p, V> {
+    pub(crate) eku: V,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
     pub(crate) intermediate_certs: &'p [CertificateDer<'p>],
     pub(crate) revocation: Option<RevocationOptions<'a>>,
 }
 
-impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
+impl<'a, 'p: 'a, V: ExtendedKeyUsageValidator> ChainOptions<'a, 'p, V> {
     pub(crate) fn build_chain(
         &self,
         end_entity: &'p EndEntityCert<'p>,
@@ -60,7 +60,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
     ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
         let role = path.node().role();
 
-        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, self.eku)?;
+        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, &self.eku)?;
 
         // TODO: HPKP checks.
 
@@ -349,7 +349,7 @@ fn check_issuer_independent_properties(
     time: UnixTime,
     role: Role,
     sub_ca_count: usize,
-    eku: KeyUsage,
+    eku: &impl ExtendedKeyUsageValidator,
 ) -> Result<(), Error> {
     // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
     // TODO: Check signature algorithm like mozilla::pkix.
@@ -368,8 +368,8 @@ fn check_issuer_independent_properties(
         check_basic_constraints(value, role, sub_ca_count)
     })?;
     untrusted::read_all_optional(cert.eku, Error::BadDer, |value| match value {
-        Some(input) => eku.check(KeyPurposeIdIter { input }),
-        None => eku.check(KeyPurposeIdIter {
+        Some(input) => eku.validate(KeyPurposeIdIter { input }),
+        None => eku.validate(KeyPurposeIdIter {
             input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
         }),
     })?;
@@ -531,11 +531,27 @@ impl KeyUsage {
         }
     }
 
+    /// Yield the OID values of the required extended key usage.
+    pub fn oid_values(&self) -> impl Iterator<Item = usize> + '_ {
+        OidDecoder::new(
+            match &self.inner {
+                ExtendedKeyUsage::Required(eku) => eku,
+                ExtendedKeyUsage::RequiredIfPresent(eku) => eku,
+            }
+            .oid_value
+            .as_slice_less_safe(),
+        )
+    }
+
+    /// Human-readable representation of the server authentication OID.
+    pub const SERVER_AUTH_REPR: &[usize] = &[1, 3, 6, 1, 5, 5, 7, 3, 1];
+    /// Human-readable representation of the client authentication OID.
+    pub const CLIENT_AUTH_REPR: &[usize] = &[1, 3, 6, 1, 5, 5, 7, 3, 2];
+}
+
+impl ExtendedKeyUsageValidator for KeyUsage {
     // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-    fn check<'a>(
-        &self,
-        iter: impl Iterator<Item = Result<KeyPurposeId<'a>, Error>>,
-    ) -> Result<(), Error> {
+    fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error> {
         let mut empty = true;
         #[cfg(feature = "alloc")]
         let mut present = Vec::new();
@@ -556,30 +572,30 @@ impl KeyUsage {
             _ => Err(Error::RequiredEkuNotFoundContext(
                 RequiredEkuNotFoundContext {
                     #[cfg(feature = "alloc")]
-                    required: KeyUsage { inner: self.inner },
+                    required: Self { inner: self.inner },
                     #[cfg(feature = "alloc")]
                     present,
                 },
             )),
         }
     }
+}
 
-    /// Yield the OID values of the required extended key usage.
-    pub fn oid_values(&self) -> impl Iterator<Item = usize> + '_ {
-        OidDecoder::new(
-            match &self.inner {
-                ExtendedKeyUsage::Required(eku) => eku,
-                ExtendedKeyUsage::RequiredIfPresent(eku) => eku,
-            }
-            .oid_value
-            .as_slice_less_safe(),
-        )
+impl<V: ExtendedKeyUsageValidator> ExtendedKeyUsageValidator for &V {
+    fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error> {
+        (*self).validate(iter)
     }
+}
 
-    /// Human-readable representation of the server authentication OID.
-    pub const SERVER_AUTH_REPR: &[usize] = &[1, 3, 6, 1, 5, 5, 7, 3, 1];
-    /// Human-readable representation of the client authentication OID.
-    pub const CLIENT_AUTH_REPR: &[usize] = &[1, 3, 6, 1, 5, 5, 7, 3, 2];
+/// A trait for validating the Extended Key Usage (EKU) extensions of a certificate.
+pub trait ExtendedKeyUsageValidator {
+    /// Validate the EKU values in a certificate.
+    ///
+    /// `iter` yields the EKU OIDs in the certificate, or an error if the EKU extension
+    /// is malformed. `validate()` should yield `Ok(())` if the EKU values match the
+    /// required policy, or an `Error` if they do not. Ideally the `Error` should be
+    /// `Error::RequiredEkuNotFoundContext` if the policy is not met.
+    fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error>;
 }
 
 /// Extended Key Usage (EKU) of a certificate.
@@ -601,7 +617,7 @@ impl ExtendedKeyUsage {
     }
 }
 
-struct KeyPurposeIdIter<'a, 'r> {
+pub struct KeyPurposeIdIter<'a, 'r> {
     input: &'r mut untrusted::Reader<'a>,
 }
 
@@ -625,7 +641,7 @@ impl Drop for KeyPurposeIdIter<'_, '_> {
 
 /// An OID value indicating an Extended Key Usage (EKU) key purpose.
 #[derive(Clone, Copy)]
-struct KeyPurposeId<'a> {
+pub struct KeyPurposeId<'a> {
     oid_value: untrusted::Input<'a>,
 }
 
@@ -633,7 +649,7 @@ impl<'a> KeyPurposeId<'a> {
     /// Construct a new [`KeyPurposeId`].
     ///
     /// `oid` is the OBJECT IDENTIFIER in bytes.
-    const fn new(oid: &'a [u8]) -> Self {
+    pub const fn new(oid: &'a [u8]) -> Self {
         Self {
             oid_value: untrusted::Input::from(oid),
         }
@@ -902,7 +918,7 @@ mod tests {
     #[test]
     fn eku_fail_empty() {
         let err = KeyUsage::required(EKU_SERVER_AUTH)
-            .check(KeyPurposeIdIter {
+            .validate(KeyPurposeIdIter {
                 input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
             })
             .unwrap_err();
