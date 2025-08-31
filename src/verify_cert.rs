@@ -367,7 +367,12 @@ fn check_issuer_independent_properties(
     untrusted::read_all_optional(cert.basic_constraints, Error::BadDer, |value| {
         check_basic_constraints(value, role, sub_ca_count)
     })?;
-    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| eku.check(value))?;
+    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| match value {
+        Some(input) => eku.check(KeyPurposeIdIter { input }),
+        None => eku.check(KeyPurposeIdIter {
+            input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
+        }),
+    })?;
 
     Ok(())
 }
@@ -556,49 +561,36 @@ enum ExtendedKeyUsage {
 
 impl ExtendedKeyUsage {
     // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
-    fn check(&self, input: Option<&mut untrusted::Reader<'_>>) -> Result<(), Error> {
-        let input = match (input, self) {
-            (Some(input), _) => input,
-            (None, Self::RequiredIfPresent(_)) => return Ok(()),
-            (None, Self::Required(_)) => {
-                return Err(Error::RequiredEkuNotFoundContext(
-                    RequiredEkuNotFoundContext {
-                        #[cfg(feature = "alloc")]
-                        required: KeyUsage { inner: *self },
-                        #[cfg(feature = "alloc")]
-                        present: Vec::new(),
-                    },
-                ));
-            }
-        };
-
+    fn check<'a>(
+        &self,
+        iter: impl Iterator<Item = Result<KeyPurposeId<'a>, Error>>,
+    ) -> Result<(), Error> {
+        let mut empty = true;
         #[cfg(feature = "alloc")]
         let mut present = Vec::new();
-        loop {
-            let id = KeyPurposeId {
-                oid_value: der::expect_tag(input, der::Tag::OID)?,
-            };
 
+        for id in iter {
+            empty = false;
+            let id = id?;
             if self.id() == id {
-                input.skip_to_end();
-                break;
+                return Ok(());
             }
 
             #[cfg(feature = "alloc")]
             present.push(OidDecoder::new(id.oid_value.as_slice_less_safe()).collect());
-            if input.at_end() {
-                return Err(Error::RequiredEkuNotFoundContext(
-                    RequiredEkuNotFoundContext {
-                        #[cfg(feature = "alloc")]
-                        required: KeyUsage { inner: *self },
-                        #[cfg(feature = "alloc")]
-                        present,
-                    },
-                ));
-            }
         }
 
-        Ok(())
+        match (empty, self) {
+            (true, ExtendedKeyUsage::RequiredIfPresent(_)) => Ok(()),
+            _ => Err(Error::RequiredEkuNotFoundContext(
+                RequiredEkuNotFoundContext {
+                    #[cfg(feature = "alloc")]
+                    required: KeyUsage { inner: *self },
+                    #[cfg(feature = "alloc")]
+                    present,
+                },
+            )),
+        }
     }
 
     fn id(&self) -> KeyPurposeId<'static> {
@@ -606,6 +598,28 @@ impl ExtendedKeyUsage {
             Self::Required(id) => *id,
             Self::RequiredIfPresent(id) => *id,
         }
+    }
+}
+
+struct KeyPurposeIdIter<'a, 'r> {
+    input: &'r mut untrusted::Reader<'a>,
+}
+
+impl<'a, 'r> Iterator for KeyPurposeIdIter<'a, 'r> {
+    type Item = Result<KeyPurposeId<'a>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.input.at_end() {
+            return None;
+        }
+
+        Some(der::expect_tag(self.input, der::Tag::OID).map(|oid_value| KeyPurposeId { oid_value }))
+    }
+}
+
+impl Drop for KeyPurposeIdIter<'_, '_> {
+    fn drop(&mut self) {
+        self.input.skip_to_end();
     }
 }
 
@@ -888,7 +902,9 @@ mod tests {
     #[test]
     fn eku_fail_empty() {
         let err = ExtendedKeyUsage::Required(KeyPurposeId::new(EKU_SERVER_AUTH))
-            .check(None)
+            .check(KeyPurposeIdIter {
+                input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
+            })
             .unwrap_err();
         assert_eq!(
             err,
