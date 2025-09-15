@@ -71,6 +71,9 @@ pub enum Error {
         next_update: UnixTime,
     },
 
+    /// The certificate has an Extended Key Usage extension without any EKU values.
+    EmptyEkuExtension,
+
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 
@@ -292,6 +295,7 @@ impl Error {
             Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired { .. } => 270,
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
+            Self::EmptyEkuExtension => 245,
             #[allow(deprecated)]
             Self::RequiredEkuNotFound | Self::RequiredEkuNotFoundContext(_) => 240,
             Self::NameConstraintViolation => 230,

@@ -367,14 +367,22 @@ fn check_issuer_independent_properties(
     untrusted::read_all_optional(cert.basic_constraints, Error::BadDer, |value| {
         check_basic_constraints(value, role, sub_ca_count)
     })?;
-    untrusted::read_all_optional(cert.eku, Error::BadDer, |value| match value {
+    untrusted::read_all_optional(cert.eku, Error::BadDer, |input| check_eku(input, eku))?;
+
+    Ok(())
+}
+
+fn check_eku(
+    input: Option<&mut untrusted::Reader<'_>>,
+    eku: &impl ExtendedKeyUsageValidator,
+) -> Result<(), Error> {
+    match input {
+        Some(input) if input.at_end() => Err(Error::EmptyEkuExtension),
         Some(input) => eku.validate(KeyPurposeIdIter { input }),
         None => eku.validate(KeyPurposeIdIter {
             input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
         }),
-    })?;
-
-    Ok(())
+    }
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.1.2.5
@@ -932,6 +940,16 @@ mod tests {
                 #[cfg(feature = "alloc")]
                 present: Vec::new(),
             })
+        );
+    }
+
+    #[test]
+    fn eku_fail_empty_with_optional() {
+        let mut empty_eku = untrusted::Reader::new(untrusted::Input::from(&[]));
+        let validator = KeyUsage::required_if_present(EKU_SERVER_AUTH);
+        assert_eq!(
+            check_eku(Some(&mut empty_eku), &validator).unwrap_err(),
+            Error::EmptyEkuExtension,
         );
     }
 
