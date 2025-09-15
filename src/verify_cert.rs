@@ -617,6 +617,7 @@ impl ExtendedKeyUsage {
     }
 }
 
+/// Iterator over [`KeyPurposeId`]s, for use in [`ExtendedKeyUsageValidator`].
 pub struct KeyPurposeIdIter<'a, 'r> {
     input: &'r mut untrusted::Reader<'a>,
 }
