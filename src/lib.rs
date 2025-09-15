@@ -85,7 +85,10 @@ pub use {
     },
     rpk_entity::RawPublicKeyEntity,
     trust_anchor::anchor_from_trusted_cert,
-    verify_cert::{ExtendedKeyUsageValidator, KeyUsage, RequiredEkuNotFoundContext, VerifiedPath},
+    verify_cert::{
+        ExtendedKeyUsageValidator, KeyPurposeId, KeyPurposeIdIter, KeyUsage,
+        RequiredEkuNotFoundContext, VerifiedPath,
+    },
 };
 
 #[cfg(feature = "alloc")]
