@@ -572,7 +572,7 @@ impl ExtendedKeyUsageValidator for KeyUsage {
             }
 
             #[cfg(feature = "alloc")]
-            present.push(OidDecoder::new(id.oid_value.as_slice_less_safe()).collect());
+            present.push(id.to_decoded_oid());
         }
 
         match (empty, self.inner) {
@@ -662,6 +662,12 @@ impl<'a> KeyPurposeId<'a> {
         Self {
             oid_value: untrusted::Input::from(oid),
         }
+    }
+
+    /// Yield the OID value as a sequence of `usize` components.
+    #[cfg(feature = "alloc")]
+    pub fn to_decoded_oid(&self) -> Vec<usize> {
+        OidDecoder::new(self.oid_value.as_slice_less_safe()).collect()
     }
 }
 
