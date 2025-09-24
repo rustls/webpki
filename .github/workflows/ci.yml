@@ -195,7 +195,7 @@ jobs:
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.71"
+          toolchain: "1.83"
       - run: cargo check --locked --lib --all-features
 
   cross:
