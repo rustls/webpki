@@ -31,6 +31,7 @@
     elided_lifetimes_in_paths,
     unnameable_types,
     unreachable_pub,
+    clippy::alloc_instead_of_core,
     clippy::use_self,
     clippy::std_instead_of_core
 )]
