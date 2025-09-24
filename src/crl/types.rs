@@ -921,7 +921,7 @@ impl TryFrom<u8> for RevocationReason {
 #[cfg(feature = "alloc")]
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use core::time::Duration;
 
     use pki_types::CertificateDer;
     use std::prelude::v1::*;
