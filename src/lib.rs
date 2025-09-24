@@ -27,7 +27,12 @@
 //! | `aws-lc-rs` | Enable use of the aws-lc-rs crate for cryptography. Previously this feature was named `aws_lc_rs`. |
 
 #![no_std]
-#![warn(elided_lifetimes_in_paths, unreachable_pub, clippy::use_self)]
+#![warn(
+    elided_lifetimes_in_paths,
+    unnameable_types,
+    unreachable_pub,
+    clippy::use_self
+)]
 #![deny(missing_docs, clippy::as_conversions)]
 #![allow(
     clippy::len_without_is_empty,
@@ -74,10 +79,11 @@ pub(crate) mod test_utils;
 pub use {
     cert::Cert,
     crl::{
-        BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, ExpirationPolicy,
-        RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, RevocationReason,
-        UnknownStatusPolicy,
+        BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, CrlsRequired,
+        ExpirationPolicy, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
+        RevocationReason, UnknownStatusPolicy,
     },
+    der::DerIterator,
     end_entity::EndEntityCert,
     error::{
         DerTypeId, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
@@ -86,7 +92,7 @@ pub use {
     rpk_entity::RawPublicKeyEntity,
     trust_anchor::anchor_from_trusted_cert,
     verify_cert::{
-        ExtendedKeyUsageValidator, KeyPurposeId, KeyPurposeIdIter, KeyUsage,
+        ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId, KeyPurposeIdIter, KeyUsage,
         RequiredEkuNotFoundContext, VerifiedPath,
     },
 };
