@@ -31,7 +31,8 @@
     elided_lifetimes_in_paths,
     unnameable_types,
     unreachable_pub,
-    clippy::use_self
+    clippy::use_self,
+    clippy::std_instead_of_core
 )]
 #![deny(missing_docs, clippy::as_conversions)]
 #![allow(
