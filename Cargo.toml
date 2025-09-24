@@ -16,12 +16,12 @@
 categories = ["cryptography", "no-std"]
 description = "Web PKI X.509 Certificate Verification."
 edition = "2021"
-rust-version = "1.71"
+rust-version = "1.83"
 license = "ISC"
 name = "rustls-webpki"
 readme = "README.md"
 repository = "https://github.com/rustls/webpki"
-version = "0.103.6"
+version = "0.104.0"
 
 include = [
     "Cargo.toml",

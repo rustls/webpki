@@ -674,8 +674,8 @@ mod alloc_tests {
 
     #[test]
     fn presented_matches_constraint_test() {
+        use core::net::IpAddr;
         use std::boxed::Box;
-        use std::net::IpAddr;
 
         for (presented, constraint_address, constraint_mask, expected_result) in
             PRESENTED_MATCHES_CONSTRAINT
