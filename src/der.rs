@@ -18,6 +18,7 @@ use core::marker::PhantomData;
 
 use crate::{Error, error::DerTypeId};
 
+/// Iterator to parse a sequence of DER-encoded values of type `T`.
 #[derive(Debug)]
 pub struct DerIterator<'a, T> {
     reader: untrusted::Reader<'a>,
