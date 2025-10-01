@@ -58,7 +58,7 @@ include = [
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "webpki_docsrs"]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
@@ -116,3 +116,6 @@ harness = false
 
 [package.metadata.cargo-semver-checks.lints]
 enum_variant_marked_deprecated = "warn"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(webpki_docsrs)'] }
