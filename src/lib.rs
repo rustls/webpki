@@ -44,7 +44,7 @@
     clippy::upper_case_acronyms
 )]
 // Enable documentation for all features on docs.rs
-#![cfg_attr(webpki_docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(webpki_docsrs, feature(doc_cfg))]
 
 #[cfg(any(feature = "std", test))]
 extern crate std;
