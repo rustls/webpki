@@ -462,8 +462,8 @@ impl fmt::Debug for RequiredEkuNotFoundContext {
         builder.field(
             "required",
             match &self.required.inner {
-                ExtendedKeyUsage::Required(inner) => inner,
-                ExtendedKeyUsage::RequiredIfPresent(inner) => inner,
+                EkuValidationMode::Required(inner) => inner,
+                EkuValidationMode::RequiredIfPresent(inner) => inner,
             },
         );
         #[cfg(feature = "alloc")]
@@ -507,7 +507,7 @@ impl fmt::Debug for EkuListDebug<'_> {
 /// <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct KeyUsage {
-    inner: ExtendedKeyUsage,
+    inner: EkuValidationMode,
 }
 
 impl KeyUsage {
@@ -528,14 +528,14 @@ impl KeyUsage {
     /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID.
     pub const fn required(oid: &'static [u8]) -> Self {
         Self {
-            inner: ExtendedKeyUsage::Required(KeyPurposeId::new(oid)),
+            inner: EkuValidationMode::Required(KeyPurposeId::new(oid)),
         }
     }
 
     /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID, if the certificate has EKUs.
     pub const fn required_if_present(oid: &'static [u8]) -> Self {
         Self {
-            inner: ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(oid)),
+            inner: EkuValidationMode::RequiredIfPresent(KeyPurposeId::new(oid)),
         }
     }
 
@@ -543,8 +543,8 @@ impl KeyUsage {
     pub fn oid_values(&self) -> impl Iterator<Item = usize> + '_ {
         OidDecoder::new(
             match &self.inner {
-                ExtendedKeyUsage::Required(eku) => eku,
-                ExtendedKeyUsage::RequiredIfPresent(eku) => eku,
+                EkuValidationMode::Required(eku) => eku,
+                EkuValidationMode::RequiredIfPresent(eku) => eku,
             }
             .oid_value
             .as_slice_less_safe(),
@@ -576,7 +576,7 @@ impl ExtendedKeyUsageValidator for KeyUsage {
         }
 
         match (empty, self.inner) {
-            (true, ExtendedKeyUsage::RequiredIfPresent(_)) => Ok(()),
+            (true, EkuValidationMode::RequiredIfPresent(_)) => Ok(()),
             _ => Err(Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
                 #[cfg(feature = "alloc")]
                 required: Self { inner: self.inner },
@@ -606,7 +606,7 @@ pub trait ExtendedKeyUsageValidator {
 
 /// Extended Key Usage (EKU) of a certificate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ExtendedKeyUsage {
+enum EkuValidationMode {
     /// The certificate must contain the specified [`KeyPurposeId`] as EKU.
     Required(KeyPurposeId<'static>),
 
@@ -614,7 +614,7 @@ enum ExtendedKeyUsage {
     RequiredIfPresent(KeyPurposeId<'static>),
 }
 
-impl ExtendedKeyUsage {
+impl EkuValidationMode {
     fn id(&self) -> KeyPurposeId<'static> {
         match self {
             Self::Required(id) => *id,
@@ -960,7 +960,7 @@ mod tests {
     #[test]
     fn eku_key_purpose_id() {
         assert!(
-            ExtendedKeyUsage::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH)).id()
+            EkuValidationMode::RequiredIfPresent(KeyPurposeId::new(EKU_SERVER_AUTH)).id()
                 == KeyPurposeId::new(EKU_SERVER_AUTH)
         )
     }
