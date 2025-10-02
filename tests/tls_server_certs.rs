@@ -37,7 +37,7 @@ fn check_cert(
         &anchors,
         &[],
         time,
-        ExtendedKeyUsage::server_auth(),
+        &ExtendedKeyUsage::server_auth(),
         None,
         None,
     )?;
