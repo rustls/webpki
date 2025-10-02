@@ -5,8 +5,9 @@ use core::time::Duration;
 
 use pki_types::{CertificateDer, ServerName, UnixTime};
 use webpki::{
-    CertRevocationList, EndEntityCert, KeyUsage, OwnedCertRevocationList, RevocationCheckDepth,
-    RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy, anchor_from_trusted_cert,
+    CertRevocationList, EndEntityCert, ExtendedKeyUsage, OwnedCertRevocationList,
+    RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy,
+    anchor_from_trusted_cert,
 };
 
 fn revocation_options_for_test<'a>(
@@ -241,7 +242,7 @@ pub fn amazon() {
                     &anchors,
                     &intermediates,
                     time,
-                    KeyUsage::server_auth(),
+                    ExtendedKeyUsage::server_auth(),
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -254,7 +255,7 @@ pub fn amazon() {
                     &legacy_anchors,
                     &intermediates_legacy,
                     time,
-                    KeyUsage::server_auth(),
+                    ExtendedKeyUsage::server_auth(),
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -267,7 +268,7 @@ pub fn amazon() {
                     &all_anchors,
                     &intermediates_legacy,
                     time,
-                    KeyUsage::server_auth(),
+                    ExtendedKeyUsage::server_auth(),
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -289,7 +290,7 @@ pub fn amazon() {
                     &anchors,
                     &intermediates,
                     time,
-                    KeyUsage::server_auth(),
+                    ExtendedKeyUsage::server_auth(),
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -304,7 +305,7 @@ pub fn amazon() {
                     &anchors,
                     &intermediates,
                     time,
-                    KeyUsage::server_auth(),
+                    ExtendedKeyUsage::server_auth(),
                     Some(revocation_options_for_test(crls)),
                     None,
                 )
@@ -323,7 +324,7 @@ pub fn amazon() {
                 &anchors,
                 &intermediates,
                 time,
-                KeyUsage::server_auth(),
+                ExtendedKeyUsage::server_auth(),
                 None,
                 None,
             )

@@ -16,7 +16,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, ServerName, UnixTime};
-use webpki::{InvalidNameContext, KeyUsage, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, InvalidNameContext, anchor_from_trusted_cert};
 
 #[track_caller]
 fn check_cert(
@@ -37,7 +37,7 @@ fn check_cert(
         &anchors,
         &[],
         time,
-        KeyUsage::server_auth(),
+        ExtendedKeyUsage::server_auth(),
         None,
         None,
     )?;

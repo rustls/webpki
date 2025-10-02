@@ -11,7 +11,7 @@ use pki_types::{
 };
 use serde::Deserialize;
 
-use webpki::{KeyUsage, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, anchor_from_trusted_cert};
 
 // All of the BetterTLS testcases use P256 keys.
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
@@ -82,7 +82,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
                 roots,
                 intermediates,
                 now,
-                KeyUsage::server_auth(),
+                ExtendedKeyUsage::server_auth(),
                 None,
                 None,
             )

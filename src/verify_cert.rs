@@ -449,7 +449,7 @@ fn check_basic_constraints(
 pub struct RequiredEkuNotFoundContext {
     /// The required ExtendedKeyUsage.
     #[cfg(feature = "alloc")]
-    pub required: KeyUsage,
+    pub required: ExtendedKeyUsage,
     /// The ExtendedKeyUsage OIDs present in the certificate.
     #[cfg(feature = "alloc")]
     pub present: Vec<Vec<usize>>,
@@ -506,33 +506,34 @@ impl fmt::Debug for EkuListDebug<'_> {
 ///
 /// <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct KeyUsage {
+pub struct ExtendedKeyUsage {
     inner: EkuValidationMode,
 }
 
-impl KeyUsage {
-    /// Construct a new [`KeyUsage`] as appropriate for server certificate authentication.
+impl ExtendedKeyUsage {
+    /// Construct a new [`ExtendedKeyUsage`] as appropriate for server certificate authentication.
     ///
-    /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not require the certificate to specify the eKU extension.
+    /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not
+    /// require the certificate to specify the eKU extension.
     pub const fn server_auth() -> Self {
         Self::required_if_present(EKU_SERVER_AUTH)
     }
 
-    /// Construct a new [`KeyUsage`] as appropriate for client certificate authentication.
+    /// Construct a new [`ExtendedKeyUsage`] as appropriate for client certificate authentication.
     ///
     /// As specified in <>, this does not require the certificate to specify the eKU extension.
     pub const fn client_auth() -> Self {
         Self::required_if_present(EKU_CLIENT_AUTH)
     }
 
-    /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID.
+    /// Construct a new [`ExtendedKeyUsage`] requiring a certificate to support the specified OID.
     pub const fn required(oid: &'static [u8]) -> Self {
         Self {
             inner: EkuValidationMode::Required(KeyPurposeId::new(oid)),
         }
     }
 
-    /// Construct a new [`KeyUsage`] requiring a certificate to support the specified OID, if the certificate has EKUs.
+    /// Construct a new [`ExtendedKeyUsage`] requiring a certificate to support the specified OID, if the certificate has EKUs.
     pub const fn required_if_present(oid: &'static [u8]) -> Self {
         Self {
             inner: EkuValidationMode::RequiredIfPresent(KeyPurposeId::new(oid)),
@@ -557,7 +558,7 @@ impl KeyUsage {
     pub const CLIENT_AUTH_REPR: &[usize] = &[1, 3, 6, 1, 5, 5, 7, 3, 2];
 }
 
-impl ExtendedKeyUsageValidator for KeyUsage {
+impl ExtendedKeyUsageValidator for ExtendedKeyUsage {
     // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
     fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error> {
         let mut empty = true;
@@ -920,18 +921,22 @@ mod tests {
     #[test]
     fn oid_decoding() {
         assert_eq!(
-            KeyUsage::server_auth().oid_values().collect::<Vec<_>>(),
-            KeyUsage::SERVER_AUTH_REPR
+            ExtendedKeyUsage::server_auth()
+                .oid_values()
+                .collect::<Vec<_>>(),
+            ExtendedKeyUsage::SERVER_AUTH_REPR
         );
         assert_eq!(
-            KeyUsage::client_auth().oid_values().collect::<Vec<_>>(),
-            KeyUsage::CLIENT_AUTH_REPR
+            ExtendedKeyUsage::client_auth()
+                .oid_values()
+                .collect::<Vec<_>>(),
+            ExtendedKeyUsage::CLIENT_AUTH_REPR
         );
     }
 
     #[test]
     fn eku_fail_empty() {
-        let err = KeyUsage::required(EKU_SERVER_AUTH)
+        let err = ExtendedKeyUsage::required(EKU_SERVER_AUTH)
             .validate(KeyPurposeIdIter {
                 input: &mut untrusted::Reader::new(untrusted::Input::from(&[])),
             })
@@ -940,7 +945,7 @@ mod tests {
             err,
             Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
                 #[cfg(feature = "alloc")]
-                required: dbg!(KeyUsage::required(EKU_SERVER_AUTH)), // Cover Debug impl
+                required: dbg!(ExtendedKeyUsage::required(EKU_SERVER_AUTH)), // Cover Debug impl
                 #[cfg(feature = "alloc")]
                 present: Vec::new(),
             })
@@ -950,7 +955,7 @@ mod tests {
     #[test]
     fn eku_fail_empty_with_optional() {
         let mut empty_eku = untrusted::Reader::new(untrusted::Input::from(&[]));
-        let validator = KeyUsage::required_if_present(EKU_SERVER_AUTH);
+        let validator = ExtendedKeyUsage::required_if_present(EKU_SERVER_AUTH);
         assert_eq!(
             check_eku(Some(&mut empty_eku), &validator).unwrap_err(),
             Error::EmptyEkuExtension,
@@ -1348,7 +1353,7 @@ mod tests {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
         let opts = ChainOptions {
-            eku: KeyUsage::server_auth(),
+            eku: ExtendedKeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
             trust_anchors,
             intermediate_certs,
