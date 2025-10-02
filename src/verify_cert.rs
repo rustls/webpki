@@ -577,14 +577,12 @@ impl ExtendedKeyUsageValidator for KeyUsage {
 
         match (empty, self.inner) {
             (true, ExtendedKeyUsage::RequiredIfPresent(_)) => Ok(()),
-            _ => Err(Error::RequiredEkuNotFoundContext(
-                RequiredEkuNotFoundContext {
-                    #[cfg(feature = "alloc")]
-                    required: Self { inner: self.inner },
-                    #[cfg(feature = "alloc")]
-                    present,
-                },
-            )),
+            _ => Err(Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
+                #[cfg(feature = "alloc")]
+                required: Self { inner: self.inner },
+                #[cfg(feature = "alloc")]
+                present,
+            })),
         }
     }
 }
@@ -940,7 +938,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             err,
-            Error::RequiredEkuNotFoundContext(RequiredEkuNotFoundContext {
+            Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
                 #[cfg(feature = "alloc")]
                 required: dbg!(KeyUsage::required(EKU_SERVER_AUTH)), // Cover Debug impl
                 #[cfg(feature = "alloc")]

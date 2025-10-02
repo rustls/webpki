@@ -342,7 +342,7 @@ mod tests {
     }
 
     fn unsupported_for_rsa(_sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
-        Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+        Error::UnsupportedSignatureAlgorithmForPublicKey(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: _sig_alg_id.to_vec(),
@@ -357,7 +357,7 @@ mod tests {
     }
 
     fn unsupported_for_ecdsa(_sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
-        Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+        Error::UnsupportedSignatureAlgorithmForPublicKey(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: _sig_alg_id.to_vec(),
@@ -368,7 +368,7 @@ mod tests {
     }
 
     fn unsupported(_sig_alg_id: &[u8]) -> Error {
-        Error::UnsupportedSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext {
+        Error::UnsupportedSignatureAlgorithm(UnsupportedSignatureAlgorithmContext {
             #[cfg(feature = "alloc")]
             signature_algorithm_id: _sig_alg_id.to_vec(),
             #[cfg(feature = "alloc")]

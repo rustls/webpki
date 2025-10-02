@@ -194,7 +194,7 @@ pub(crate) fn verify_signed_data(
             signed_data.data,
             signed_data.signature,
         ) {
-            Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(cx)) => {
+            Err(Error::UnsupportedSignatureAlgorithmForPublicKey(cx)) => {
                 invalid_for_public_key = Some(cx);
                 continue;
             }
@@ -203,10 +203,10 @@ pub(crate) fn verify_signed_data(
     }
 
     if let Some(cx) = invalid_for_public_key {
-        return Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(cx));
+        return Err(Error::UnsupportedSignatureAlgorithmForPublicKey(cx));
     }
 
-    Err(Error::UnsupportedSignatureAlgorithmContext(
+    Err(Error::UnsupportedSignatureAlgorithm(
         UnsupportedSignatureAlgorithmContext {
             #[cfg(feature = "alloc")]
             signature_algorithm_id: signed_data.algorithm.as_slice_less_safe().to_vec(),
@@ -227,7 +227,7 @@ pub(crate) fn verify_signature(
 ) -> Result<(), Error> {
     let spki = der::read_all::<SubjectPublicKeyInfo<'_>>(spki_value)?;
     if signature_alg.public_key_alg_id().as_ref() != spki.algorithm_id_value.as_slice_less_safe() {
-        return Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+        return Err(Error::UnsupportedSignatureAlgorithmForPublicKey(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: signature_alg.signature_alg_id().as_ref().to_vec(),

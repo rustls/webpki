@@ -125,7 +125,7 @@ fn ed25519_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
@@ -247,7 +247,7 @@ fn ecdsa_p256_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
@@ -369,7 +369,7 @@ fn ecdsa_p384_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
@@ -546,7 +546,7 @@ fn ecdsa_p521_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
@@ -881,7 +881,7 @@ fn rsa_2048_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
@@ -1268,7 +1268,7 @@ fn rsa_3072_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
@@ -1655,7 +1655,7 @@ fn rsa_4096_key_rejected_by_other_algorithms() {
     ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }
