@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.104.0"
+version = "0.104.0-alpha.1"
 dependencies = [
  "aws-lc-rs",
  "base64",
