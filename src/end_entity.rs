@@ -106,7 +106,7 @@ impl EndEntityCert<'_> {
         trust_anchors: &'p [TrustAnchor<'_>],
         intermediate_certs: &'p [CertificateDer<'p>],
         time: UnixTime,
-        usage: &impl ExtendedKeyUsageValidator,
+        usage: &dyn ExtendedKeyUsageValidator,
         revocation: Option<RevocationOptions<'_>>,
         verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
     ) -> Result<VerifiedPath<'p>, Error> {

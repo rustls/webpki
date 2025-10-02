@@ -28,15 +28,15 @@ use crate::{public_values_eq, signed_data, subject_name};
 
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
 // the `VerifiedPath`.
-pub(crate) struct ChainOptions<'a, 'p, V> {
-    pub(crate) eku: &'a V,
+pub(crate) struct ChainOptions<'a, 'p> {
+    pub(crate) eku: &'a dyn ExtendedKeyUsageValidator,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
     pub(crate) intermediate_certs: &'p [CertificateDer<'p>],
     pub(crate) revocation: Option<RevocationOptions<'a>>,
 }
 
-impl<'a, 'p: 'a, V: ExtendedKeyUsageValidator> ChainOptions<'a, 'p, V> {
+impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
     pub(crate) fn build_chain(
         &self,
         end_entity: &'p EndEntityCert<'p>,
@@ -349,7 +349,7 @@ fn check_issuer_independent_properties(
     time: UnixTime,
     role: Role,
     sub_ca_count: usize,
-    eku: &impl ExtendedKeyUsageValidator,
+    eku: &dyn ExtendedKeyUsageValidator,
 ) -> Result<(), Error> {
     // TODO: check_distrust(trust_anchor_subject, trust_anchor_spki)?;
     // TODO: Check signature algorithm like mozilla::pkix.
@@ -374,7 +374,7 @@ fn check_issuer_independent_properties(
 
 fn check_eku(
     input: Option<&mut untrusted::Reader<'_>>,
-    eku: &impl ExtendedKeyUsageValidator,
+    eku: &dyn ExtendedKeyUsageValidator,
 ) -> Result<(), Error> {
     match input {
         Some(input) if input.at_end() => Err(Error::EmptyEkuExtension),
