@@ -4,9 +4,12 @@ yanked = "deny"
 [licenses]
 allow = [
     "Apache-2.0",
+    "BSD-3-Clause",
     "ISC",
     "LicenseRef-webpki",
     "MIT",
+    "OpenSSL",
+    "Unicode-3.0",
 ]
 confidence-threshold = 1.0
 
@@ -20,7 +23,6 @@ license-files = [
 ]
 
 [bans]
-multiple-versions = "deny"
 wildcards = "deny"
 
 [sources]
