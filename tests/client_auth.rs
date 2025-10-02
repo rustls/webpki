@@ -64,7 +64,7 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
     let err = check_cert(ee.der(), ca).unwrap_err();
     assert_eq!(
         err,
-        webpki::Error::RequiredEkuNotFoundContext(RequiredEkuNotFoundContext {
+        webpki::Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
             required: KeyUsage::client_auth(),
             present: vec![vec![1, 3, 6, 1, 5, 5, 7, 3, 1]],
         })
@@ -72,7 +72,7 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
 
     assert_eq!(
         format!("{err}"),
-        "RequiredEkuNotFoundContext(RequiredEkuNotFoundContext { required: KeyPurposeId(1.3.6.1.5.5.7.3.2), present: [KeyPurposeId(1.3.6.1.5.5.7.3.1)] })"
+        "RequiredEkuNotFound(RequiredEkuNotFoundContext { required: KeyPurposeId(1.3.6.1.5.5.7.3.2), present: [KeyPurposeId(1.3.6.1.5.5.7.3.1)] })"
     )
 }
 

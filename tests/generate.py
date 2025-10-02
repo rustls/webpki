@@ -774,7 +774,7 @@ fn %(test_name_lower)s() {
     for algorithm in &[ %(unusable_algs_str)s ] {
         assert!(matches!(
             check_sig(ee, *algorithm, b"", b""),
-            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
+            Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
 }"""

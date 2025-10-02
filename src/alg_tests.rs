@@ -222,7 +222,7 @@ fn test_ecdsa_secp384r1_sha256() {
 fn test_ecdsa_using_rsa_key() {
     assert_eq!(
         test_verify_signed_data(test_file_bytes!("ecdsa-using-rsa-key.pem")),
-        Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKey(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: alg_id::ECDSA_SHA256.as_ref().to_vec(),
@@ -329,7 +329,7 @@ fn test_rsa_pkcs1_sha256_using_ecdsa_algorithm() {
         test_verify_signed_data(test_file_bytes!(
             "rsa-pkcs1-sha256-using-ecdsa-algorithm.pem"
         )),
-        Err(Error::UnsupportedSignatureAlgorithmForPublicKeyContext(
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKey(
             UnsupportedSignatureAlgorithmForPublicKeyContext {
                 #[cfg(feature = "alloc")]
                 signature_algorithm_id: alg_id::ECDSA_SHA256.as_ref().to_vec(),

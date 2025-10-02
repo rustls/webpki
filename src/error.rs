@@ -146,7 +146,7 @@ pub enum Error {
 
     /// The certificate is not valid for the Extended Key Usage for which it is
     /// being validated.
-    RequiredEkuNotFoundContext(RequiredEkuNotFoundContext),
+    RequiredEkuNotFound(RequiredEkuNotFoundContext),
 
     /// The algorithm in the TBSCertificate "signature" field of a certificate
     /// does not match the algorithm in the signature of the certificate.
@@ -199,11 +199,11 @@ pub enum Error {
 
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
-    UnsupportedCrlSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext),
+    UnsupportedCrlSignatureAlgorithm(UnsupportedSignatureAlgorithmContext),
 
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
-    UnsupportedSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext),
+    UnsupportedSignatureAlgorithm(UnsupportedSignatureAlgorithmContext),
 
     /// The signature's algorithm does not match the algorithm of the public
     /// key it is being validated for. This may be because the public key
@@ -212,9 +212,7 @@ pub enum Error {
     /// algorithm (e.g. ECC keys for unsupported curves), or the public key
     /// algorithm and the signature algorithm simply don't match (e.g.
     /// verifying an RSA signature with an ECC public key).
-    UnsupportedCrlSignatureAlgorithmForPublicKeyContext(
-        UnsupportedSignatureAlgorithmForPublicKeyContext,
-    ),
+    UnsupportedCrlSignatureAlgorithmForPublicKey(UnsupportedSignatureAlgorithmForPublicKeyContext),
 
     /// The signature's algorithm does not match the algorithm of the public
     /// key it is being validated for. This may be because the public key
@@ -223,9 +221,7 @@ pub enum Error {
     /// algorithm (e.g. ECC keys for unsupported curves), or the public key
     /// algorithm and the signature algorithm simply don't match (e.g.
     /// verifying an RSA signature with an ECC public key).
-    UnsupportedSignatureAlgorithmForPublicKeyContext(
-        UnsupportedSignatureAlgorithmForPublicKeyContext,
-    ),
+    UnsupportedSignatureAlgorithmForPublicKey(UnsupportedSignatureAlgorithmForPublicKeyContext),
 }
 
 impl Error {
@@ -249,7 +245,7 @@ impl Error {
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
             Self::EmptyEkuExtension => 245,
-            Self::RequiredEkuNotFoundContext(_) => 240,
+            Self::RequiredEkuNotFound(_) => 240,
             Self::NameConstraintViolation => 230,
             Self::PathLenConstraintViolated => 220,
             Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
@@ -262,10 +258,11 @@ impl Error {
             Self::InvalidCrlNumber => 160,
 
             // Errors related to unsupported features.
-            Self::UnsupportedCrlSignatureAlgorithmForPublicKeyContext(_)
-            | Self::UnsupportedSignatureAlgorithmForPublicKeyContext(_) => 150,
-            Self::UnsupportedCrlSignatureAlgorithmContext(_)
-            | Self::UnsupportedSignatureAlgorithmContext(_) => 140,
+            Self::UnsupportedCrlSignatureAlgorithmForPublicKey(_)
+            | Self::UnsupportedSignatureAlgorithmForPublicKey(_) => 150,
+            Self::UnsupportedCrlSignatureAlgorithm(_) | Self::UnsupportedSignatureAlgorithm(_) => {
+                140
+            }
             Self::UnsupportedCriticalExtension => 130,
             Self::UnsupportedCertVersion => 130,
             Self::UnsupportedCrlVersion => 120,

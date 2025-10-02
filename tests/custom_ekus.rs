@@ -47,7 +47,7 @@ pub fn verify_custom_eku_mdoc() {
         ca,
         KeyUsage::server_auth(),
         time,
-        Err(webpki::Error::RequiredEkuNotFoundContext(
+        Err(webpki::Error::RequiredEkuNotFound(
             RequiredEkuNotFoundContext {
                 required: KeyUsage::server_auth(),
                 present: vec![vec![1, 0, 68701, 5, 1, 2]],
@@ -60,7 +60,7 @@ pub fn verify_custom_eku_mdoc() {
         ca,
         KeyUsage::server_auth(),
         time,
-        Err(webpki::Error::RequiredEkuNotFoundContext(
+        Err(webpki::Error::RequiredEkuNotFound(
             RequiredEkuNotFoundContext {
                 required: KeyUsage::server_auth(),
                 present: vec![vec![1, 0, 68701, 5, 1, 2]],
