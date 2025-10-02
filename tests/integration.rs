@@ -19,7 +19,7 @@ use core::slice;
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{KeyUsage, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, anchor_from_trusted_cert};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -42,7 +42,7 @@ fn netflix() {
             &anchors,
             &[inter],
             time,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -70,7 +70,7 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
             &anchors,
             &[inter],
             time,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -101,7 +101,7 @@ fn cloudflare_dns() {
             &anchors,
             &[inter],
             time,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -155,7 +155,7 @@ fn wpt() {
             &anchors,
             &[],
             time,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -179,7 +179,7 @@ fn ed25519() {
             &anchors,
             &[],
             time,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -208,7 +208,7 @@ fn critical_extensions() {
                 &anchors,
                 &intermediates,
                 time,
-                KeyUsage::server_auth(),
+                ExtendedKeyUsage::server_auth(),
                 None,
                 None,
             )
@@ -257,7 +257,7 @@ fn read_ee_with_neg_serial() {
             &anchors,
             &[],
             time,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -380,7 +380,7 @@ fn cert_time_validity() {
             &anchors,
             slice::from_ref(&inter),
             just_before,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )
@@ -397,7 +397,7 @@ fn cert_time_validity() {
             &anchors,
             &[inter],
             just_after,
-            KeyUsage::server_auth(),
+            ExtendedKeyUsage::server_auth(),
             None,
             None,
         )

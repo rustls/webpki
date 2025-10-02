@@ -31,7 +31,7 @@ use crate::{cert, signed_data};
 ///
 /// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
 ///   is valid for the current usage scenario. For server authentication, use
-///   [`crate::KeyUsage::server_auth()`].
+///   [`crate::ExtendedKeyUsage::server_auth()`].
 /// * [`EndEntityCert::verify_is_valid_for_subject_name()`]: Verify that the server's
 ///   certificate is valid for the host or IP address that is being connected to.
 /// * [`EndEntityCert::verify_signature()`]: Verify that the signature of server's
@@ -42,7 +42,7 @@ use crate::{cert, signed_data};
 ///
 /// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
 ///   is valid for the current usage scenario. For client authentication, use
-///   [`crate::KeyUsage::client_auth()`].
+///   [`crate::ExtendedKeyUsage::client_auth()`].
 /// * [`EndEntityCert::verify_signature()`]: Verify that the signature of client's
 ///   `CertificateVerify` message is valid using the public key from the
 ///   client's certificate.
@@ -86,7 +86,7 @@ impl EndEntityCert<'_> {
     ///   current time).
     /// * `usage` is the intended usage of the certificate, indicating what kind
     ///   of usage we're verifying the certificate for. The default [`ExtendedKeyUsageValidator`]
-    ///   implementation is [`KeyUsage`](crate::KeyUsage).
+    ///   implementation is [`ExtendedKeyUsage`](crate::ExtendedKeyUsage).
     /// * `crls` is the list of certificate revocation lists to check
     ///   the certificate against.
     /// * `verify_path` is an optional verification function for path candidates.

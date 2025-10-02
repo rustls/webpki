@@ -3,12 +3,12 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{KeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
 
 fn check_cert(
     ee: &[u8],
     ca: &[u8],
-    eku: KeyUsage,
+    eku: ExtendedKeyUsage,
     time: UnixTime,
     result: Result<(), webpki::Error>,
 ) {
@@ -40,16 +40,16 @@ pub fn verify_custom_eku_mdoc() {
     let ee = include_bytes!("misc/mdoc_eku.ee.der");
     let ca = include_bytes!("misc/mdoc_eku.ca.der");
 
-    let eku_mdoc = KeyUsage::required(&[40, 129, 140, 93, 5, 1, 2]);
+    let eku_mdoc = ExtendedKeyUsage::required(&[40, 129, 140, 93, 5, 1, 2]);
     check_cert(ee, ca, eku_mdoc, time, Ok(()));
     check_cert(
         ee,
         ca,
-        KeyUsage::server_auth(),
+        ExtendedKeyUsage::server_auth(),
         time,
         Err(webpki::Error::RequiredEkuNotFound(
             RequiredEkuNotFoundContext {
-                required: KeyUsage::server_auth(),
+                required: ExtendedKeyUsage::server_auth(),
                 present: vec![vec![1, 0, 68701, 5, 1, 2]],
             },
         )),
@@ -58,11 +58,11 @@ pub fn verify_custom_eku_mdoc() {
     check_cert(
         ee,
         ca,
-        KeyUsage::server_auth(),
+        ExtendedKeyUsage::server_auth(),
         time,
         Err(webpki::Error::RequiredEkuNotFound(
             RequiredEkuNotFoundContext {
-                required: KeyUsage::server_auth(),
+                required: ExtendedKeyUsage::server_auth(),
                 present: vec![vec![1, 0, 68701, 5, 1, 2]],
             },
         )),
@@ -75,19 +75,19 @@ pub fn verify_custom_eku_client() {
 
     let ee = include_bytes!("custom_ekus/cert_with_no_eku_accepted_for_client_auth.ee.der");
     let ca = include_bytes!("custom_ekus/cert_with_no_eku_accepted_for_client_auth.ca.der");
-    check_cert(ee, ca, KeyUsage::client_auth(), time, Ok(()));
+    check_cert(ee, ca, ExtendedKeyUsage::client_auth(), time, Ok(()));
 
     let ee = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ee.der");
     let ca = include_bytes!("custom_ekus/cert_with_both_ekus_accepted_for_client_auth.ca.der");
-    check_cert(ee, ca, KeyUsage::client_auth(), time, Ok(()));
-    check_cert(ee, ca, KeyUsage::server_auth(), time, Ok(()));
+    check_cert(ee, ca, ExtendedKeyUsage::client_auth(), time, Ok(()));
+    check_cert(ee, ca, ExtendedKeyUsage::server_auth(), time, Ok(()));
 }
 
 #[test]
 pub fn verify_custom_eku_required_if_present() {
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
 
-    let eku = KeyUsage::required_if_present(&[43, 6, 1, 5, 5, 7, 3, 2]);
+    let eku = ExtendedKeyUsage::required_if_present(&[43, 6, 1, 5, 5, 7, 3, 2]);
 
     let ee = include_bytes!("custom_ekus/cert_with_no_eku_accepted_for_client_auth.ee.der");
     let ca = include_bytes!("custom_ekus/cert_with_no_eku_accepted_for_client_auth.ca.der");

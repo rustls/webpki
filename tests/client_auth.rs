@@ -19,7 +19,7 @@ use std::error::Error as StdError;
 use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
 use rcgen::{Certificate, ExtendedKeyUsagePurpose};
-use webpki::{KeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
 
 mod common;
 use common::{make_end_entity, make_issuer};
@@ -65,7 +65,7 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
     assert_eq!(
         err,
         webpki::Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
-            required: KeyUsage::client_auth(),
+            required: ExtendedKeyUsage::client_auth(),
             present: vec![vec![1, 3, 6, 1, 5, 5, 7, 3, 1]],
         })
     );
@@ -87,7 +87,7 @@ fn check_cert(ee: &[u8], ca: CertificateDer<'static>) -> Result<(), webpki::Erro
         anchors,
         &[],
         time,
-        KeyUsage::client_auth(),
+        ExtendedKeyUsage::client_auth(),
         None,
         None,
     )

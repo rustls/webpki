@@ -18,7 +18,7 @@ use core::time::Duration;
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
 use webpki::{
-    KeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
+    ExtendedKeyUsage, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
     UnknownStatusPolicy, anchor_from_trusted_cert,
 };
 
@@ -50,7 +50,7 @@ fn check_cert(
         anchors,
         &intermediates,
         time,
-        KeyUsage::client_auth(),
+        ExtendedKeyUsage::client_auth(),
         revocation,
         None,
     )
