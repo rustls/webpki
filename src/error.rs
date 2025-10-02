@@ -146,11 +146,6 @@ pub enum Error {
 
     /// The certificate is not valid for the Extended Key Usage for which it is
     /// being validated.
-    #[deprecated(since = "0.103.2", note = "use RequiredEkuNotFoundContext instead")]
-    RequiredEkuNotFound,
-
-    /// The certificate is not valid for the Extended Key Usage for which it is
-    /// being validated.
     RequiredEkuNotFoundContext(RequiredEkuNotFoundContext),
 
     /// The algorithm in the TBSCertificate "signature" field of a certificate
@@ -202,42 +197,13 @@ pub enum Error {
     /// The CRL is partitioned by revocation reasons.
     UnsupportedRevocationReasonsPartitioning,
 
-    /// The signature algorithm for a signature over a CRL is not in the set of supported
-    /// signature algorithms given.
-    #[deprecated(
-        since = "0.103.4",
-        note = "use UnsupportedCrlSignatureAlgorithmContext instead"
-    )]
-    UnsupportedCrlSignatureAlgorithm,
-
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
     UnsupportedCrlSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext),
 
     /// The signature algorithm for a signature is not in the set of supported
     /// signature algorithms given.
-    #[deprecated(
-        since = "0.103.4",
-        note = "use UnsupportedSignatureAlgorithmContext instead"
-    )]
-    UnsupportedSignatureAlgorithm,
-
-    /// The signature algorithm for a signature is not in the set of supported
-    /// signature algorithms given.
     UnsupportedSignatureAlgorithmContext(UnsupportedSignatureAlgorithmContext),
-
-    /// The CRL signature's algorithm does not match the algorithm of the issuer
-    /// public key it is being validated for. This may be because the public key
-    /// algorithm's OID isn't recognized (e.g. DSA), or the public key
-    /// algorithm's parameters don't match the supported parameters for that
-    /// algorithm (e.g. ECC keys for unsupported curves), or the public key
-    /// algorithm and the signature algorithm simply don't match (e.g.
-    /// verifying an RSA signature with an ECC public key).
-    #[deprecated(
-        since = "0.103.4",
-        note = "use UnsupportedCrlSignatureAlgorithmForPublicKeyContext instead"
-    )]
-    UnsupportedCrlSignatureAlgorithmForPublicKey,
 
     /// The signature's algorithm does not match the algorithm of the public
     /// key it is being validated for. This may be because the public key
@@ -249,19 +215,6 @@ pub enum Error {
     UnsupportedCrlSignatureAlgorithmForPublicKeyContext(
         UnsupportedSignatureAlgorithmForPublicKeyContext,
     ),
-
-    /// The signature's algorithm does not match the algorithm of the public
-    /// key it is being validated for. This may be because the public key
-    /// algorithm's OID isn't recognized (e.g. DSA), or the public key
-    /// algorithm's parameters don't match the supported parameters for that
-    /// algorithm (e.g. ECC keys for unsupported curves), or the public key
-    /// algorithm and the signature algorithm simply don't match (e.g.
-    /// verifying an RSA signature with an ECC public key).
-    #[deprecated(
-        since = "0.103.4",
-        note = "use UnsupportedSignatureAlgorithmForPublicKeyContext instead"
-    )]
-    UnsupportedSignatureAlgorithmForPublicKey,
 
     /// The signature's algorithm does not match the algorithm of the public
     /// key it is being validated for. This may be because the public key
@@ -296,8 +249,7 @@ impl Error {
             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
             Self::SignatureAlgorithmMismatch => 250,
             Self::EmptyEkuExtension => 245,
-            #[allow(deprecated)]
-            Self::RequiredEkuNotFound | Self::RequiredEkuNotFoundContext(_) => 240,
+            Self::RequiredEkuNotFoundContext(_) => 240,
             Self::NameConstraintViolation => 230,
             Self::PathLenConstraintViolated => 220,
             Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
@@ -310,15 +262,9 @@ impl Error {
             Self::InvalidCrlNumber => 160,
 
             // Errors related to unsupported features.
-            #[allow(deprecated)]
-            Self::UnsupportedCrlSignatureAlgorithmForPublicKey
-            | Self::UnsupportedCrlSignatureAlgorithmForPublicKeyContext(_)
-            | Self::UnsupportedSignatureAlgorithmForPublicKey
+            Self::UnsupportedCrlSignatureAlgorithmForPublicKeyContext(_)
             | Self::UnsupportedSignatureAlgorithmForPublicKeyContext(_) => 150,
-            #[allow(deprecated)]
-            Self::UnsupportedCrlSignatureAlgorithm
-            | Self::UnsupportedCrlSignatureAlgorithmContext(_)
-            | Self::UnsupportedSignatureAlgorithm
+            Self::UnsupportedCrlSignatureAlgorithmContext(_)
             | Self::UnsupportedSignatureAlgorithmContext(_) => 140,
             Self::UnsupportedCriticalExtension => 130,
             Self::UnsupportedCertVersion => 130,
