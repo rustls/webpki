@@ -29,7 +29,7 @@ use crate::{public_values_eq, signed_data, subject_name};
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
 // the `VerifiedPath`.
 pub(crate) struct ChainOptions<'a, 'p, V> {
-    pub(crate) eku: V,
+    pub(crate) eku: &'a V,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
     pub(crate) intermediate_certs: &'p [CertificateDer<'p>],
@@ -60,7 +60,7 @@ impl<'a, 'p: 'a, V: ExtendedKeyUsageValidator> ChainOptions<'a, 'p, V> {
     ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
         let role = path.node().role();
 
-        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, &self.eku)?;
+        check_issuer_independent_properties(path.head(), time, role, sub_ca_count, self.eku)?;
 
         // TODO: HPKP checks.
 
@@ -585,12 +585,6 @@ impl ExtendedKeyUsageValidator for ExtendedKeyUsage {
                 present,
             })),
         }
-    }
-}
-
-impl<V: ExtendedKeyUsageValidator> ExtendedKeyUsageValidator for &V {
-    fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error> {
-        (*self).validate(iter)
     }
 }
 
@@ -1353,7 +1347,7 @@ mod tests {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
         let opts = ChainOptions {
-            eku: ExtendedKeyUsage::server_auth(),
+            eku: &ExtendedKeyUsage::server_auth(),
             supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
             trust_anchors,
             intermediate_certs,

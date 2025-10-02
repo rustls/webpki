@@ -82,7 +82,7 @@ fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]
                 roots,
                 intermediates,
                 now,
-                ExtendedKeyUsage::server_auth(),
+                &ExtendedKeyUsage::server_auth(),
                 None,
                 None,
             )

@@ -87,7 +87,7 @@ fn check_cert(ee: &[u8], ca: CertificateDer<'static>) -> Result<(), webpki::Erro
         anchors,
         &[],
         time,
-        ExtendedKeyUsage::client_auth(),
+        &ExtendedKeyUsage::client_auth(),
         None,
         None,
     )
