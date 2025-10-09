@@ -24,7 +24,7 @@ use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
 use crate::end_entity::EndEntityCert;
 use crate::error::Error;
-use crate::{public_values_eq, signed_data, subject_name};
+use crate::{public_values_eq, subject_name};
 
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
 // the `VerifiedPath`.
@@ -145,12 +145,9 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         let mut issuer_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
         let mut issuer_key_usage = None; // TODO(XXX): Consider whether to track TrustAnchor KU.
         for path in path.iter() {
-            signed_data::verify_signed_data(
-                self.supported_sig_algs,
-                spki_value,
-                &path.cert.signed_data,
-                budget,
-            )?;
+            path.cert
+                .signed_data
+                .verify(self.supported_sig_algs, spki_value, budget)?;
 
             if let Some(revocation_opts) = &self.revocation {
                 revocation_opts.check(

@@ -11,7 +11,9 @@ use crate::crl::crl_signature_err;
 use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC, DerIterator, FromDer, Tag};
 use crate::error::{DerTypeId, Error};
 use crate::public_values_eq;
-use crate::signed_data::{self, SignedData};
+#[cfg(feature = "alloc")]
+use crate::signed_data::OwnedSignedData;
+use crate::signed_data::SignedData;
 use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode, Role};
 use crate::x509::{DistributionPointName, Extension, remember_extension, set_extension_once};
@@ -124,20 +126,16 @@ impl CertRevocationList<'_> {
         issuer_spki: untrusted::Input<'_>,
         budget: &mut Budget,
     ) -> Result<(), Error> {
-        signed_data::verify_signed_data(
-            supported_sig_algs,
-            issuer_spki,
-            &match self {
-                #[cfg(feature = "alloc")]
-                CertRevocationList::Owned(crl) => crl.signed_data.borrow(),
-                CertRevocationList::Borrowed(crl) => SignedData {
-                    data: crl.signed_data.data,
-                    algorithm: crl.signed_data.algorithm,
-                    signature: crl.signed_data.signature,
-                },
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.signed_data.borrow(),
+            CertRevocationList::Borrowed(crl) => SignedData {
+                data: crl.signed_data.data,
+                algorithm: crl.signed_data.algorithm,
+                signature: crl.signed_data.signature,
             },
-            budget,
-        )
+        }
+        .verify(supported_sig_algs, issuer_spki, budget)
         .map_err(crl_signature_err)
     }
 
@@ -171,7 +169,7 @@ pub struct OwnedCertRevocationList {
 
     issuing_distribution_point: Option<Vec<u8>>,
 
-    signed_data: signed_data::OwnedSignedData,
+    signed_data: OwnedSignedData,
 
     next_update: UnixTime,
 }

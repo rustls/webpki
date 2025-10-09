@@ -75,10 +75,9 @@ fn test_verify_signed_data(file_contents: &[u8]) -> Result<(), Error> {
         signature,
     };
 
-    signed_data::verify_signed_data(
+    signed_data.verify(
         SUPPORTED_ALGORITHMS_IN_TESTS,
         spki_value,
-        &signed_data,
         &mut Budget::default(),
     )
 }
@@ -550,7 +549,6 @@ mod aws_lc_rs_unstable {
 
     use super::*;
     use crate::cert::Cert;
-    use crate::signed_data::verify_signed_data;
 
     /// From <https://www.ietf.org/archive/id/draft-ietf-lamps-dilithium-certificates-11.html#name-example-certificates>.
     #[test]
@@ -558,13 +556,13 @@ mod aws_lc_rs_unstable {
         let pem = include_bytes!("../tests/tls_server_certs/ml-dsa-44-certificate.pem");
         let der = CertificateDer::from_pem_slice(pem).unwrap();
         let cert = Cert::from_der(Input::from(&der)).unwrap();
-        verify_signed_data(
-            SUPPORTED_ALGORITHMS_IN_TESTS,
-            cert.spki,
-            &cert.signed_data,
-            &mut Budget::default(),
-        )
-        .unwrap();
+        cert.signed_data
+            .verify(
+                SUPPORTED_ALGORITHMS_IN_TESTS,
+                cert.spki,
+                &mut Budget::default(),
+            )
+            .unwrap();
     }
 
     /// From <https://www.ietf.org/archive/id/draft-ietf-lamps-dilithium-certificates-11.html#name-example-certificates>.
@@ -573,13 +571,13 @@ mod aws_lc_rs_unstable {
         let pem = include_bytes!("../tests/tls_server_certs/ml-dsa-65-certificate.pem");
         let der = CertificateDer::from_pem_slice(pem).unwrap();
         let cert = Cert::from_der(Input::from(&der)).unwrap();
-        verify_signed_data(
-            SUPPORTED_ALGORITHMS_IN_TESTS,
-            cert.spki,
-            &cert.signed_data,
-            &mut Budget::default(),
-        )
-        .unwrap();
+        cert.signed_data
+            .verify(
+                SUPPORTED_ALGORITHMS_IN_TESTS,
+                cert.spki,
+                &mut Budget::default(),
+            )
+            .unwrap();
     }
 
     /// From <https://www.ietf.org/archive/id/draft-ietf-lamps-dilithium-certificates-11.html#name-example-certificates>.
@@ -588,13 +586,13 @@ mod aws_lc_rs_unstable {
         let pem = include_bytes!("../tests/tls_server_certs/ml-dsa-87-certificate.pem");
         let der = CertificateDer::from_pem_slice(pem).unwrap();
         let cert = Cert::from_der(Input::from(&der)).unwrap();
-        verify_signed_data(
-            SUPPORTED_ALGORITHMS_IN_TESTS,
-            cert.spki,
-            &cert.signed_data,
-            &mut Budget::default(),
-        )
-        .unwrap();
+        cert.signed_data
+            .verify(
+                SUPPORTED_ALGORITHMS_IN_TESTS,
+                cert.spki,
+                &mut Budget::default(),
+            )
+            .unwrap();
     }
 }
 
