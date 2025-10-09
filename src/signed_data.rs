@@ -136,6 +136,73 @@ impl<'a> SignedData<'a> {
         ))
     }
 
+    /// Verify `signed_data` using the public key in the DER-encoded
+    /// SubjectPublicKeyInfo `spki` using one of the algorithms in
+    /// `supported_algorithms`.
+    ///
+    /// The algorithm is chosen based on the algorithm information encoded in the
+    /// algorithm identifiers in `public_key` and `signed_data.algorithm`. The
+    /// ordering of the algorithms in `supported_algorithms` does not really matter,
+    /// but generally more common algorithms should go first, as it is scanned
+    /// linearly for matches.
+    pub(crate) fn verify(
+        &self,
+        supported_algorithms: &[&dyn SignatureVerificationAlgorithm],
+        spki_value: untrusted::Input<'_>,
+        budget: &mut Budget,
+    ) -> Result<(), Error> {
+        budget.consume_signature()?;
+
+        // We need to verify the signature in `signed_data` using the public key
+        // in `public_key`. In order to know which *ring* signature verification
+        // algorithm to use, we need to know the public key algorithm (ECDSA,
+        // RSA PKCS#1, etc.), the curve (if applicable), and the digest algorithm.
+        // `signed_data` identifies only the public key algorithm and the digest
+        // algorithm, and `public_key` identifies only the public key algorithm and
+        // the curve (if any). Thus, we have to combine information from both
+        // inputs to figure out which `ring::signature::VerificationAlgorithm` to
+        // use to verify the signature.
+        //
+        // This is all further complicated by the fact that we don't have any
+        // implicit knowledge about any algorithms or identifiers, since all of
+        // that information is encoded in `supported_algorithms.` In particular, we
+        // avoid hard-coding any of that information so that (link-time) dead code
+        // elimination will work effectively in eliminating code for unused
+        // algorithms.
+
+        // Parse the signature.
+        //
+        let mut invalid_for_public_key = None;
+        for supported_alg in supported_algorithms
+            .iter()
+            .filter(|alg| alg.signature_alg_id().as_ref() == self.algorithm.as_slice_less_safe())
+        {
+            match verify_signature(*supported_alg, spki_value, self.data, self.signature) {
+                Err(Error::UnsupportedSignatureAlgorithmForPublicKey(cx)) => {
+                    invalid_for_public_key = Some(cx);
+                    continue;
+                }
+                result => return result,
+            }
+        }
+
+        if let Some(cx) = invalid_for_public_key {
+            return Err(Error::UnsupportedSignatureAlgorithmForPublicKey(cx));
+        }
+
+        Err(Error::UnsupportedSignatureAlgorithm(
+            UnsupportedSignatureAlgorithmContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: self.algorithm.as_slice_less_safe().to_vec(),
+                #[cfg(feature = "alloc")]
+                supported_algorithms: supported_algorithms
+                    .iter()
+                    .map(|&alg| alg.signature_alg_id())
+                    .collect(),
+            },
+        ))
+    }
+
     /// Convert the borrowed signed data to an [`OwnedSignedData`].
     #[cfg(feature = "alloc")]
     pub(crate) fn to_owned(&self) -> OwnedSignedData {
@@ -145,78 +212,6 @@ impl<'a> SignedData<'a> {
             signature: self.signature.as_slice_less_safe().to_vec(),
         }
     }
-}
-
-/// Verify `signed_data` using the public key in the DER-encoded
-/// SubjectPublicKeyInfo `spki` using one of the algorithms in
-/// `supported_algorithms`.
-///
-/// The algorithm is chosen based on the algorithm information encoded in the
-/// algorithm identifiers in `public_key` and `signed_data.algorithm`. The
-/// ordering of the algorithms in `supported_algorithms` does not really matter,
-/// but generally more common algorithms should go first, as it is scanned
-/// linearly for matches.
-pub(crate) fn verify_signed_data(
-    supported_algorithms: &[&dyn SignatureVerificationAlgorithm],
-    spki_value: untrusted::Input<'_>,
-    signed_data: &SignedData<'_>,
-    budget: &mut Budget,
-) -> Result<(), Error> {
-    budget.consume_signature()?;
-
-    // We need to verify the signature in `signed_data` using the public key
-    // in `public_key`. In order to know which *ring* signature verification
-    // algorithm to use, we need to know the public key algorithm (ECDSA,
-    // RSA PKCS#1, etc.), the curve (if applicable), and the digest algorithm.
-    // `signed_data` identifies only the public key algorithm and the digest
-    // algorithm, and `public_key` identifies only the public key algorithm and
-    // the curve (if any). Thus, we have to combine information from both
-    // inputs to figure out which `ring::signature::VerificationAlgorithm` to
-    // use to verify the signature.
-    //
-    // This is all further complicated by the fact that we don't have any
-    // implicit knowledge about any algorithms or identifiers, since all of
-    // that information is encoded in `supported_algorithms.` In particular, we
-    // avoid hard-coding any of that information so that (link-time) dead code
-    // elimination will work effectively in eliminating code for unused
-    // algorithms.
-
-    // Parse the signature.
-    //
-    let mut invalid_for_public_key = None;
-    for supported_alg in supported_algorithms
-        .iter()
-        .filter(|alg| alg.signature_alg_id().as_ref() == signed_data.algorithm.as_slice_less_safe())
-    {
-        match verify_signature(
-            *supported_alg,
-            spki_value,
-            signed_data.data,
-            signed_data.signature,
-        ) {
-            Err(Error::UnsupportedSignatureAlgorithmForPublicKey(cx)) => {
-                invalid_for_public_key = Some(cx);
-                continue;
-            }
-            result => return result,
-        }
-    }
-
-    if let Some(cx) = invalid_for_public_key {
-        return Err(Error::UnsupportedSignatureAlgorithmForPublicKey(cx));
-    }
-
-    Err(Error::UnsupportedSignatureAlgorithm(
-        UnsupportedSignatureAlgorithmContext {
-            #[cfg(feature = "alloc")]
-            signature_algorithm_id: signed_data.algorithm.as_slice_less_safe().to_vec(),
-            #[cfg(feature = "alloc")]
-            supported_algorithms: supported_algorithms
-                .iter()
-                .map(|&alg| alg.signature_alg_id())
-                .collect(),
-        },
-    ))
 }
 
 pub(crate) fn verify_signature(
