@@ -28,7 +28,7 @@ use alloc::vec::Vec;
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure
 /// captures this pattern as an owned data type.
 #[cfg(feature = "alloc")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub(crate) struct OwnedSignedData {
     /// The signed data. This would be `tbsCertificate` in the case of an X.509
     /// certificate, `tbsResponseData` in the case of an OCSP response, `tbsCertList`
@@ -211,6 +211,19 @@ impl<'a> SignedData<'a> {
             algorithm: self.algorithm.as_slice_less_safe().to_vec(),
             signature: self.signature.as_slice_less_safe().to_vec(),
         }
+    }
+}
+
+impl core::hash::Hash for SignedData<'_> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        let Self {
+            data,
+            algorithm,
+            signature,
+        } = self;
+        data.as_slice_less_safe().hash(state);
+        algorithm.as_slice_less_safe().hash(state);
+        signature.as_slice_less_safe().hash(state);
     }
 }
 

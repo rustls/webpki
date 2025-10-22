@@ -23,7 +23,7 @@ use crate::x509::{DistributionPointName, Extension, remember_extension, set_exte
 /// May be either an owned, or a borrowed representation.
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub enum CertRevocationList<'a> {
     /// An owned representation of a CRL.
     #[cfg(feature = "alloc")]
@@ -159,7 +159,7 @@ impl CertRevocationList<'_> {
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 #[cfg(feature = "alloc")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct OwnedCertRevocationList {
     /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
     /// of the revoked cert's serial number.
@@ -460,6 +460,25 @@ impl<'a> IntoIterator for &'a BorrowedCertRevocationList<'a> {
     }
 }
 
+impl core::hash::Hash for BorrowedCertRevocationList<'_> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        let Self {
+            signed_data,
+            issuer,
+            issuing_distribution_point,
+            revoked_certs,
+            next_update,
+        } = self;
+        signed_data.hash(state);
+        issuer.as_slice_less_safe().hash(state);
+        issuing_distribution_point
+            .map(|i| i.as_slice_less_safe())
+            .hash(state);
+        revoked_certs.as_slice_less_safe().hash(state);
+        next_update.hash(state);
+    }
+}
+
 pub(crate) struct IssuingDistributionPoint<'a> {
     distribution_point: Option<untrusted::Input<'a>>,
     pub(crate) only_contains_user_certs: bool,
@@ -669,7 +688,7 @@ impl<'a> IssuingDistributionPoint<'a> {
 ///
 /// [^1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5>
 #[cfg(feature = "alloc")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct OwnedRevokedCert {
     /// Serial number of the revoked certificate.
     pub serial_number: Vec<u8>,
@@ -843,7 +862,7 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
 /// See [RFC 5280 §5.3.1][1]
 ///
 /// [1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5.3.1>
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[allow(missing_docs)] // Not much to add above the code name.
 pub enum RevocationReason {
     /// Unspecified should not be used, and is instead assumed by the absence of a RevocationReason
