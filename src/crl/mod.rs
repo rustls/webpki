@@ -220,7 +220,7 @@ fn crl_signature_err(err: Error) -> Error {
 }
 
 /// Describes how much of a certificate chain is checked for revocation status.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum RevocationCheckDepth {
     /// Only check the end entity (leaf) certificate's revocation status.
     EndEntity,
@@ -229,7 +229,7 @@ pub enum RevocationCheckDepth {
 }
 
 /// Describes how to handle the case where a certificate's revocation status is unknown.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum UnknownStatusPolicy {
     /// Treat unknown revocation status permissively, acting as if the certificate were
     /// not revoked.
@@ -240,7 +240,7 @@ pub enum UnknownStatusPolicy {
 }
 
 /// Describes how to handle the nextUpdate field of the CRL (i.e. expiration).
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum ExpirationPolicy {
     /// Enforce the verification time is before the time in the nextUpdate field.
     /// Treats an expired CRL as an error condition yielding [Error::CrlExpired].
