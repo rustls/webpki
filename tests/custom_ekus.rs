@@ -50,7 +50,7 @@ pub fn verify_custom_eku_mdoc() {
         Err(webpki::Error::RequiredEkuNotFound(
             RequiredEkuNotFoundContext {
                 required: ExtendedKeyUsage::server_auth(),
-                present: vec![vec![1, 0, 68701, 5, 1, 2]],
+                present: vec![vec![1, 0, 18013, 5, 1, 2]],
             },
         )),
     );
@@ -63,7 +63,7 @@ pub fn verify_custom_eku_mdoc() {
         Err(webpki::Error::RequiredEkuNotFound(
             RequiredEkuNotFoundContext {
                 required: ExtendedKeyUsage::server_auth(),
-                present: vec![vec![1, 0, 68701, 5, 1, 2]],
+                present: vec![vec![1, 0, 18013, 5, 1, 2]],
             },
         )),
     );

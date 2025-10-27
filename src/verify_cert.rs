@@ -718,7 +718,7 @@ impl Iterator for OidDecoder<'_> {
 
         let mut cur = 0;
         for (i, &byte) in self.encoded.iter().enumerate() {
-            cur = (cur << 8) + usize::from(byte & 0x7f);
+            cur = (cur << 7) + usize::from(byte & 0x7f);
             if byte & 0x80 > 0 {
                 continue;
             }
@@ -903,10 +903,16 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        // 2.999.3 -> 1079.3 -> [0x84, 0x37, 0x3]
-        const ENCODED: &[u8] = &[0x84, 0x37, 0x3];
+        // 2.39.3 -> [0x77, 0x3]
+        const ENCODED: &[u8] = &[0x77, 0x3];
         let decoded = OidDecoder::new(ENCODED);
-        assert_eq!(decoded.collect::<Vec<_>>(), [2, 999, 3]);
+        assert_eq!(decoded.collect::<Vec<_>>(), [2, 39, 3]);
+
+        // 1.2.840.113549.1.1.11 -> [0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b]
+        // (checks OID paths needing more than one byte per element)
+        const ENCODED_LARGE: &[u8] = &[0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b];
+        let decoded = OidDecoder::new(ENCODED_LARGE);
+        assert_eq!(decoded.collect::<Vec<_>>(), [1, 2, 840, 113549, 1, 1, 11]);
     }
 
     #[test]
