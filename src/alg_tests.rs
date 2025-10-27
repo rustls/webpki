@@ -541,6 +541,172 @@ fn test_ecdsa_prime256v1_sha256_spki_inside_spki() {
     );
 }
 
+#[cfg(feature = "alloc")]
+#[test]
+fn test_signature_algorithms() {
+    use super::super::{
+        ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
+        RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA256_ABSENT_PARAMS,
+        RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA384_ABSENT_PARAMS,
+        RSA_PKCS1_2048_8192_SHA512, RSA_PKCS1_2048_8192_SHA512_ABSENT_PARAMS,
+        RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+    };
+
+    check_signature_alg_id(
+        ECDSA_P256_SHA256,
+        "OBJECT IDENTIFIER { 1.2.840.10045.4.3.2 }",
+    );
+    check_signature_alg_id(
+        ECDSA_P256_SHA384,
+        "OBJECT IDENTIFIER { 1.2.840.10045.4.3.3 }",
+    );
+    check_signature_alg_id(
+        ECDSA_P384_SHA256,
+        "OBJECT IDENTIFIER { 1.2.840.10045.4.3.2 }",
+    );
+    check_signature_alg_id(
+        ECDSA_P384_SHA384,
+        "OBJECT IDENTIFIER { 1.2.840.10045.4.3.3 }",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_2048_8192_SHA256,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.11 }, NULL",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_2048_8192_SHA384,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.12 }, NULL",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_2048_8192_SHA512,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.13 }, NULL",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_2048_8192_SHA256_ABSENT_PARAMS,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.11 }",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_2048_8192_SHA384_ABSENT_PARAMS,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.12 }",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_2048_8192_SHA512_ABSENT_PARAMS,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.13 }",
+    );
+    check_signature_alg_id(
+        RSA_PKCS1_3072_8192_SHA384,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.12 }, NULL",
+    );
+
+    /*
+     * OpenSSL output for comparison:
+     *
+     *     0:d=0  hl=2 l=   9 prim: OBJECT            :rsassaPss
+     *    11:d=0  hl=2 l=  52 cons: SEQUENCE
+     *    13:d=1  hl=2 l=  15 cons:  cont [ 0 ]
+     *    15:d=2  hl=2 l=  13 cons:   SEQUENCE
+     *    17:d=3  hl=2 l=   9 prim:    OBJECT            :sha256
+     *    28:d=3  hl=2 l=   0 prim:    NULL
+     *    30:d=1  hl=2 l=  28 cons:  cont [ 1 ]
+     *    32:d=2  hl=2 l=  26 cons:   SEQUENCE
+     *    34:d=3  hl=2 l=   9 prim:    OBJECT            :mgf1
+     *    45:d=3  hl=2 l=  13 cons:    SEQUENCE
+     *    47:d=4  hl=2 l=   9 prim:     OBJECT            :sha256
+     *    58:d=4  hl=2 l=   0 prim:     NULL
+     *    60:d=1  hl=2 l=   3 cons:  cont [ 2 ]
+     *    62:d=2  hl=2 l=   1 prim:   INTEGER           :20
+     */
+    check_signature_alg_id(
+        RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.10 }, \
+        SEQUENCE { \
+        [0] { SEQUENCE { OBJECT IDENTIFIER { 2.16.840.1.101.3.4.2.1 }, NULL } }, \
+        [1] { SEQUENCE { OBJECT IDENTIFIER { 1.2.840.113549.1.1.8 }, SEQUENCE { OBJECT IDENTIFIER { 2.16.840.1.101.3.4.2.1 }, NULL } } }, \
+        [2] { INTEGER 0x20 } \
+        }",
+    );
+    check_signature_alg_id(
+        RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.10 }, \
+        SEQUENCE { \
+        [0] { SEQUENCE { OBJECT IDENTIFIER { 2.16.840.1.101.3.4.2.2 }, NULL } }, \
+        [1] { SEQUENCE { OBJECT IDENTIFIER { 1.2.840.113549.1.1.8 }, SEQUENCE { OBJECT IDENTIFIER { 2.16.840.1.101.3.4.2.2 }, NULL } } }, \
+        [2] { INTEGER 0x30 } \
+        }",
+    );
+    check_signature_alg_id(
+        RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        "OBJECT IDENTIFIER { 1.2.840.113549.1.1.10 }, \
+        SEQUENCE { \
+        [0] { SEQUENCE { OBJECT IDENTIFIER { 2.16.840.1.101.3.4.2.3 }, NULL } }, \
+        [1] { SEQUENCE { OBJECT IDENTIFIER { 1.2.840.113549.1.1.8 }, SEQUENCE { OBJECT IDENTIFIER { 2.16.840.1.101.3.4.2.3 }, NULL } } }, \
+        [2] { INTEGER 0x40 } \
+        }",
+    );
+    check_signature_alg_id(ED25519, "OBJECT IDENTIFIER { 1.3.101.112 }");
+
+    fn check_signature_alg_id(alg: &dyn pki_types::SignatureVerificationAlgorithm, expect: &str) {
+        std::println!("checking {alg:?}");
+        untrusted::Input::from(alg.signature_alg_id().as_ref())
+            .read_all((), |rd| {
+                assert_eq!(der2text(rd), expect);
+                Ok(())
+            })
+            .unwrap();
+    }
+}
+
+#[cfg(feature = "alloc")]
+fn der2text(rd: &mut untrusted::Reader<'_>) -> String {
+    let mut items = Vec::new();
+
+    while !rd.at_end() {
+        let (tag, value) = der::read_tag_and_get_value(rd).unwrap();
+        let output = match tag {
+            tag if tag == der::Tag::OID.into() => {
+                let mut output = String::from("OBJECT IDENTIFIER { ");
+                output.push_str(
+                    &crate::verify_cert::OidDecoder::new(value.as_slice_less_safe())
+                        .map(|limb| limb.to_string())
+                        .collect::<Vec<String>>()
+                        .join("."),
+                );
+                output.push_str(" }");
+                output
+            }
+            TAG_NULL => "NULL".to_string(),
+            tag if tag == der::Tag::Integer.into() => {
+                let mut output = String::from("INTEGER 0x");
+                for byte in value.as_slice_less_safe() {
+                    output.push_str(&format!("{:02x?}", byte));
+                }
+                output
+            }
+            tag if tag == der::Tag::Sequence.into() => {
+                let mut output = String::from("SEQUENCE { ");
+                output.push_str(&der2text(&mut untrusted::Reader::new(value)));
+                output.push_str(" }");
+                output
+            }
+            tag if tag & (der::CONTEXT_SPECIFIC | der::CONSTRUCTED)
+                == (der::CONTEXT_SPECIFIC | der::CONSTRUCTED) =>
+            {
+                let mut output = format!("[{}] {{ ", tag & 0xf);
+                output.push_str(&der2text(&mut untrusted::Reader::new(value)));
+                output.push_str(" }");
+                output
+            }
+            unhandled => panic!("extend der2text for tag 0x{unhandled:x?}"),
+        };
+        items.push(output);
+    }
+
+    items.join(", ")
+}
+
+#[cfg(feature = "alloc")]
+const TAG_NULL: u8 = 0x05;
+
 #[cfg(all(feature = "aws-lc-rs-unstable", not(feature = "aws-lc-rs-fips")))]
 mod aws_lc_rs_unstable {
     use pki_types::CertificateDer;
