@@ -345,6 +345,41 @@ fn no_subject_alt_names() {
     expect_cert_dns_names(include_bytes!("misc/no_subject_alternative_name.der"), [])
 }
 
+#[test]
+fn list_uri_names() {
+    expect_cert_uri_names(
+        include_bytes!("misc/uri_san_ee.der"),
+        [
+            "https://example.com",
+            "https://www.example.com/path",
+            "spiffe://example.org/service",
+        ],
+    );
+}
+
+#[test]
+fn no_uri_names() {
+    expect_cert_uri_names(include_bytes!("misc/no_subject_alternative_name.der"), [])
+}
+
+#[test]
+fn mixed_san_types() {
+    // The uri_san_ee.der certificate has both DNS and URI SANs
+    let der = CertificateDer::from(&include_bytes!("misc/uri_san_ee.der")[..]);
+    let cert = webpki::EndEntityCert::try_from(&der)
+        .expect("should parse end entity certificate correctly");
+
+    // Verify it has the DNS name
+    assert!(cert.valid_dns_names().eq(["example.com"]));
+
+    // Verify it has the URI names
+    assert!(cert.valid_uri_names().eq([
+        "https://example.com",
+        "https://www.example.com/path",
+        "spiffe://example.org/service",
+    ]));
+}
+
 fn expect_cert_dns_names<'name>(
     cert_der: &[u8],
     expected_names: impl IntoIterator<Item = &'name str>,
@@ -354,6 +389,17 @@ fn expect_cert_dns_names<'name>(
         .expect("should parse end entity certificate correctly");
 
     assert!(cert.valid_dns_names().eq(expected_names))
+}
+
+fn expect_cert_uri_names<'name>(
+    cert_der: &[u8],
+    expected_uris: impl IntoIterator<Item = &'name str>,
+) {
+    let der = CertificateDer::from(cert_der);
+    let cert = webpki::EndEntityCert::try_from(&der)
+        .expect("should parse end entity certificate correctly");
+
+    assert!(cert.valid_uri_names().eq(expected_uris))
 }
 
 #[cfg(feature = "alloc")]
