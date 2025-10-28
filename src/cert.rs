@@ -171,6 +171,23 @@ impl<'a> Cert<'a> {
         })
     }
 
+    /// Returns a list of valid URI names provided in the subject alternative names extension
+    ///
+    /// This function returns URIs as strings without performing validation beyond checking that
+    /// they are valid UTF-8.
+    pub fn valid_uri_names(&self) -> impl Iterator<Item = &str> {
+        NameIterator::new(self.subject_alt_name).filter_map(|result| {
+            let presented_id = match result.ok()? {
+                GeneralName::UniformResourceIdentifier(presented) => presented,
+                _ => return None,
+            };
+
+            // if the URI can be converted to a valid UTF-8 string, return it; otherwise,
+            // keep going.
+            core::str::from_utf8(presented_id.as_slice_less_safe()).ok()
+        })
+    }
+
     /// Raw certificate serial number.
     ///
     /// This is in big-endian byte order, in twos-complement encoding.
