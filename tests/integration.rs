@@ -274,6 +274,15 @@ fn read_ee_with_large_pos_serial() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
+fn read_ee_with_issuer_and_subject_unique_ids() {
+    let ee = CertificateDer::from(&include_bytes!("misc/issuer_and_subject_unique_id.der")[..]);
+
+    webpki::EndEntityCert::try_from(&ee)
+        .expect("should skip over issuerUniqueID and subjectUniqueID");
+}
+
+#[test]
 fn list_netflix_names() {
     expect_cert_dns_names(
         include_bytes!("netflix/ee.der"),
