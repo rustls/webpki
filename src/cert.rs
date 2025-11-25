@@ -106,6 +106,30 @@ impl<'a> Cert<'a> {
                     der: CertificateDer::from(cert_der.as_slice_less_safe()),
                 };
 
+                // Skip over optional and unhandled:
+                //
+                // issuerUniqueID  [1]  IMPLICIT UniqueIdentifier OPTIONAL,
+                //                      -- If present, version MUST be v2 or v3
+                // subjectUniqueID [2]  IMPLICIT UniqueIdentifier OPTIONAL,
+                //                      -- If present, version MUST be v2 or v3
+                for (tag, id) in [
+                    (
+                        der::Tag::ContextSpecificPrimitive1,
+                        DerTypeId::IssuerUniqueId,
+                    ),
+                    (
+                        der::Tag::ContextSpecificPrimitive2,
+                        DerTypeId::SubjectUniqueId,
+                    ),
+                ] {
+                    if tbs.peek(tag.into()) {
+                        der::nested(tbs, tag, Error::TrailingData(id), |tagged| {
+                            tagged.skip_to_end();
+                            Ok(())
+                        })?;
+                    }
+                }
+
                 // When used to read X509v3 Certificate.tbsCertificate.extensions, we allow
                 // the extensions to be empty.  This is in spite of RFC5280:
                 //

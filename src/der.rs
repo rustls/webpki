@@ -73,6 +73,9 @@ pub(crate) enum Tag {
     ContextSpecificConstructed0 = CONTEXT_SPECIFIC | CONSTRUCTED | 0,
     ContextSpecificConstructed1 = CONTEXT_SPECIFIC | CONSTRUCTED | 1,
     ContextSpecificConstructed3 = CONTEXT_SPECIFIC | CONSTRUCTED | 3,
+
+    ContextSpecificPrimitive1 = CONTEXT_SPECIFIC | 1,
+    ContextSpecificPrimitive2 = CONTEXT_SPECIFIC | 2,
 }
 
 pub(crate) const CONSTRUCTED: u8 = 0x20;

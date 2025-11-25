@@ -399,4 +399,6 @@ pub enum DerTypeId {
     RevokedCertificateExtension,
     RevokedCertEntry,
     IssuingDistributionPoint,
+    IssuerUniqueId,
+    SubjectUniqueId,
 }
