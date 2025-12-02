@@ -1,0 +1,292 @@
+{
+  "pathlen::validation-ignores-pathlen-in-leaf": {
+    "expected": "SUCCESS",
+    "actual": "FAILURE",
+    "reason": "webpki intentionally rejects CA certificates in leaf position (CaUsedAsEndEntity)"
+  },
+  "pathlen::self-issued-certs-pathlen": {
+    "expected": "SUCCESS",
+    "actual": "FAILURE",
+    "reason": "webpki does not support self-signed certificates"
+  },
+  "rfc5280::nc::permitted-dn-match": {
+    "expected": "SUCCESS",
+    "actual": "FAILURE",
+    "reason": "webpki does not support DirectoryName name constraints"
+  },
+  "rfc5280::nc::permitted-self-issued": {
+    "expected": "SUCCESS",
+    "actual": "FAILURE",
+    "reason": "webpki does not support self-signed certificates"
+  },
+  "rfc5280::ca-as-leaf": {
+    "expected": "SUCCESS",
+    "actual": "FAILURE",
+    "reason": "webpki intentionally rejects CA certificates in leaf position (CaUsedAsEndEntity)"
+  },
+  "crl::crlnumber-missing": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement for CRLNumber extension presence"
+  },
+  "crl::crlnumber-critical": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that CRLNumber be non-critical"
+  },
+  "crl::issuer-missing-crlsign": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce cRLSign key usage requirement for CRL issuers"
+  },
+  "rfc5280::aki::critical-aki": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that AKI be non-critical"
+  },
+  "rfc5280::aki::leaf-missing-aki": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement for AKI presence"
+  },
+  "rfc5280::aki::intermediate-missing-aki": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement for AKI presence"
+  },
+  "rfc5280::aki::cross-signed-root-missing-aki": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement for AKI presence"
+  },
+  "rfc5280::nc::permitted-dns-match-noncritical": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that NameConstraints be critical"
+  },
+  "rfc5280::nc::invalid-dnsname-leading-period": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki accepts leading period in DNS name constraints"
+  },
+  "rfc5280::nc::not-allowed-in-ee-noncritical": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not reject NameConstraints extension in EE certificates"
+  },
+  "rfc5280::nc::not-allowed-in-ee-critical": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not reject NameConstraints extension in EE certificates"
+  },
+  "rfc5280::pc::ica-noncritical-pc": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that PolicyConstraints be critical"
+  },
+  "rfc5280::san::noncritical-with-empty-subject": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that SAN be critical when subject is empty"
+  },
+  "rfc5280::san::underscore-dns": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki accepts underscores in DNS names"
+  },
+  "rfc5280::serial::too-long": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 serial number length limit"
+  },
+  "rfc5280::serial::zero": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that serial numbers be positive for compatibility reasons"
+  },
+  "rfc5280::ski::critical-ski": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that SKI be non-critical"
+  },
+  "rfc5280::ski::root-missing-ski": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement for SKI presence in CA certs"
+  },
+  "rfc5280::ski::intermediate-missing-ski": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement for SKI presence in CA certs"
+  },
+  "rfc5280::validity::expired-root": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not check validity period of trust anchors"
+  },
+  "rfc5280::ca-empty-subject": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 5280 requirement that CA subjects be non-empty"
+  },
+  "rfc5280::unknown-critical-extension-root": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not reject trust anchors with unknown critical extensions"
+  },
+  "rfc5280::root-missing-basic-constraints": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce BasicConstraints presence in trust anchors"
+  },
+  "rfc5280::root-non-critical-basic-constraints": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce BasicConstraints criticality in trust anchors"
+  },
+  "rfc5280::root-inconsistent-ca-extensions": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce consistency between BasicConstraints.cA and KeyUsage.keyCertSign in trust anchors"
+  },
+  "rfc5280::leaf-ku-keycertsign": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not reject EE certs with keyCertSign in KeyUsage"
+  },
+  "webpki::aki::root-with-aki-missing-keyidentifier": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement for keyIdentifier in root AKI"
+  },
+  "webpki::aki::root-with-aki-authoritycertissuer": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF prohibition on authorityCertIssuer in root AKI"
+  },
+  "webpki::aki::root-with-aki-authoritycertserialnumber": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF prohibition on authorityCertSerialNumber in root AKI"
+  },
+  "webpki::aki::root-with-aki-all-fields": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF AKI field requirements for roots"
+  },
+  "webpki::aki::root-with-aki-ski-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement that root AKI match SKI"
+  },
+  "webpki::cn::ipv4-hex-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::ipv4-leading-zeros-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::ipv6-uppercase-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::ipv6-uncompressed-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::ipv6-non-rfc5952-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::punycode-not-in-san": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::utf8-vs-punycode-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::not-in-san": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::cn::case-mismatch": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not honor CN"
+  },
+  "webpki::eku::ee-anyeku": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF prohibition on anyExtendedKeyUsage in EE certs"
+  },
+  "webpki::eku::ee-critical-eku": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement that EKU be non-critical"
+  },
+  "webpki::eku::ee-without-eku": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement for EKU presence in EE certs"
+  },
+  "webpki::eku::root-has-eku": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF prohibition on EKU in root certs"
+  },
+  "webpki::nc::intermediate-permitted-excluded-subtrees-both-null": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF NameConstraints encoding requirements"
+  },
+  "webpki::nc::intermediate-permitted-excluded-subtrees-both-empty-sequences": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF NameConstraints encoding requirements"
+  },
+  "webpki::san::san-critical-with-nonempty-subject": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement that SAN not be critical when subject is non-empty"
+  },
+  "webpki::malformed-aia": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not validate AIA extension contents"
+  },
+  "webpki::forbidden-p192-leaf": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF key algorithm restrictions (P-192 accepted)"
+  },
+  "webpki::forbidden-dsa-leaf": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF key algorithm restrictions (DSA accepted)"
+  },
+  "webpki::forbidden-weak-rsa-in-leaf": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF RSA key size minimum (1024-bit accepted)"
+  },
+  "webpki::forbidden-rsa-not-divisable-by-8-in-root": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement that RSA key size be divisible by 8"
+  },
+  "webpki::forbidden-rsa-key-not-divisable-by-8-in-leaf": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce CABF requirement that RSA key size be divisible by 8"
+  }
+}
