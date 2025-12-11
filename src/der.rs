@@ -55,7 +55,7 @@ pub(crate) fn read_all<'a, T: FromDer<'a>>(input: untrusted::Input<'a>) -> Resul
 }
 
 // Copied (and extended) from ring's src/der.rs
-#[allow(clippy::upper_case_acronyms)]
+#[expect(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Eq, PartialEq)]
 #[repr(u8)]
 pub(crate) enum Tag {
@@ -69,7 +69,7 @@ pub(crate) enum Tag {
     UTCTime = 0x17,
     GeneralizedTime = 0x18,
 
-    #[allow(clippy::identity_op)]
+    #[expect(clippy::identity_op)]
     ContextSpecificConstructed0 = CONTEXT_SPECIFIC | CONSTRUCTED | 0,
     ContextSpecificConstructed1 = CONTEXT_SPECIFIC | CONSTRUCTED | 1,
     ContextSpecificConstructed3 = CONTEXT_SPECIFIC | CONSTRUCTED | 3,
@@ -82,14 +82,14 @@ pub(crate) const CONSTRUCTED: u8 = 0x20;
 pub(crate) const CONTEXT_SPECIFIC: u8 = 0x80;
 
 impl From<Tag> for usize {
-    #[allow(clippy::as_conversions)]
+    #[expect(clippy::as_conversions)]
     fn from(tag: Tag) -> Self {
         tag as Self
     }
 }
 
 impl From<Tag> for u8 {
-    #[allow(clippy::as_conversions)]
+    #[expect(clippy::as_conversions)]
     fn from(tag: Tag) -> Self {
         tag as Self
     } // XXX: narrowing conversion.
@@ -222,7 +222,7 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
 /// Prepend `bytes` with the given ASN.1 [`Tag`] and appropriately encoded length byte(s).
 /// Useful for "adding back" ASN.1 bytes to parsed content.
 #[cfg(feature = "alloc")]
-#[allow(clippy::as_conversions)]
+#[expect(clippy::as_conversions)]
 pub(crate) fn asn1_wrap(tag: Tag, bytes: &[u8]) -> Vec<u8> {
     let len = bytes.len();
     // The length is encoded differently depending on how many bytes there are
@@ -722,11 +722,11 @@ mod tests {
         }
     }
 
-    #[allow(clippy::as_conversions)] // infallible.
+    #[expect(clippy::as_conversions)] // infallible.
     const EXAMPLE_TAG: u8 = super::Tag::Sequence as u8;
 
     #[cfg(feature = "alloc")]
-    #[allow(clippy::as_conversions)] // test code.
+    #[expect(clippy::as_conversions)] // test code.
     fn der_encode_length(length: usize) -> Vec<u8> {
         if length < 128 {
             vec![length as u8]

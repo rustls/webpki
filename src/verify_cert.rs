@@ -247,7 +247,7 @@ impl DoubleEndedIterator for IntermediateIterator<'_> {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 enum Intermediates<'a> {
     Owned {
         certs: [Option<Cert<'a>>; MAX_SUB_CA_COUNT],

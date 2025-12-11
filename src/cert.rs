@@ -560,7 +560,7 @@ mod tests {
             RevocationReason::AffiliationChanged,
         ];
         for reason in RevocationReason::iter() {
-            #[allow(clippy::as_conversions)]
+            #[expect(clippy::as_conversions)]
             // revocation reason is u8, infallible to convert to usize.
             match expected.contains(&reason) {
                 true => assert!(reasons.bit_set(reason as usize)),
