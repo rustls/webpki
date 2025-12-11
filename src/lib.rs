@@ -33,7 +33,6 @@
     clippy::std_instead_of_core
 )]
 #![deny(missing_docs, clippy::as_conversions)]
-
 // Enable documentation for all features on docs.rs
 #![cfg_attr(webpki_docsrs, feature(doc_cfg))]
 

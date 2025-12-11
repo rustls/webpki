@@ -111,7 +111,7 @@ pub static RSA_PKCS1_2048_8192_SHA512: &dyn SignatureVerificationAlgorithm = &Ri
 pub static RSA_PKCS1_2048_8192_SHA256_ABSENT_PARAMS: &dyn SignatureVerificationAlgorithm =
     &RingAlgorithm {
         public_key_alg_id: alg_id::RSA_ENCRYPTION,
-        signature_alg_id: alg_id::AlgorithmIdentifier::from_slice(include_bytes!(
+        signature_alg_id: AlgorithmIdentifier::from_slice(include_bytes!(
             "data/alg-rsa-pkcs1-sha256-absent-params.der"
         )),
         verification_alg: &signature::RSA_PKCS1_2048_8192_SHA256,
@@ -132,7 +132,7 @@ pub static RSA_PKCS1_2048_8192_SHA256_ABSENT_PARAMS: &dyn SignatureVerificationA
 pub static RSA_PKCS1_2048_8192_SHA384_ABSENT_PARAMS: &dyn SignatureVerificationAlgorithm =
     &RingAlgorithm {
         public_key_alg_id: alg_id::RSA_ENCRYPTION,
-        signature_alg_id: alg_id::AlgorithmIdentifier::from_slice(include_bytes!(
+        signature_alg_id: AlgorithmIdentifier::from_slice(include_bytes!(
             "data/alg-rsa-pkcs1-sha384-absent-params.der"
         )),
         verification_alg: &signature::RSA_PKCS1_2048_8192_SHA384,
@@ -153,7 +153,7 @@ pub static RSA_PKCS1_2048_8192_SHA384_ABSENT_PARAMS: &dyn SignatureVerificationA
 pub static RSA_PKCS1_2048_8192_SHA512_ABSENT_PARAMS: &dyn SignatureVerificationAlgorithm =
     &RingAlgorithm {
         public_key_alg_id: alg_id::RSA_ENCRYPTION,
-        signature_alg_id: alg_id::AlgorithmIdentifier::from_slice(include_bytes!(
+        signature_alg_id: AlgorithmIdentifier::from_slice(include_bytes!(
             "data/alg-rsa-pkcs1-sha512-absent-params.der"
         )),
         verification_alg: &signature::RSA_PKCS1_2048_8192_SHA512,
