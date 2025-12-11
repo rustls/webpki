@@ -59,7 +59,7 @@ fn name_constraints() {
     );
 }
 
-fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor]) {
+fn run_testsuite(suite_name: &str, suite: &BetterTlsSuite, roots: &[TrustAnchor<'_>]) {
     for testcase in &suite.test_cases {
         println!("Testing {suite_name} test case {}", testcase.id);
 

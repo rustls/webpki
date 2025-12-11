@@ -33,7 +33,7 @@ fn check_cert(
     ee: &[u8],
     intermediates: &[&[u8]],
     ca: &[u8],
-    revocation: Option<RevocationOptions>,
+    revocation: Option<RevocationOptions<'_>>,
 ) -> Result<(), webpki::Error> {
     let ca = CertificateDer::from(ca);
     let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
