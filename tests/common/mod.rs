@@ -1,3 +1,5 @@
+#![allow(unreachable_pub)]
+
 use std::error::Error as StdError;
 
 use rcgen::{
