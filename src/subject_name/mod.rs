@@ -34,9 +34,8 @@ pub(crate) fn check_name_constraints(
     path: &PathNode<'_>,
     budget: &mut Budget,
 ) -> Result<(), Error> {
-    let constraints = match constraints {
-        Some(input) => input,
-        None => return Ok(()),
+    let Some(constraints) = constraints else {
+        return Ok(());
     };
 
     fn parse_subtrees<'b>(

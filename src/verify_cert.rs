@@ -79,9 +79,8 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                 self.check_signed_chain(&node, time, trust_anchor, budget)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
 
-                let verify = match verify_path {
-                    Some(verify) => verify,
-                    None => return Ok(trust_anchor),
+                let Some(verify) = verify_path else {
+                    return Ok(trust_anchor);
                 };
 
                 let candidate = VerifiedPath {

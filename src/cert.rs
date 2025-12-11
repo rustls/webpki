@@ -177,9 +177,8 @@ impl<'a> Cert<'a> {
     /// [EndEntityCert::verify_is_valid_for_subject_name]: crate::EndEntityCert::verify_is_valid_for_subject_name
     pub fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
         NameIterator::new(self.subject_alt_name).filter_map(|result| {
-            let presented_id = match result.ok()? {
-                GeneralName::DnsName(presented) => presented,
-                _ => return None,
+            let GeneralName::DnsName(presented_id) = result.ok()? else {
+                return None;
             };
 
             // if the name could be converted to a DNS name, return it; otherwise,
@@ -203,9 +202,8 @@ impl<'a> Cert<'a> {
     /// they are valid UTF-8.
     pub fn valid_uri_names(&self) -> impl Iterator<Item = &str> {
         NameIterator::new(self.subject_alt_name).filter_map(|result| {
-            let presented_id = match result.ok()? {
-                GeneralName::UniformResourceIdentifier(presented) => presented,
-                _ => return None,
+            let GeneralName::UniformResourceIdentifier(presented_id) = result.ok()? else {
+                return None;
             };
 
             // if the URI can be converted to a valid UTF-8 string, return it; otherwise,

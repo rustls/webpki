@@ -35,9 +35,8 @@ pub(crate) fn verify_ip_address_names(reference: &IpAddr, cert: &Cert<'_>) -> Re
             Err(err) => return Some(Err(err)),
         };
 
-        let presented_id = match name {
-            GeneralName::IpAddress(presented) => presented,
-            _ => return None,
+        let GeneralName::IpAddress(presented_id) = name else {
+            return None;
         };
 
         match presented_id_matches_reference_id(presented_id, ip_address) {

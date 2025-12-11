@@ -32,9 +32,8 @@ pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Resu
             Err(err) => return Some(Err(err)),
         };
 
-        let presented_id = match name {
-            GeneralName::DnsName(presented) => presented,
-            _ => return None,
+        let GeneralName::DnsName(presented_id) = name else {
+            return None;
         };
 
         match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
