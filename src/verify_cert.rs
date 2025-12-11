@@ -37,6 +37,7 @@ pub(crate) struct ChainOptions<'a, 'p> {
 }
 
 impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
+    #[expect(clippy::type_complexity)]
     pub(crate) fn build_chain(
         &self,
         end_entity: &'p EndEntityCert<'p>,
@@ -50,6 +51,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
         }
     }
 
+    #[expect(clippy::type_complexity)]
     fn build_chain_inner(
         &self,
         path: &mut PartialPath<'p>,
@@ -1338,6 +1340,7 @@ mod tests {
         }
     }
 
+    #[expect(clippy::type_complexity)]
     fn verify_chain<'a>(
         trust_anchors: &'a [TrustAnchor<'a>],
         intermediate_certs: &'a [CertificateDer<'a>],

@@ -99,7 +99,7 @@ impl EndEntityCert<'_> {
     /// verify a path that doesn't satisfy the constraints listed above; it can only be used to
     /// reject a path that does satisfy the aforementioned constraints. If `verify_path` returns
     /// an error, path building will continue in order to try other options.
-    #[expect(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments, clippy::type_complexity)]
     pub fn verify_for_usage<'p>(
         &'p self,
         supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
