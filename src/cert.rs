@@ -54,7 +54,7 @@ impl<'a> Cert<'a> {
             cert_der.read_all(Error::TrailingData(DerTypeId::Certificate), |cert_der| {
                 der::nested(
                     cert_der,
-                    der::Tag::Sequence,
+                    Tag::Sequence,
                     Error::TrailingData(DerTypeId::SignedData),
                     |der| {
                         // limited to SEQUENCEs of size 2^16 or less.
@@ -70,7 +70,7 @@ impl<'a> Cert<'a> {
 
                 let serial = lenient_certificate_serial_number(tbs)?;
 
-                let signature = der::expect_tag(tbs, der::Tag::Sequence)?;
+                let signature = der::expect_tag(tbs, Tag::Sequence)?;
                 // TODO: In mozilla::pkix, the comparison is done based on the
                 // normalized value (ignoring whether or not there is an optional NULL
                 // parameter for RSA-based algorithms), so this may be too strict.
@@ -78,10 +78,10 @@ impl<'a> Cert<'a> {
                     return Err(Error::SignatureAlgorithmMismatch);
                 }
 
-                let issuer = der::expect_tag(tbs, der::Tag::Sequence)?;
-                let validity = der::expect_tag(tbs, der::Tag::Sequence)?;
-                let subject = der::expect_tag(tbs, der::Tag::Sequence)?;
-                let spki = der::expect_tag(tbs, der::Tag::Sequence)?;
+                let issuer = der::expect_tag(tbs, Tag::Sequence)?;
+                let validity = der::expect_tag(tbs, Tag::Sequence)?;
+                let subject = der::expect_tag(tbs, Tag::Sequence)?;
+                let spki = der::expect_tag(tbs, Tag::Sequence)?;
 
                 // In theory there could be fields [1] issuerUniqueID and [2]
                 // subjectUniqueID, but in practice there never are, and to keep the
@@ -113,14 +113,8 @@ impl<'a> Cert<'a> {
                 // subjectUniqueID [2]  IMPLICIT UniqueIdentifier OPTIONAL,
                 //                      -- If present, version MUST be v2 or v3
                 for (tag, id) in [
-                    (
-                        der::Tag::ContextSpecificPrimitive1,
-                        DerTypeId::IssuerUniqueId,
-                    ),
-                    (
-                        der::Tag::ContextSpecificPrimitive2,
-                        DerTypeId::SubjectUniqueId,
-                    ),
+                    (Tag::ContextSpecificPrimitive1, DerTypeId::IssuerUniqueId),
+                    (Tag::ContextSpecificPrimitive2, DerTypeId::SubjectUniqueId),
                 ] {
                     if tbs.peek(tag.into()) {
                         der::nested(tbs, tag, Error::TrailingData(id), |tagged| {
@@ -143,13 +137,13 @@ impl<'a> Cert<'a> {
                 if !tbs.at_end() {
                     der::nested(
                         tbs,
-                        der::Tag::ContextSpecificConstructed3,
+                        Tag::ContextSpecificConstructed3,
                         Error::TrailingData(DerTypeId::CertificateExtensions),
                         |tagged| {
                             der::nested_of_mut(
                                 tagged,
-                                der::Tag::Sequence,
-                                der::Tag::Sequence,
+                                Tag::Sequence,
+                                Tag::Sequence,
                                 Error::TrailingData(DerTypeId::Extension),
                                 ALLOW_EMPTY,
                                 |extension| {
@@ -267,7 +261,7 @@ impl<'a> Cert<'a> {
 fn version3(input: &mut untrusted::Reader<'_>) -> Result<(), Error> {
     der::nested(
         input,
-        der::Tag::ContextSpecificConstructed0,
+        Tag::ContextSpecificConstructed0,
         Error::UnsupportedCertVersion,
         |input| {
             let version = u8::from_der(input)?;
