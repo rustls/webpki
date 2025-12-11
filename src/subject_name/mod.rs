@@ -274,7 +274,7 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
         use GeneralName::*;
         use der::{CONSTRUCTED, CONTEXT_SPECIFIC};
 
-        #[allow(clippy::identity_op)]
+        #[expect(clippy::identity_op)]
         const OTHER_NAME_TAG: u8 = CONTEXT_SPECIFIC | CONSTRUCTED | 0;
         const RFC822_NAME_TAG: u8 = CONTEXT_SPECIFIC | 1;
         const DNS_NAME_TAG: u8 = CONTEXT_SPECIFIC | 2;

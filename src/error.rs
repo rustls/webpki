@@ -235,7 +235,6 @@ impl Error {
     // Return a numeric indication of how specific the error is, where an error with a higher rank
     // is considered more useful to an end user than an error with a lower rank. This is used by
     // Error::most_specific to compare two errors in order to return which is more specific.
-    #[allow(clippy::as_conversions)] // We won't exceed u32 errors.
     pub(crate) fn rank(&self) -> u32 {
         match &self {
             // Errors related to certificate validity
@@ -369,7 +368,7 @@ pub struct UnsupportedSignatureAlgorithmContext {
 }
 
 /// Trailing data was found while parsing DER-encoded input for the named type.
-#[allow(missing_docs)]
+#[expect(missing_docs)]
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DerTypeId {

@@ -47,6 +47,7 @@ pub(crate) fn verify_ip_address_names(reference: &IpAddr, cert: &Cert<'_>) -> Re
     });
 
     match result {
+        #[cfg_attr(not(feature = "alloc"), expect(clippy::needless_return))]
         Some(result) => return result,
         #[cfg(feature = "alloc")]
         None => {}

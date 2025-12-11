@@ -869,7 +869,7 @@ impl<'a> FromDer<'a> for BorrowedRevokedCert<'a> {
 ///
 /// [1]: <https://www.rfc-editor.org/rfc/rfc5280#section-5.3.1>
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
-#[allow(missing_docs)] // Not much to add above the code name.
+#[expect(missing_docs)] // Not much to add above the code name.
 pub enum RevocationReason {
     /// Unspecified should not be used, and is instead assumed by the absence of a RevocationReason
     /// extension.
@@ -1205,7 +1205,7 @@ mod tests {
 
     #[test]
     // redundant clone, clone_on_copy allowed to verify derived traits.
-    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
+    #[expect(clippy::redundant_clone)]
     fn test_derived_traits() {
         let crl =
             BorrowedCertRevocationList::from_der(include_bytes!("../../tests/crls/crl.valid.der"))

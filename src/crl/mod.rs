@@ -111,7 +111,7 @@ pub struct RevocationOptions<'a> {
 }
 
 impl RevocationOptions<'_> {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub(crate) fn check(
         &self,
         path: &PathNode<'_>,
@@ -197,7 +197,7 @@ impl KeyUsageMode {
         };
 
         let flags = der::bit_string_flags(bit_string)?;
-        #[allow(clippy::as_conversions)] // u8 always fits in usize.
+        #[expect(clippy::as_conversions)] // u8 always fits in usize.
         match flags.bit_set(self as usize) {
             true => Ok(()),
             false => Err(Error::IssuerNotCrlSigner),
@@ -271,14 +271,13 @@ mod tests {
 
     #[test]
     // redundant clone, clone_on_copy allowed to verify derived traits.
-    #[allow(clippy::redundant_clone, clippy::clone_on_copy)]
+    #[cfg_attr(feature = "alloc", allow(clippy::redundant_clone))]
     fn test_revocation_opts_builder() {
         // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
         let result = RevocationOptionsBuilder::new(&[]);
         assert!(matches!(result, Err(CrlsRequired(_))));
 
         // The CrlsRequired error should be debug and clone when alloc is enabled.
-        #[cfg(feature = "alloc")]
         {
             let err = result.unwrap_err();
             std::println!("{:?}", err.clone());
@@ -292,11 +291,13 @@ mod tests {
         let crls = [&crl];
         let builder = RevocationOptionsBuilder::new(&crls).unwrap();
         #[cfg(feature = "alloc")]
+        #[allow(clippy::clone_on_copy)]
         {
             // The builder should be debug, and clone when alloc is enabled
             std::println!("{builder:?}");
             _ = builder.clone();
         }
+
         let opts = builder.build();
         assert_eq!(opts.depth, RevocationCheckDepth::Chain);
         assert_eq!(opts.status_policy, UnknownStatusPolicy::Deny);
