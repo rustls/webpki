@@ -122,3 +122,9 @@ elided_lifetimes_in_paths = "warn"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(webpki_docsrs)'] }
 unnameable_types = "warn"
 unreachable_pub = "warn"
+
+[lints.clippy]
+manual_let_else = "warn"
+or_fun_call = "warn"
+upper_case_acronyms = "warn"
+use_self = "warn"

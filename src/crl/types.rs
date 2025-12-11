@@ -617,23 +617,20 @@ impl<'a> IssuingDistributionPoint<'a> {
             return false;
         }
 
-        let cert_dps = match node.cert.crl_distribution_points() {
+        let Some(cert_dps) = node.cert.crl_distribution_points() else {
             // If the certificate has no distribution points, then the CRL can be authoritative
             // based on the issuer matching and the scope including the cert.
-            None => return true,
-            Some(cert_dps) => cert_dps,
+            return true;
         };
 
-        let mut idp_general_names = match self.names() {
-            Ok(Some(DistributionPointName::FullName(general_names))) => general_names,
-            _ => return false, // Note: Either no full names, or malformed. Shouldn't occur, we check at CRL parse time.
+        let Ok(Some(DistributionPointName::FullName(mut idp_general_names))) = self.names() else {
+            return false; // Note: Either no full names, or malformed. Shouldn't occur, we check at CRL parse time.
         };
 
         for cert_dp in cert_dps {
-            let cert_dp = match cert_dp {
-                Ok(cert_dp) => cert_dp,
+            let Ok(cert_dp) = cert_dp else {
                 // certificate CRL DP was invalid, can't match.
-                Err(_) => return false,
+                return false;
             };
 
             // If the certificate CRL DP was for an indirect CRL, or a CRL
@@ -642,9 +639,9 @@ impl<'a> IssuingDistributionPoint<'a> {
                 return false;
             }
 
-            let mut dp_general_names = match cert_dp.names() {
-                Ok(Some(DistributionPointName::FullName(general_names))) => general_names,
-                _ => return false, // Either no full names, or malformed.
+            let Ok(Some(DistributionPointName::FullName(mut dp_general_names))) = cert_dp.names()
+            else {
+                return false; // Either no full names, or malformed.
             };
 
             // At least one URI type name in the IDP full names must match a URI type name in the
@@ -663,9 +660,8 @@ impl<'a> IssuingDistributionPoint<'a> {
     ) -> bool {
         use GeneralName::UniformResourceIdentifier;
         for name in idp_general_names.flatten() {
-            let uri = match name {
-                UniformResourceIdentifier(uri) => uri,
-                _ => continue,
+            let UniformResourceIdentifier(uri) = name else {
+                continue;
             };
 
             for other_name in (&mut *dp_general_names).flatten() {
