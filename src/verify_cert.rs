@@ -17,6 +17,8 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
 
+#[cfg(feature = "alloc")]
+use pki_types::SubjectPublicKeyInfoDer;
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, TrustAnchor, UnixTime};
 
 use crate::cert::Cert;
@@ -24,6 +26,7 @@ use crate::crl::RevocationOptions;
 use crate::der::{self, FromDer};
 use crate::end_entity::EndEntityCert;
 use crate::error::Error;
+use crate::sct::{self, LogId, SctParser, Timestamp};
 use crate::{public_values_eq, subject_name};
 
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
@@ -196,6 +199,21 @@ impl<'p> VerifiedPath<'p> {
         }
     }
 
+    /// Returns the SCT logs that contributed to the SCTs included in the certificate.
+    ///
+    /// Note this method does not verify the SCTs themselves, but does require that
+    /// the certificate chain was previously verified by the caller.  This is demonstrated
+    /// by the `verified_path` parameter.
+    ///
+    /// If the certificate does not contain an SCT extension, this method returns
+    /// `Ok(Vec::new())`.
+    pub fn sct_log_timestamps(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(LogId, Timestamp), sct::Error>> + 'p, sct::Error> {
+        Ok(SctParser::new(self.end_entity.scts)?
+            .map(|sct| sct.map(|sct| (sct.log_id, sct.timestamp))))
+    }
+
     /// Yields a (double-ended) iterator over the intermediate certificates in this path.
     pub fn intermediate_certificates(&'p self) -> IntermediateIterator<'p> {
         IntermediateIterator {
@@ -211,6 +229,18 @@ impl<'p> VerifiedPath<'p> {
     /// Yields the trust anchor for this path.
     pub fn anchor(&self) -> &'p TrustAnchor<'p> {
         self.anchor
+    }
+
+    /// Get the `SubjectPublicKeyInfo` of the issuer of the end-entity certificate.
+    #[cfg(feature = "alloc")]
+    pub fn issuer_spki(&self) -> SubjectPublicKeyInfoDer<'p> {
+        match self.intermediate_certificates().next() {
+            Some(issuer) => issuer.subject_public_key_info(),
+            None => SubjectPublicKeyInfoDer::from(der::asn1_wrap(
+                crate::der::Tag::Sequence,
+                self.anchor.subject_public_key_info.as_ref(),
+            )),
+        }
     }
 }
 
