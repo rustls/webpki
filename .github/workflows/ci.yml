@@ -234,7 +234,7 @@ jobs:
           toolchain: nightly-2025-10-18
           # ^ sync with https://github.com/awslabs/cargo-check-external-types/blob/main/rust-toolchain.toml
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@v2
+        uses: taiki-e/cache-cargo-install-action@v3
         with:
           tool: cargo-check-external-types
       - name: run cargo-check-external-types
