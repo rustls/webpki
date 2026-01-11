@@ -222,7 +222,6 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
 /// Prepend `bytes` with the given ASN.1 [`Tag`] and appropriately encoded length byte(s).
 /// Useful for "adding back" ASN.1 bytes to parsed content.
 #[cfg(feature = "alloc")]
-#[expect(clippy::as_conversions)]
 pub(crate) fn asn1_wrap(tag: Tag, bytes: &[u8]) -> Vec<u8> {
     let len = bytes.len();
 
@@ -236,27 +235,23 @@ pub(crate) fn asn1_wrap(tag: Tag, bytes: &[u8]) -> Vec<u8> {
     };
 
     // Long form: The length is encoded using multiple bytes
-    // Contents: Tag byte, number-of-length-bytes byte, length bytes, and passed bytes
-    // The first byte indicates how many more bytes will be used to encode the length
-    // First, get a big-endian representation of the byte slice's length
-    let size = len.to_be_bytes();
-    // Find the number of leading empty bytes in that representation
-    // This will determine the smallest number of bytes we need to encode the length
-    let leading_zero_bytes = size
-        .iter()
-        .position(|&byte| byte != 0)
-        .unwrap_or(size.len());
-    assert!(leading_zero_bytes < size.len());
-    // Number of bytes used - number of not needed bytes = smallest number needed
-    let encoded_bytes = size.len() - leading_zero_bytes;
-    let mut ret = Vec::with_capacity(2 + encoded_bytes + len);
-    // Indicate this is a number-of-length-bytes byte by setting the high order bit
-    let number_of_length_bytes_byte = SHORT_FORM_LEN_MAX + encoded_bytes as u8;
-    ret.push(tag.into()); // Tag byte
-    ret.push(number_of_length_bytes_byte); // Number-of-length-bytes byte
-    ret.extend_from_slice(&size[leading_zero_bytes..]); // Length bytes
-    ret.extend_from_slice(bytes); // Passed bytes
+    let len_bytes = u32_byte_count_to_usize((len.ilog2() + 1).div_ceil(8));
+
+    let mut ret = Vec::with_capacity(2 + len_bytes + len);
+    ret.push(tag.into());
+    // SAFETY: `[u8; 8].last()` is statically `Some`.
+    ret.push(SHORT_FORM_LEN_MAX | len_bytes.to_be_bytes().last().unwrap());
+    ret.extend_from_slice(
+        &len.to_be_bytes()[(u32_byte_count_to_usize(usize::BITS.div_ceil(8)) - len_bytes)..],
+    );
+    ret.extend_from_slice(bytes);
     ret
+}
+
+fn u32_byte_count_to_usize(a: u32) -> usize {
+    // SAFETY: implausible except for 8-bit platforms, where a byte count of >255 would
+    // exceed addressable memory anyway.
+    a.try_into().unwrap()
 }
 
 // Long-form DER encoded lengths of two bytes can express lengths up to the following limit.
