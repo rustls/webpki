@@ -225,39 +225,38 @@ pub(crate) fn read_tag_and_get_value_limited<'a>(
 #[expect(clippy::as_conversions)]
 pub(crate) fn asn1_wrap(tag: Tag, bytes: &[u8]) -> Vec<u8> {
     let len = bytes.len();
-    // The length is encoded differently depending on how many bytes there are
-    if len < usize::from(SHORT_FORM_LEN_MAX) {
-        // Short form: the length is encoded using a single byte
-        // Contents: Tag byte, single length byte, and passed bytes
+
+    // Short form: the length is encoded using a single byte
+    if let Ok(short_len @ 0..SHORT_FORM_LEN_MAX) = len.try_into() {
         let mut ret = Vec::with_capacity(2 + len);
-        ret.push(tag.into()); // Tag byte
-        ret.push(len as u8); // Single length byte
-        ret.extend_from_slice(bytes); // Passed bytes
-        ret
-    } else {
-        // Long form: The length is encoded using multiple bytes
-        // Contents: Tag byte, number-of-length-bytes byte, length bytes, and passed bytes
-        // The first byte indicates how many more bytes will be used to encode the length
-        // First, get a big-endian representation of the byte slice's length
-        let size = len.to_be_bytes();
-        // Find the number of leading empty bytes in that representation
-        // This will determine the smallest number of bytes we need to encode the length
-        let leading_zero_bytes = size
-            .iter()
-            .position(|&byte| byte != 0)
-            .unwrap_or(size.len());
-        assert!(leading_zero_bytes < size.len());
-        // Number of bytes used - number of not needed bytes = smallest number needed
-        let encoded_bytes = size.len() - leading_zero_bytes;
-        let mut ret = Vec::with_capacity(2 + encoded_bytes + len);
-        // Indicate this is a number-of-length-bytes byte by setting the high order bit
-        let number_of_length_bytes_byte = SHORT_FORM_LEN_MAX + encoded_bytes as u8;
-        ret.push(tag.into()); // Tag byte
-        ret.push(number_of_length_bytes_byte); // Number-of-length-bytes byte
-        ret.extend_from_slice(&size[leading_zero_bytes..]); // Length bytes
-        ret.extend_from_slice(bytes); // Passed bytes
-        ret
-    }
+        ret.push(tag.into());
+        ret.push(short_len);
+        ret.extend_from_slice(bytes);
+        return ret;
+    };
+
+    // Long form: The length is encoded using multiple bytes
+    // Contents: Tag byte, number-of-length-bytes byte, length bytes, and passed bytes
+    // The first byte indicates how many more bytes will be used to encode the length
+    // First, get a big-endian representation of the byte slice's length
+    let size = len.to_be_bytes();
+    // Find the number of leading empty bytes in that representation
+    // This will determine the smallest number of bytes we need to encode the length
+    let leading_zero_bytes = size
+        .iter()
+        .position(|&byte| byte != 0)
+        .unwrap_or(size.len());
+    assert!(leading_zero_bytes < size.len());
+    // Number of bytes used - number of not needed bytes = smallest number needed
+    let encoded_bytes = size.len() - leading_zero_bytes;
+    let mut ret = Vec::with_capacity(2 + encoded_bytes + len);
+    // Indicate this is a number-of-length-bytes byte by setting the high order bit
+    let number_of_length_bytes_byte = SHORT_FORM_LEN_MAX + encoded_bytes as u8;
+    ret.push(tag.into()); // Tag byte
+    ret.push(number_of_length_bytes_byte); // Number-of-length-bytes byte
+    ret.extend_from_slice(&size[leading_zero_bytes..]); // Length bytes
+    ret.extend_from_slice(bytes); // Passed bytes
+    ret
 }
 
 // Long-form DER encoded lengths of two bytes can express lengths up to the following limit.
