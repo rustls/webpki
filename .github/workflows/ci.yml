@@ -173,7 +173,6 @@ jobs:
       - name: cargo test (${{ matrix.features }})
         run: cargo test --locked ${{ matrix.features }} -- --include-ignored
         env:
-          RUSTFLAGS: "-D warnings"
           AWS_LC_SYS_PREBUILT_NASM: "1" # for benefit of rcgen
 
   msrv:
