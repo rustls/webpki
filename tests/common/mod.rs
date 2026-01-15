@@ -1,4 +1,4 @@
-#![allow(unreachable_pub)]
+#![allow(dead_code, unreachable_pub)]
 
 use std::error::Error as StdError;
 
@@ -7,7 +7,6 @@ use rcgen::{
     IsCa, Issuer, KeyPair, KeyUsagePurpose, SignatureAlgorithm, SigningKey,
 };
 
-#[cfg_attr(not(feature = "ring"), allow(dead_code))]
 pub fn make_end_entity(
     ekus: Vec<ExtendedKeyUsagePurpose>,
     org_name: impl Into<DnValue>,
