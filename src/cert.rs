@@ -169,7 +169,7 @@ impl<'a> Cert<'a> {
     /// [EndEntityCert::verify_is_valid_for_subject_name].
     ///
     /// [EndEntityCert::verify_is_valid_for_subject_name]: crate::EndEntityCert::verify_is_valid_for_subject_name
-    pub fn valid_dns_names(&self) -> impl Iterator<Item = &str> {
+    pub fn valid_dns_names(&self) -> impl Iterator<Item = &'a str> {
         NameIterator::new(self.subject_alt_name).filter_map(|result| {
             let GeneralName::DnsName(presented_id) = result.ok()? else {
                 return None;
@@ -194,7 +194,7 @@ impl<'a> Cert<'a> {
     ///
     /// This function returns URIs as strings without performing validation beyond checking that
     /// they are valid UTF-8.
-    pub fn valid_uri_names(&self) -> impl Iterator<Item = &str> {
+    pub fn valid_uri_names(&self) -> impl Iterator<Item = &'a str> {
         NameIterator::new(self.subject_alt_name).filter_map(|result| {
             let GeneralName::UniformResourceIdentifier(presented_id) = result.ok()? else {
                 return None;
