@@ -307,8 +307,7 @@ fn %(test_name)s() {
         check_cert(ee, ca, &[%(valid_names_str)s], &[%(invalid_names_str)s], &[%(presented_names_str)s]),
         %(expected)s
     );
-}"""
-        % locals(),
+}""" % locals(),
         file=output,
     )
 
@@ -709,8 +708,7 @@ def signatures(force: bool) -> None:
         check_sig(ee, %(algorithm)s, message, signature),
         %(expected)s
     );
-}"""
-            % locals(),
+}""" % locals(),
             file=output,
         )
 
@@ -725,8 +723,7 @@ def signatures(force: bool) -> None:
         check_sig_rpk(rpk, %(algorithm)s, message, signature),
         %(expected)s
     );
-}"""
-            % locals(),
+}""" % locals(),
             file=output,
         )
 
@@ -777,8 +774,7 @@ fn %(test_name_lower)s() {
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKeyContext(_))
         ));
     }
-}"""
-            % locals(),
+}""" % locals(),
             file=output,
         )
 
@@ -1096,29 +1092,19 @@ def client_auth_revocation(force: bool) -> None:
 
             crl_includes: str = ""
             if not owned:
-                crl_includes = "\n".join(
-                    [
-                        f"""
+                crl_includes = "\n".join([f"""
                         &webpki::CertRevocationList::Borrowed(
                           webpki::BorrowedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
                           .unwrap()
                         ),
-                        """
-                        for path in crl_paths
-                    ]
-                )
+                        """ for path in crl_paths])
             else:
-                crl_includes = "\n".join(
-                    [
-                        f"""
+                crl_includes = "\n".join([f"""
                         &webpki::CertRevocationList::Owned(
                           webpki::OwnedCertRevocationList::from_der(include_bytes!("{path}").as_slice())
                           .unwrap()
                         ),
-                        """
-                        for path in crl_paths
-                    ]
-                )
+                        """ for path in crl_paths])
 
             if len(crl_paths) == 0:
                 revocation_setup = "let revocation = None;"
@@ -1157,8 +1143,7 @@ def client_auth_revocation(force: bool) -> None:
               %(revocation_setup)s
               assert_eq!(check_cert(ee, intermediates, ca, revocation), %(expected)s);
             }
-            """
-                % locals(),
+            """ % locals(),
                 file=output,
             )
 
