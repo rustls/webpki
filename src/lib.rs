@@ -88,6 +88,9 @@ pub use {
 };
 
 #[cfg(feature = "alloc")]
+pub use trust_anchor::spki_for_anchor;
+
+#[cfg(feature = "alloc")]
 pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 
 #[cfg(feature = "ring")]

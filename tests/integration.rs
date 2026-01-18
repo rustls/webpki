@@ -463,3 +463,13 @@ fn cert_time_validity() {
         })
     );
 }
+
+#[cfg(feature = "alloc")]
+#[test]
+fn anchor_spki() {
+    let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
+    let anchor = anchor_from_trusted_cert(&ca).unwrap();
+    let spki = webpki::spki_for_anchor(&anchor);
+
+    assert_eq!(Some(&0x30), spki.first()); // starts with SEQUENCE
+}
