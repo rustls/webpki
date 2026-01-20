@@ -63,48 +63,28 @@ fn check_sig_rpk(
 }
 
 #[test]
-fn ed25519_key_and_ed25519_good_signature() {
+fn ed25519() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ED25519, "ed25519 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
-        check_sig(test_cert.cert.der(), ED25519, MESSAGE, &signature),
+        check_sig(test_cert.cert.der(), ED25519, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-fn ed25519_key_and_ed25519_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ED25519, "ed25519 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ED25519, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ED25519, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-fn ed25519_key_and_ed25519_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ED25519, "ed25519 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig(test_cert.cert.der(), ED25519, MESSAGE, &signature),
+        check_sig(test_cert.cert.der(), ED25519, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-#[test]
-fn ed25519_key_and_ed25519_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ED25519, "ed25519 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ED25519, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ED25519, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
 
-#[test]
-fn ed25519_key_rejected_by_other_algorithms() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ED25519, "ed25519 test");
     for algorithm in &[
         #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA256,
@@ -133,98 +113,54 @@ fn ed25519_key_rejected_by_other_algorithms() {
 
 /// P256 with SHA384 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
 #[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha384_good_signature() {
+fn ecdsa_p256_sha384() {
     let ee = include_bytes!("signatures/ecdsa_p256.ee.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature =
-        include_bytes!("signatures/ecdsa_p256_key_and_ecdsa_p256_sha384_good_signature.sig.bin");
-    assert_eq!(check_sig(ee, ECDSA_P256_SHA384, message, signature), Ok(()));
-}
-
-/// P256 with SHA384 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
-#[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha384_good_signature_rpk() {
     let rpk = include_bytes!("signatures/ecdsa_p256.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature =
+    let good_sig =
         include_bytes!("signatures/ecdsa_p256_key_and_ecdsa_p256_sha384_good_signature.sig.bin");
-    assert_eq!(
-        check_sig_rpk(rpk, ECDSA_P256_SHA384, message, signature),
-        Ok(())
-    );
-}
-
-/// P256 with SHA384 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
-#[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha384_detects_bad_signature() {
-    let ee = include_bytes!("signatures/ecdsa_p256.ee.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!(
+    let bad_sig = include_bytes!(
         "signatures/ecdsa_p256_key_and_ecdsa_p256_sha384_detects_bad_signature.sig.bin"
     );
-    assert_eq!(
-        check_sig(ee, ECDSA_P256_SHA384, message, signature),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
-    );
-}
 
-/// P256 with SHA384 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
-#[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha384_detects_bad_signature_rpk() {
-    let rpk = include_bytes!("signatures/ecdsa_p256.spki.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!(
-        "signatures/ecdsa_p256_key_and_ecdsa_p256_sha384_detects_bad_signature.sig.bin"
-    );
+    assert_eq!(check_sig(ee, ECDSA_P256_SHA384, message, good_sig), Ok(()));
     assert_eq!(
-        check_sig_rpk(rpk, ECDSA_P256_SHA384, message, signature),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
-    );
-}
-
-#[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha256_good_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P256_SHA256, "ecdsa_p256 test");
-    let signature = test_cert.sign(MESSAGE);
-    assert_eq!(
-        check_sig(test_cert.cert.der(), ECDSA_P256_SHA256, MESSAGE, &signature),
+        check_sig_rpk(rpk, ECDSA_P256_SHA384, message, good_sig),
         Ok(())
     );
+    assert_eq!(
+        check_sig(ee, ECDSA_P256_SHA384, message, bad_sig),
+        Err(webpki::Error::InvalidSignatureForPublicKey)
+    );
+    assert_eq!(
+        check_sig_rpk(rpk, ECDSA_P256_SHA384, message, bad_sig),
+        Err(webpki::Error::InvalidSignatureForPublicKey)
+    );
 }
 
 #[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha256_good_signature_rpk() {
+fn ecdsa_p256_sha256() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P256_SHA256, "ecdsa_p256 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P256_SHA256, MESSAGE, &signature),
+        check_sig(test_cert.cert.der(), ECDSA_P256_SHA256, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha256_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P256_SHA256, "ecdsa_p256 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig(test_cert.cert.der(), ECDSA_P256_SHA256, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P256_SHA256, MESSAGE, &good_sig),
+        Ok(())
+    );
+    assert_eq!(
+        check_sig(test_cert.cert.der(), ECDSA_P256_SHA256, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-#[test]
-fn ecdsa_p256_key_and_ecdsa_p256_sha256_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P256_SHA256, "ecdsa_p256 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P256_SHA256, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P256_SHA256, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
 
-#[test]
-fn ecdsa_p256_key_rejected_by_other_algorithms() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P256_SHA256, "ecdsa_p256 test");
     for algorithm in &[
         #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA256,
@@ -251,92 +187,52 @@ fn ecdsa_p256_key_rejected_by_other_algorithms() {
 }
 
 #[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha384_good_signature() {
+fn ecdsa_p384_sha384() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P384_SHA384, "ecdsa_p384 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
-        check_sig(test_cert.cert.der(), ECDSA_P384_SHA384, MESSAGE, &signature),
+        check_sig(test_cert.cert.der(), ECDSA_P384_SHA384, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha384_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P384_SHA384, "ecdsa_p384 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P384_SHA384, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P384_SHA384, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha384_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P384_SHA384, "ecdsa_p384 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig(test_cert.cert.der(), ECDSA_P384_SHA384, MESSAGE, &signature),
+        check_sig(test_cert.cert.der(), ECDSA_P384_SHA384, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-#[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha384_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P384_SHA384, "ecdsa_p384 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P384_SHA384, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P384_SHA384, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
 /// P384 with SHA256 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
 #[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha256_good_signature() {
+fn ecdsa_p384_sha256() {
     let ee = include_bytes!("signatures/ecdsa_p384.ee.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature =
-        include_bytes!("signatures/ecdsa_p384_key_and_ecdsa_p384_sha256_good_signature.sig.bin");
-    assert_eq!(check_sig(ee, ECDSA_P384_SHA256, message, signature), Ok(()));
-}
-
-/// P384 with SHA256 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
-#[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha256_good_signature_rpk() {
     let rpk = include_bytes!("signatures/ecdsa_p384.spki.der");
     let message = include_bytes!("signatures/message.bin");
-    let signature =
+    let good_sig =
         include_bytes!("signatures/ecdsa_p384_key_and_ecdsa_p384_sha256_good_signature.sig.bin");
+    let bad_sig = include_bytes!(
+        "signatures/ecdsa_p384_key_and_ecdsa_p384_sha256_detects_bad_signature.sig.bin"
+    );
+
+    assert_eq!(check_sig(ee, ECDSA_P384_SHA256, message, good_sig), Ok(()));
     assert_eq!(
-        check_sig_rpk(rpk, ECDSA_P384_SHA256, message, signature),
+        check_sig_rpk(rpk, ECDSA_P384_SHA256, message, good_sig),
         Ok(())
     );
-}
-
-/// P384 with SHA256 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
-#[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha256_detects_bad_signature() {
-    let ee = include_bytes!("signatures/ecdsa_p384.ee.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!(
-        "signatures/ecdsa_p384_key_and_ecdsa_p384_sha256_detects_bad_signature.sig.bin"
-    );
     assert_eq!(
-        check_sig(ee, ECDSA_P384_SHA256, message, signature),
+        check_sig(ee, ECDSA_P384_SHA256, message, bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-/// P384 with SHA256 signing is not supported by aws-lc-rs, so these tests use pre-generated keys.
-#[test]
-fn ecdsa_p384_key_and_ecdsa_p384_sha256_detects_bad_signature_rpk() {
-    let rpk = include_bytes!("signatures/ecdsa_p384.spki.der");
-    let message = include_bytes!("signatures/message.bin");
-    let signature = include_bytes!(
-        "signatures/ecdsa_p384_key_and_ecdsa_p384_sha256_detects_bad_signature.sig.bin"
-    );
     assert_eq!(
-        check_sig_rpk(rpk, ECDSA_P384_SHA256, message, signature),
+        check_sig_rpk(rpk, ECDSA_P384_SHA256, message, bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
@@ -371,162 +267,75 @@ fn ecdsa_p384_key_rejected_by_other_algorithms() {
 
 #[test]
 #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha512_good_signature() {
+fn ecdsa_p521_sha512() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA512, "ecdsa_p521 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
-        check_sig(
-            &test_cert.cert.der(),
-            ECDSA_P521_SHA512,
-            MESSAGE,
-            &signature
-        ),
+        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA512, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha512_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA512, "ecdsa_p521 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA512, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA512, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha512_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA512, "ecdsa_p521 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig(
-            &test_cert.cert.der(),
-            ECDSA_P521_SHA512,
-            MESSAGE,
-            &signature
-        ),
+        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA512, MESSAGE, &bad_sig),
+        Err(webpki::Error::InvalidSignatureForPublicKey)
+    );
+    assert_eq!(
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA512, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
 #[test]
 #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha512_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA512, "ecdsa_p521 test");
-    let signature = test_cert.sign_bad(MESSAGE);
-    assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA512, MESSAGE, &signature),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
-    );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha256_good_signature() {
+fn ecdsa_p521_sha256() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA256, "ecdsa_p521 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
-        check_sig(
-            &test_cert.cert.der(),
-            ECDSA_P521_SHA256,
-            MESSAGE,
-            &signature
-        ),
+        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA256, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha256_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA256, "ecdsa_p521 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA256, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA256, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha256_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA256, "ecdsa_p521 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig(
-            &test_cert.cert.der(),
-            ECDSA_P521_SHA256,
-            MESSAGE,
-            &signature
-        ),
+        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA256, MESSAGE, &bad_sig),
+        Err(webpki::Error::InvalidSignatureForPublicKey)
+    );
+    assert_eq!(
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA256, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
 #[test]
 #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha256_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA256, "ecdsa_p521 test");
-    let signature = test_cert.sign_bad(MESSAGE);
-    assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA256, MESSAGE, &signature),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
-    );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha384_good_signature() {
+fn ecdsa_p521_sha384() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA384, "ecdsa_p521 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
-        check_sig(
-            &test_cert.cert.der(),
-            ECDSA_P521_SHA384,
-            MESSAGE,
-            &signature
-        ),
+        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA384, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha384_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA384, "ecdsa_p521 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA384, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA384, MESSAGE, &good_sig),
         Ok(())
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha384_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA384, "ecdsa_p521 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig(
-            &test_cert.cert.der(),
-            ECDSA_P521_SHA384,
-            MESSAGE,
-            &signature
-        ),
+        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA384, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-#[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-fn ecdsa_p521_key_and_ecdsa_p521_sha384_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA384, "ecdsa_p521 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
-        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA384, MESSAGE, &signature),
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P521_SHA384, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
@@ -558,180 +367,132 @@ fn ecdsa_p521_key_rejected_by_other_algorithms() {
 }
 
 #[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha256_good_signature() {
+fn rsa_pkcs1_2048_8192_sha256() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA256, "rsa_2048 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
         check_sig(
             test_cert.cert.der(),
             RSA_PKCS1_2048_8192_SHA256,
             MESSAGE,
-            &signature
+            &good_sig
         ),
         Ok(())
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha256_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA256, "rsa_2048 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
         check_sig_rpk(
             &test_cert.spki_der,
             RSA_PKCS1_2048_8192_SHA256,
             MESSAGE,
-            &signature
+            &good_sig
         ),
         Ok(())
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha256_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA256, "rsa_2048 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
         check_sig(
             test_cert.cert.der(),
             RSA_PKCS1_2048_8192_SHA256,
             MESSAGE,
-            &signature
+            &bad_sig
         ),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha256_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA256, "rsa_2048 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
         check_sig_rpk(
             &test_cert.spki_der,
             RSA_PKCS1_2048_8192_SHA256,
             MESSAGE,
-            &signature
+            &bad_sig
         ),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
 #[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha384_good_signature() {
+fn rsa_pkcs1_2048_8192_sha384() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA384, "rsa_2048 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
         check_sig(
             test_cert.cert.der(),
             RSA_PKCS1_2048_8192_SHA384,
             MESSAGE,
-            &signature
+            &good_sig
         ),
         Ok(())
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha384_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA384, "rsa_2048 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
         check_sig_rpk(
             &test_cert.spki_der,
             RSA_PKCS1_2048_8192_SHA384,
             MESSAGE,
-            &signature
+            &good_sig
         ),
         Ok(())
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha384_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA384, "rsa_2048 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
         check_sig(
             test_cert.cert.der(),
             RSA_PKCS1_2048_8192_SHA384,
             MESSAGE,
-            &signature
+            &bad_sig
+        ),
+        Err(webpki::Error::InvalidSignatureForPublicKey)
+    );
+    assert_eq!(
+        check_sig_rpk(
+            &test_cert.spki_der,
+            RSA_PKCS1_2048_8192_SHA384,
+            MESSAGE,
+            &bad_sig
         ),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
 }
 
 #[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha384_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA384, "rsa_2048 test");
-    let signature = test_cert.sign_bad(MESSAGE);
-    assert_eq!(
-        check_sig_rpk(
-            &test_cert.spki_der,
-            RSA_PKCS1_2048_8192_SHA384,
-            MESSAGE,
-            &signature
-        ),
-        Err(webpki::Error::InvalidSignatureForPublicKey)
-    );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha512_good_signature() {
+fn rsa_pkcs1_2048_8192_sha512() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA512, "rsa_2048 test");
-    let signature = test_cert.sign(MESSAGE);
+    let good_sig = test_cert.sign(MESSAGE);
+    let bad_sig = test_cert.sign_bad(MESSAGE);
+
     assert_eq!(
         check_sig(
             test_cert.cert.der(),
             RSA_PKCS1_2048_8192_SHA512,
             MESSAGE,
-            &signature
+            &good_sig
         ),
         Ok(())
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha512_good_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA512, "rsa_2048 test");
-    let signature = test_cert.sign(MESSAGE);
     assert_eq!(
         check_sig_rpk(
             &test_cert.spki_der,
             RSA_PKCS1_2048_8192_SHA512,
             MESSAGE,
-            &signature
+            &good_sig
         ),
         Ok(())
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha512_detects_bad_signature() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA512, "rsa_2048 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
         check_sig(
             test_cert.cert.der(),
             RSA_PKCS1_2048_8192_SHA512,
             MESSAGE,
-            &signature
+            &bad_sig
         ),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
-}
-
-#[test]
-fn rsa_2048_key_and_rsa_pkcs1_2048_8192_sha512_detects_bad_signature_rpk() {
-    let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA512, "rsa_2048 test");
-    let signature = test_cert.sign_bad(MESSAGE);
     assert_eq!(
         check_sig_rpk(
             &test_cert.spki_der,
             RSA_PKCS1_2048_8192_SHA512,
             MESSAGE,
-            &signature
+            &bad_sig
         ),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
