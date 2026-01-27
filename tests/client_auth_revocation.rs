@@ -81,21 +81,6 @@ fn no_crls_test() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn no_crls_test_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            None,
-        ),
-        Ok(())
-    );
-}
-
 #[test]
 fn no_relevant_crl_ee_depth_allow_unknown() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -106,36 +91,6 @@ fn no_relevant_crl_ee_depth_allow_unknown() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&no_match_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn no_relevant_crl_ee_depth_allow_unknown_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let other_chain = CertChain::no_key_usages("other_chain");
-    let no_match_crl = other_chain
-        .int_a
-        .generate_crl(chain.ee_serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&no_match_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -183,35 +138,6 @@ fn no_relevant_crl_ee_depth_forbid_unknown() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn no_relevant_crl_ee_depth_forbid_unknown_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let other_chain = CertChain::no_key_usages("other_chain");
-    let no_match_crl = other_chain
-        .int_a
-        .generate_crl(chain.ee_serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&no_match_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
 #[test]
 fn ee_not_revoked_ee_depth() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -221,35 +147,6 @@ fn ee_not_revoked_ee_depth() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_not_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_not_revoked_ee_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let ee_not_revoked_crl = chain
-        .int_a
-        .generate_crl(SerialNumber::from(12345), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_not_revoked_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -296,34 +193,6 @@ fn ee_not_revoked_chain_depth() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_not_revoked_chain_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let ee_not_revoked_crl = chain
-        .int_a
-        .generate_crl(SerialNumber::from(12345), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_not_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
 #[test]
 fn ee_revoked_badsig_ee_depth() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -331,33 +200,6 @@ fn ee_revoked_badsig_ee_depth() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_revoked_badsig).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::InvalidCrlSignatureForPublicKey)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_badsig_ee_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let ee_revoked_badsig = chain.int_a.generate_crl_bad_sig(chain.ee_serial.clone());
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_revoked_badsig).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -406,36 +248,6 @@ fn ee_revoked_wrong_ku_ee_depth() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_wrong_ku_ee_depth_owned() {
-    let chain = CertChain::no_crl_key_usage("no_crl_ku_chain");
-
-    let ee_revoked_crl = chain
-        .int_a
-        .generate_crl_with_crl_sign(chain.ee_serial.clone());
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::IssuerNotCrlSigner)
-    );
-}
-
 #[test]
 fn ee_not_revoked_wrong_ku_ee_depth() {
     let chain = CertChain::no_crl_key_usage("no_crl_ku_chain");
@@ -465,36 +277,6 @@ fn ee_not_revoked_wrong_ku_ee_depth() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_not_revoked_wrong_ku_ee_depth_owned() {
-    let chain = CertChain::no_crl_key_usage("no_crl_ku_chain");
-
-    let ee_not_revoked_crl = chain
-        .int_a
-        .generate_crl_with_crl_sign(SerialNumber::from(12345));
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_not_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::IssuerNotCrlSigner)
-    );
-}
-
 #[test]
 fn ee_revoked_no_ku_ee_depth() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -504,35 +286,6 @@ fn ee_revoked_no_ku_ee_depth() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CertRevoked)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_no_ku_ee_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let ee_revoked_crl = chain
-        .int_a
-        .generate_crl(chain.ee_serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -581,53 +334,8 @@ fn ee_revoked_crl_ku_ee_depth() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_crl_ku_ee_depth_owned() {
-    let chain = CertChain::with_crl_key_usage("ku_chain");
-
-    let ee_revoked_crl = chain
-        .int_a
-        .generate_crl(chain.ee_serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CertRevoked)
-    );
-}
-
 #[test]
 fn no_crls_test_chain_depth() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            None,
-        ),
-        Ok(())
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn no_crls_test_chain_depth_owned() {
     let chain = CertChain::no_key_usages("no_ku_chain");
     assert_eq!(
         check_cert(
@@ -650,35 +358,6 @@ fn no_relevant_crl_chain_depth_allow_unknown() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&no_match_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn no_relevant_crl_chain_depth_allow_unknown_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let other_chain = CertChain::no_key_usages("other_chain");
-    let no_match_crl = other_chain
-        .int_b
-        .generate_crl(chain.int_a.serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&no_match_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -721,31 +400,6 @@ fn no_relevant_crl_chain_depth_forbid_unknown() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn no_relevant_crl_chain_depth_forbid_unknown_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let other_chain = CertChain::no_key_usages("other_chain");
-    let no_match_crl = other_chain
-        .int_b
-        .generate_crl(chain.int_a.serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&no_match_crl).unwrap(),
-    )];
-    let revocation = RevocationOptionsBuilder::new(crls).unwrap().build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
 #[test]
 fn int_not_revoked_chain_depth() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -755,34 +409,6 @@ fn int_not_revoked_chain_depth() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&int_not_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn int_not_revoked_chain_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let int_not_revoked_crl = chain
-        .int_b
-        .generate_crl(SerialNumber::from(12345), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&int_not_revoked_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -824,30 +450,6 @@ fn int_not_revoked_chain_depth_forbid_unknown() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn int_not_revoked_chain_depth_forbid_unknown_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let int_not_revoked_crl = chain
-        .int_b
-        .generate_crl(SerialNumber::from(12345), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&int_not_revoked_crl).unwrap(),
-    )];
-    let revocation = RevocationOptionsBuilder::new(crls).unwrap().build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
 #[test]
 fn int_revoked_badsig_chain_depth() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -855,32 +457,6 @@ fn int_revoked_badsig_chain_depth() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&int_revoked_badsig).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::InvalidCrlSignatureForPublicKey)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn int_revoked_badsig_chain_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let int_revoked_badsig = chain.int_b.generate_crl_bad_sig(chain.int_a.serial.clone());
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&int_revoked_badsig).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -909,35 +485,6 @@ fn int_revoked_wrong_ku_chain_depth() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&int_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::IssuerNotCrlSigner)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn int_revoked_wrong_ku_chain_depth_owned() {
-    let chain = CertChain::no_crl_key_usage("no_crl_ku_chain");
-
-    let int_revoked_crl = chain
-        .int_b
-        .generate_crl_with_crl_sign(chain.int_a.serial.clone());
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&int_revoked_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -1038,34 +585,6 @@ fn int_revoked_no_ku_chain_depth() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn int_revoked_no_ku_chain_depth_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let int_revoked_crl = chain
-        .int_b
-        .generate_crl(chain.int_a.serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&int_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CertRevoked)
-    );
-}
-
 #[test]
 fn int_revoked_crl_ku_chain_depth() {
     let chain = CertChain::with_crl_key_usage("ku_chain");
@@ -1094,35 +613,6 @@ fn int_revoked_crl_ku_chain_depth() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn int_revoked_crl_ku_chain_depth_owned() {
-    let chain = CertChain::with_crl_key_usage("ku_chain");
-
-    let int_revoked_crl = chain
-        .int_b
-        .generate_crl(chain.int_a.serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&int_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CertRevoked)
-    );
-}
-
 #[test]
 fn ee_revoked_topbit_serial() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -1132,35 +622,6 @@ fn ee_revoked_topbit_serial() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert_topbit.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CertRevoked)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_topbit_serial_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let ee_revoked_crl = chain
-        .int_a
-        .generate_crl(chain.ee_topbit_serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -1216,41 +677,6 @@ fn ee_no_dp_crl_idp() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_no_dp_crl_idp_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let ee_crl = chain.int_a.generate_crl(
-        SerialNumber::from(0xFFFF),
-        Some(CrlIssuingDistributionPoint {
-            distribution_point: CrlDistributionPoint {
-                uris: VALID_CRL_DP_URIS.iter().map(|s| s.to_string()).collect(),
-            },
-            scope: None,
-        }),
-        None,
-    );
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
 // Chain with CRL distribution points in certs, CRL has no IDP.
 // CRL should be considered relevant because CRL without IDP covers "everything".
 #[test]
@@ -1286,40 +712,6 @@ fn ee_not_revoked_crl_no_idp() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_not_revoked_crl_no_idp_owned() {
-    let chain = CertChain::with_crl_dps(
-        "dp_chain",
-        VALID_CERT_CRL_DP_URIS
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
-    );
-    let ee_crl = chain
-        .int_a
-        .generate_crl(SerialNumber::from(0xFFFF), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
 // Chain with CRL distribution points in certs, CRL has no IDP.
 // EE is revoked, so should return CertRevoked.
 #[test]
@@ -1337,40 +729,6 @@ fn ee_revoked_crl_no_idp() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CertRevoked)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_crl_no_idp_owned() {
-    let chain = CertChain::with_crl_dps(
-        "dp_chain",
-        VALID_CERT_CRL_DP_URIS
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
-    );
-    let ee_crl = chain
-        .int_a
-        .generate_crl(chain.ee_serial.clone(), None, None);
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -1431,47 +789,6 @@ fn ee_crl_mismatched_idp_unknown_status() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_crl_mismatched_idp_unknown_status_owned() {
-    let chain = CertChain::with_crl_dps(
-        "dp_chain",
-        VALID_CERT_CRL_DP_URIS
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
-    );
-    let ee_crl = chain.int_a.generate_crl(
-        SerialNumber::from(0xFFFF),
-        Some(CrlIssuingDistributionPoint {
-            distribution_point: CrlDistributionPoint {
-                uris: vec!["http://does.not.match.example.com".to_string()],
-            },
-            scope: None,
-        }),
-        None,
-    );
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
 // Chain with CRL distribution points in certs, CRL has matching IDP.
 // CRL should be considered relevant, EE is not revoked, so OK.
 #[test]
@@ -1489,40 +806,6 @@ fn ee_dp_idp_match() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_dp_idp_match_owned() {
-    let dp_uris = vec!["http://example.com/valid.crl".to_string()];
-    let chain = CertChain::with_crl_dps("dp_chain", dp_uris.clone());
-    let ee_crl = chain.int_a.generate_crl(
-        SerialNumber::from(0xFFFF),
-        Some(CrlIssuingDistributionPoint {
-            distribution_point: CrlDistributionPoint { uris: dp_uris },
-            scope: None,
-        }),
-        None,
-    );
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
@@ -1571,35 +854,6 @@ fn ee_indirect_dp_unknown_status() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_indirect_dp_unknown_status_owned() {
-    let ee = include_bytes!("client_auth_revocation/indirect_dp_chain.ee.der");
-    let intermediates = &[
-        include_bytes!("client_auth_revocation/indirect_dp_chain.int.a.ca.der").as_slice(),
-        include_bytes!("client_auth_revocation/indirect_dp_chain.int.b.ca.der").as_slice(),
-    ];
-    let ca = include_bytes!("client_auth_revocation/indirect_dp_chain.root.ca.der");
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(
-            include_bytes!("client_auth_revocation/ee_indirect_dp_unknown_status.crl.der")
-                .as_slice(),
-        )
-        .unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(ee, intermediates, ca, Some(revocation)),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
 // Chain with reason-sharded CRL distribution point in certs.
 // CRL is not reason-sharded, so should not be considered relevant.
 #[test]
@@ -1613,35 +867,6 @@ fn ee_reasons_dp_unknown_status() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(
-            include_bytes!("client_auth_revocation/ee_reasons_dp_unknown_status.crl.der")
-                .as_slice(),
-        )
-        .unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(ee, intermediates, ca, Some(revocation)),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_reasons_dp_unknown_status_owned() {
-    let ee = include_bytes!("client_auth_revocation/reasons_dp_chain.ee.der");
-    let intermediates = &[
-        include_bytes!("client_auth_revocation/reasons_dp_chain.int.a.ca.der").as_slice(),
-        include_bytes!("client_auth_revocation/reasons_dp_chain.int.b.ca.der").as_slice(),
-    ];
-    let ca = include_bytes!("client_auth_revocation/reasons_dp_chain.root.ca.der");
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(
             include_bytes!("client_auth_revocation/ee_reasons_dp_unknown_status.crl.der")
                 .as_slice(),
         )
@@ -1689,35 +914,6 @@ fn ee_nofullname_dp_unknown_status() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_nofullname_dp_unknown_status_owned() {
-    let ee = include_bytes!("client_auth_revocation/nofullname_dp_chain.ee.der");
-    let intermediates = &[
-        include_bytes!("client_auth_revocation/nofullname_dp_chain.int.a.ca.der").as_slice(),
-        include_bytes!("client_auth_revocation/nofullname_dp_chain.int.b.ca.der").as_slice(),
-    ];
-    let ca = include_bytes!("client_auth_revocation/nofullname_dp_chain.root.ca.der");
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(
-            include_bytes!("client_auth_revocation/ee_nofullname_dp_unknown_status.crl.der")
-                .as_slice(),
-        )
-        .unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(ee, intermediates, ca, Some(revocation)),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
 // Chain with invalid CRL distribution point in certs (no full_name, no crl_issuer).
 // Cannot match any CRL, so should result in unknown revocation status.
 #[test]
@@ -1731,34 +927,6 @@ fn ee_dp_invalid() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(
-            include_bytes!("client_auth_revocation/ee_dp_invalid.crl.der").as_slice(),
-        )
-        .unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .build();
-
-    assert_eq!(
-        check_cert(ee, intermediates, ca, Some(revocation)),
-        Err(webpki::Error::UnknownRevocationStatus)
-    );
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_dp_invalid_owned() {
-    let ee = include_bytes!("client_auth_revocation/invalid_dp_chain.ee.der");
-    let intermediates = &[
-        include_bytes!("client_auth_revocation/invalid_dp_chain.int.a.ca.der").as_slice(),
-        include_bytes!("client_auth_revocation/invalid_dp_chain.int.b.ca.der").as_slice(),
-    ];
-    let ca = include_bytes!("client_auth_revocation/invalid_dp_chain.root.ca.der");
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(
             include_bytes!("client_auth_revocation/ee_dp_invalid.crl.der").as_slice(),
         )
         .unwrap(),
@@ -1806,36 +974,6 @@ fn expired_crl_ignore_expiration() {
     );
 }
 
-#[cfg(feature = "alloc")]
-#[test]
-fn expired_crl_ignore_expiration_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    let expired_next_update = 0x1FED_F00D - 1;
-    let ee_crl =
-        chain
-            .int_a
-            .generate_crl(SerialNumber::from(0xFFFF), None, Some(expired_next_update));
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .build();
-
-    assert_eq!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Ok(())
-    );
-}
-
 #[test]
 fn ee_revoked_expired_crl() {
     let chain = CertChain::no_key_usages("no_ku_chain");
@@ -1849,40 +987,6 @@ fn ee_revoked_expired_crl() {
 
     let crls = &[&CertRevocationList::Borrowed(
         BorrowedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
-    )];
-
-    let revocation = RevocationOptionsBuilder::new(crls)
-        .unwrap()
-        .with_depth(RevocationCheckDepth::EndEntity)
-        .with_status_policy(UnknownStatusPolicy::Allow)
-        .with_expiration_policy(webpki::ExpirationPolicy::Enforce)
-        .build();
-
-    assert!(matches!(
-        check_cert(
-            chain.ee_cert.der(),
-            &chain.intermediates(),
-            chain.root.der(),
-            Some(revocation),
-        ),
-        Err(webpki::Error::CrlExpired { .. })
-    ));
-}
-
-#[cfg(feature = "alloc")]
-#[test]
-fn ee_revoked_expired_crl_owned() {
-    let chain = CertChain::no_key_usages("no_ku_chain");
-    // Use a next_update that's after this_update but before verification time
-    // to create an expired CRL. Verification time is 0x1FED_F00D.
-    let expired_next_update = 0x1FED_F00D - 1;
-    let ee_revoked_crl =
-        chain
-            .int_a
-            .generate_crl(chain.ee_serial.clone(), None, Some(expired_next_update));
-
-    let crls = &[&CertRevocationList::Owned(
-        OwnedCertRevocationList::from_der(&ee_revoked_crl).unwrap(),
     )];
 
     let revocation = RevocationOptionsBuilder::new(crls)
