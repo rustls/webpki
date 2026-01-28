@@ -904,7 +904,7 @@ pub(crate) enum Role {
     EndEntity,
 }
 
-#[cfg(all(test, feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
+#[cfg(all(test, feature = "alloc"))]
 mod tests {
     use super::*;
     use crate::test_utils;
@@ -1366,7 +1366,7 @@ mod tests {
         let mut path = PartialPath::new(ee_cert);
         let opts = ChainOptions {
             eku: &ExtendedKeyUsage::server_auth(),
-            supported_sig_algs: crate::ALL_VERIFICATION_ALGS,
+            supported_sig_algs: rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
             trust_anchors,
             intermediate_certs,
             revocation: None,

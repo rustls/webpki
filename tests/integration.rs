@@ -12,13 +12,12 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#![cfg(any(feature = "ring", feature = "aws-lc-rs"))]
-
 #[cfg(feature = "alloc")]
 use core::slice;
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
+use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::sct::LogIdAndTimestamp;
 use webpki::{ExtendedKeyUsage, anchor_from_trusted_cert};
 
@@ -39,7 +38,7 @@ fn netflix() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
             time,
@@ -67,7 +66,7 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
             time,
@@ -98,7 +97,7 @@ fn cloudflare_dns() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
             time,
@@ -152,7 +151,7 @@ fn wpt() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,
@@ -176,7 +175,7 @@ fn ed25519() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,
@@ -205,7 +204,7 @@ fn critical_extensions() {
     assert!(
         ee_cert
             .verify_for_usage(
-                webpki::ALL_VERIFICATION_ALGS,
+                ALL_VERIFICATION_ALGS,
                 &anchors,
                 &intermediates,
                 time,
@@ -254,7 +253,7 @@ fn read_ee_with_neg_serial() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,
@@ -432,7 +431,7 @@ fn cert_time_validity() {
 
     assert_eq!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             slice::from_ref(&inter),
             just_before,
@@ -449,7 +448,7 @@ fn cert_time_validity() {
 
     assert_eq!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            ALL_VERIFICATION_ALGS,
             &anchors,
             &[inter],
             just_after,

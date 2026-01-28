@@ -1,4 +1,4 @@
-#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
+#![cfg(feature = "alloc")]
 
 use core::time::Duration;
 
@@ -20,7 +20,7 @@ fn check_cert(
 
     assert_eq!(
         cert.verify_for_usage(
-            webpki::ALL_VERIFICATION_ALGS,
+            rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
             &anchors,
             &[],
             time,

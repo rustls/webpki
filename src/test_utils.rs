@@ -3,7 +3,6 @@ use std::prelude::v1::*;
 
 use rcgen::{CertifiedIssuer, CertifiedKey, Issuer, KeyPair, SigningKey};
 
-#[cfg_attr(not(feature = "ring"), allow(dead_code))]
 pub(crate) fn make_end_entity(issuer: &Issuer<'_, impl SigningKey>) -> CertifiedKey<KeyPair> {
     let signing_key = KeyPair::generate_for(RCGEN_SIGNATURE_ALG).unwrap();
     CertifiedKey {
