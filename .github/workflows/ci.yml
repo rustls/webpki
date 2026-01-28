@@ -107,53 +107,12 @@ jobs:
           - --all-features
           - --no-default-features
           - --no-default-features --features alloc
-          - --no-default-features --features aws-lc-rs
-          - --no-default-features --features ring
-          - --no-default-features --features alloc,aws-lc-rs
-          - --no-default-features --features alloc,ring
-          # `std` is enabled by default
-          - --features aws-lc-rs
-          - --features aws-lc-rs-unstable
-          - --features ring
 
         host_os:
           - ubuntu-latest
 
         rust_channel:
           - stable
-
-        include:
-          # Test aws-lc-rs across Rust channels
-          - features: --features aws-lc-rs
-            rust_channel: beta
-            host_os: ubuntu-latest
-
-          - features: --features aws-lc-rs
-            rust_channel: nightly
-            host_os: ubuntu-latest
-
-          # Test aws-lc-rs across OSes
-          - features: --features aws-lc-rs
-            rust_channel: stable
-            host_os: macos-latest
-
-          - features: --features aws-lc-rs
-            rust_channel: stable
-            host_os: windows-latest
-
-          # Test ring across OSes
-          - features: --features ring
-            rust_channel: stable
-            host_os: macos-latest
-
-          - features: --features ring
-            rust_channel: stable
-            host_os: windows-latest
-
-          # Test aws-lc-rs-fips on Linux only (stable only)
-          - features: --features aws-lc-rs-fips
-            rust_channel: stable
-            host_os: ubuntu-latest
 
     steps:
       - name: Checkout sources

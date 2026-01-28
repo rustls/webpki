@@ -12,25 +12,13 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
+#![cfg(feature = "alloc")]
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
 use rcgen::{Certificate, CertificateParams, DnType, KeyPair, SignatureAlgorithm, SigningKey};
 use x509_parser::prelude::*;
 
-#[cfg(feature = "ring")]
-use webpki::ring::{
-    ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ED25519,
-};
-#[cfg(all(feature = "ring", feature = "alloc"))]
-use webpki::ring::{
-    RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512,
-    RSA_PKCS1_3072_8192_SHA384, RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-    RSA_PSS_2048_8192_SHA384_LEGACY_KEY, RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-};
-
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
-use webpki::aws_lc_rs::{
+use rustls_aws_lc_rs::{
     ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ECDSA_P521_SHA256,
     ECDSA_P521_SHA384, ECDSA_P521_SHA512, ED25519, RSA_PKCS1_2048_8192_SHA256,
     RSA_PKCS1_2048_8192_SHA384, RSA_PKCS1_2048_8192_SHA512, RSA_PKCS1_3072_8192_SHA384,
@@ -86,11 +74,8 @@ fn ed25519() {
     );
 
     for algorithm in &[
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA256,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA384,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
@@ -162,11 +147,8 @@ fn ecdsa_p256_sha256() {
     );
 
     for algorithm in &[
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA256,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA384,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA512,
         ECDSA_P384_SHA256,
         ECDSA_P384_SHA384,
@@ -241,11 +223,8 @@ fn ecdsa_p384_sha256() {
 fn ecdsa_p384_key_rejected_by_other_algorithms() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P384_SHA384, "ecdsa_p384 test");
     for algorithm in &[
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA256,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA384,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,
@@ -266,14 +245,13 @@ fn ecdsa_p384_key_rejected_by_other_algorithms() {
 }
 
 #[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
 fn ecdsa_p521_sha512() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA512, "ecdsa_p521 test");
     let good_sig = test_cert.sign(MESSAGE);
     let bad_sig = test_cert.sign_bad(MESSAGE);
 
     assert_eq!(
-        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA512, MESSAGE, &good_sig),
+        check_sig(test_cert.cert.der(), ECDSA_P521_SHA512, MESSAGE, &good_sig),
         Ok(())
     );
     assert_eq!(
@@ -281,7 +259,7 @@ fn ecdsa_p521_sha512() {
         Ok(())
     );
     assert_eq!(
-        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA512, MESSAGE, &bad_sig),
+        check_sig(test_cert.cert.der(), ECDSA_P521_SHA512, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
     assert_eq!(
@@ -291,14 +269,13 @@ fn ecdsa_p521_sha512() {
 }
 
 #[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
 fn ecdsa_p521_sha256() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA256, "ecdsa_p521 test");
     let good_sig = test_cert.sign(MESSAGE);
     let bad_sig = test_cert.sign_bad(MESSAGE);
 
     assert_eq!(
-        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA256, MESSAGE, &good_sig),
+        check_sig(test_cert.cert.der(), ECDSA_P521_SHA256, MESSAGE, &good_sig),
         Ok(())
     );
     assert_eq!(
@@ -306,7 +283,7 @@ fn ecdsa_p521_sha256() {
         Ok(())
     );
     assert_eq!(
-        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA256, MESSAGE, &bad_sig),
+        check_sig(test_cert.cert.der(), ECDSA_P521_SHA256, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
     assert_eq!(
@@ -316,14 +293,13 @@ fn ecdsa_p521_sha256() {
 }
 
 #[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
 fn ecdsa_p521_sha384() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA384, "ecdsa_p521 test");
     let good_sig = test_cert.sign(MESSAGE);
     let bad_sig = test_cert.sign_bad(MESSAGE);
 
     assert_eq!(
-        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA384, MESSAGE, &good_sig),
+        check_sig(test_cert.cert.der(), ECDSA_P521_SHA384, MESSAGE, &good_sig),
         Ok(())
     );
     assert_eq!(
@@ -331,7 +307,7 @@ fn ecdsa_p521_sha384() {
         Ok(())
     );
     assert_eq!(
-        check_sig(&test_cert.cert.der(), ECDSA_P521_SHA384, MESSAGE, &bad_sig),
+        check_sig(test_cert.cert.der(), ECDSA_P521_SHA384, MESSAGE, &bad_sig),
         Err(webpki::Error::InvalidSignatureForPublicKey)
     );
     assert_eq!(
@@ -341,7 +317,6 @@ fn ecdsa_p521_sha384() {
 }
 
 #[test]
-#[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
 fn ecdsa_p521_key_rejected_by_other_algorithms() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_ECDSA_P521_SHA512, "ecdsa_p521 test");
 
@@ -360,7 +335,7 @@ fn ecdsa_p521_key_rejected_by_other_algorithms() {
         RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
     ] {
         assert!(matches!(
-            check_sig(&test_cert.cert.der(), *algorithm, b"", b""),
+            check_sig(test_cert.cert.der(), *algorithm, b"", b""),
             Err(webpki::Error::UnsupportedSignatureAlgorithmForPublicKey(_))
         ));
     }
@@ -502,11 +477,8 @@ fn rsa_pkcs1_2048_8192_sha512() {
 fn rsa_2048_key_rejected_by_other_algorithms() {
     let test_cert = TestCertificate::generate(&rcgen::PKCS_RSA_SHA256, "rsa_2048 test");
     for algorithm in &[
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA256,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA384,
-        #[cfg(all(not(feature = "ring"), feature = "aws-lc-rs"))]
         ECDSA_P521_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P256_SHA384,

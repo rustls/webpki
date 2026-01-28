@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: ISC
-#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
+#![cfg(feature = "alloc")]
 
 use core::time::Duration;
 
 use pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::{
     CertRevocationList, EndEntityCert, ExtendedKeyUsage, OwnedCertRevocationList,
     RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy,
@@ -238,7 +239,7 @@ pub fn amazon() {
         ] {
             assert!(
                 cert.verify_for_usage(
-                    webpki::ALL_VERIFICATION_ALGS,
+                    ALL_VERIFICATION_ALGS,
                     &anchors,
                     &intermediates,
                     time,
@@ -251,7 +252,7 @@ pub fn amazon() {
 
             assert!(
                 cert.verify_for_usage(
-                    webpki::ALL_VERIFICATION_ALGS,
+                    ALL_VERIFICATION_ALGS,
                     &legacy_anchors,
                     &intermediates_legacy,
                     time,
@@ -264,7 +265,7 @@ pub fn amazon() {
 
             let path = cert
                 .verify_for_usage(
-                    webpki::ALL_VERIFICATION_ALGS,
+                    ALL_VERIFICATION_ALGS,
                     &all_anchors,
                     &intermediates_legacy,
                     time,
@@ -286,7 +287,7 @@ pub fn amazon() {
         for &crls in &[None, Some(&roots_crls)] {
             assert!(
                 cert.verify_for_usage(
-                    webpki::ALL_VERIFICATION_ALGS,
+                    ALL_VERIFICATION_ALGS,
                     &anchors,
                     &intermediates,
                     time,
@@ -301,7 +302,7 @@ pub fn amazon() {
         for &crls in &[&intermediates_crls, &all_crls] {
             assert!(
                 cert.verify_for_usage(
-                    webpki::ALL_VERIFICATION_ALGS,
+                    ALL_VERIFICATION_ALGS,
                     &anchors,
                     &intermediates,
                     time,
@@ -320,7 +321,7 @@ pub fn amazon() {
 
         assert!(
             cert.verify_for_usage(
-                webpki::ALL_VERIFICATION_ALGS,
+                ALL_VERIFICATION_ALGS,
                 &anchors,
                 &intermediates,
                 time,

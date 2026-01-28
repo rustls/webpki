@@ -12,7 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
+#![cfg(feature = "alloc")]
 
 use std::error::Error as StdError;
 
@@ -83,7 +83,7 @@ fn check_cert(ee: &[u8], ca: CertificateDer<'static>) -> Result<(), webpki::Erro
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     cert.verify_for_usage(
-        webpki::ALL_VERIFICATION_ALGS,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
         anchors,
         &[],
         time,

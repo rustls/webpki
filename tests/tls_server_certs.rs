@@ -11,7 +11,7 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-#![cfg(all(feature = "alloc", any(feature = "ring", feature = "aws-lc-rs")))]
+#![cfg(feature = "alloc")]
 
 use core::time::Duration;
 
@@ -40,7 +40,7 @@ fn check_cert(
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
     cert.verify_for_usage(
-        webpki::ALL_VERIFICATION_ALGS,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
         &anchors,
         &[],
         time,

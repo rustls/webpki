@@ -1,5 +1,3 @@
-#![cfg(any(feature = "ring", feature = "aws-lc-rs"))]
-
 use core::time::Duration;
 use std::collections::HashMap;
 use std::fs::File;
@@ -15,10 +13,8 @@ use webpki::{ExtendedKeyUsage, anchor_from_trusted_cert};
 
 // All of the BetterTLS testcases use P256 keys.
 static ALGS: &[&dyn SignatureVerificationAlgorithm] = &[
-    #[cfg(feature = "ring")]
-    webpki::ring::ECDSA_P256_SHA256,
-    #[cfg(feature = "aws-lc-rs")]
-    webpki::aws_lc_rs::ECDSA_P256_SHA256,
+    rustls_ring::ECDSA_P256_SHA256,
+    rustls_aws_lc_rs::ECDSA_P256_SHA256,
 ];
 
 #[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --include-ignored`
