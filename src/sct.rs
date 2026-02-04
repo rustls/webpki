@@ -1,3 +1,5 @@
+use core::error::Error as StdError;
+use core::fmt;
 use core::marker::PhantomData;
 
 use untrusted::{Input, Reader};
@@ -135,6 +137,17 @@ pub enum Error {
     /// This library only supports `v1(0)`.
     UnsupportedSctVersion,
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MalformedSct => write!(f, "malformed SCT"),
+            Self::UnsupportedSctVersion => write!(f, "unsupported SCT version"),
+        }
+    }
+}
+
+impl StdError for Error {}
 
 #[cfg(test)]
 mod tests {
