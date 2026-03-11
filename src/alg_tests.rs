@@ -14,6 +14,7 @@
 
 #![allow(clippy::duplicate_mod)]
 
+use std::panic;
 use std::prelude::v1::*;
 
 use base64::{Engine as _, engine::general_purpose};
