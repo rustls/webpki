@@ -475,7 +475,8 @@ macro_rules! oid {
 #[cfg(test)]
 mod tests {
     use super::DerTypeId;
-    use std::prelude::v1::*;
+    #[cfg(feature = "alloc")]
+    use alloc::vec::Vec;
 
     #[cfg(feature = "alloc")]
     #[test]
