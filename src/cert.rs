@@ -395,6 +395,7 @@ mod tests {
     use super::*;
     #[cfg(feature = "alloc")]
     use crate::crl::RevocationReason;
+    use std::panic;
     use std::prelude::v1::*;
 
     #[test]
