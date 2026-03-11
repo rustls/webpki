@@ -1,5 +1,5 @@
-#![cfg(feature = "alloc")]
-use std::prelude::v1::*;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use rcgen::{CertifiedIssuer, CertifiedKey, Issuer, KeyPair, SigningKey};
 
