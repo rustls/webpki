@@ -14,8 +14,8 @@
 
 #![allow(clippy::duplicate_mod)]
 
-use std::panic;
-use std::prelude::v1::*;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 use base64::{Engine as _, engine::general_purpose};
 use pki_types::alg_id;
