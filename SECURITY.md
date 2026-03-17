@@ -14,7 +14,16 @@ Therefore 0.100.x will be updated, while 0.17.x will not be.
 
 ## Reporting a Vulnerability
 
+Before reporting a security bug, make sure to:
+
+- Consider the threat model. Misconfiguration that is unlikely to happen accidentally is
+  unlikely to be a security bug.
+- If applicable, compare the behavior to other TLS implementations. If the behavior is consistent
+  with other implementations, it is less likely to be a security bug.
+
 Please report security bugs [via github](https://github.com/rustls/webpki/security/advisories/new).
+Make sure to disclose any use of AI assistance upfront.
+
 We'll then:
 
 - Prepare a fix and regression tests.
