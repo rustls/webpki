@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.104.0-alpha.4"
+version = "0.104.0-alpha.5"
 dependencies = [
  "base64",
  "bencher",
