@@ -546,6 +546,7 @@ dependencies = [
  "serde",
  "serde_json",
  "untrusted 0.9.0",
+ "x509-parser",
 ]
 
 [[package]]
