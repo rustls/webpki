@@ -644,7 +644,7 @@ impl<'a> IssuingDistributionPoint<'a> {
             for dp_name in dp_general_names {
                 let dp_uri = match dp_name {
                     Ok(GeneralName::UniformResourceIdentifier(dp_uri)) => dp_uri,
-                    Ok(_) => continue,      // Not a URI type name, skip.
+                    Ok(_) => continue,  // Not a URI type name, skip.
                     Err(_) => continue, // Malformed general name, try next name.
                 };
 
