@@ -7,9 +7,13 @@ webpki is a library that validates Web PKI (TLS/SSL) certificates. It's
 used by [Rustls](https://github.com/rustls/rustls) to handle certificate-related
 tasks required for implementing TLS clients and servers.
 
-webpki is written in [Rust](https://www.rust-lang.org/) and uses
-[*ring*](https://github.com/briansmith/ring) for cryptographic operations and
-low-level parsing.
+webpki is written in [Rust](https://www.rust-lang.org/). It does not
+provide any built-in cryptography providers, but was written to interoperate
+with the [rustls-aws-lc-rs](https://crates.io/crates/rustls-aws-lc-rs) and
+[rustls-ring](https://crates.io/crates/rustls-ring) crates, or a custom
+implementation of the rustls
+[`CryptoProvider`](https://docs.rs/rustls/0.24.0-dev.0/rustls/crypto/struct.CryptoProvider.html)
+struct backed by your cryptography library of choice.
 
 This is a fork of the [original webpki project](https://github.com/briansmith/webpki)
 which adds a number of features required by the rustls project.  This fork is
