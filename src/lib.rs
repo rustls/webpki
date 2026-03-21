@@ -23,8 +23,6 @@
 //! | ------- | ----------- |
 //! | `alloc` | Enable features that require use of the heap. Currently all RSA signature algorithms require this feature. |
 //! | `std` | Enable features that require libstd. Implies `alloc`. |
-//! | `ring` | Enable use of the *ring* crate for cryptography. |
-//! | `aws-lc-rs` | Enable use of the aws-lc-rs crate for cryptography. Previously this feature was named `aws_lc_rs`. |
 
 #![no_std]
 #![warn(
