@@ -16,7 +16,10 @@ use crate::signed_data::OwnedSignedData;
 use crate::signed_data::SignedData;
 use crate::subject_name::GeneralName;
 use crate::verify_cert::{Budget, PathNode, Role};
-use crate::x509::{DistributionPointName, Extension, remember_extension, set_extension_once};
+use crate::x509::{
+    DistributionPointName, Extension, UnknownExtensionPolicy, remember_extension,
+    set_extension_once,
+};
 
 /// A RFC 5280[^1] profile Certificate Revocation List (CRL).
 ///
@@ -266,7 +269,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
     fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
         use crate::x509::ExtensionOid::*;
 
-        remember_extension(extension, |id| {
+        remember_extension(extension, UnknownExtensionPolicy::default(), |id| {
             match id {
                 // id-ce-cRLNumber 2.5.29.20 - RFC 5280 §5.2.3
                 Standard(20) => {
@@ -304,7 +307,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 Standard(35) => Ok(()),
 
                 // Unsupported extension
-                _ => extension.unsupported(),
+                _ => extension.unsupported(UnknownExtensionPolicy::default()),
             }
         })
     }
@@ -749,7 +752,7 @@ impl<'a> BorrowedRevokedCert<'a> {
     fn remember_extension(&mut self, extension: &Extension<'a>) -> Result<(), Error> {
         use crate::x509::ExtensionOid::*;
 
-        remember_extension(extension, |id| {
+        remember_extension(extension, UnknownExtensionPolicy::default(), |id| {
             match id {
                 // id-ce-cRLReasons 2.5.29.21 - RFC 5280 §5.3.1.
                 Standard(21) => {
@@ -771,7 +774,7 @@ impl<'a> BorrowedRevokedCert<'a> {
                 Standard(29) => Err(Error::UnsupportedIndirectCrl),
 
                 // Unsupported extension
-                _ => extension.unsupported(),
+                _ => extension.unsupported(UnknownExtensionPolicy::default()),
             }
         })
     }
