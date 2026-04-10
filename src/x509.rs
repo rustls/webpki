@@ -23,10 +23,10 @@ pub(crate) struct Extension<'a> {
 }
 
 impl Extension<'_> {
-    pub(crate) fn unsupported(&self) -> Result<(), Error> {
-        match self.critical {
-            true => Err(Error::UnsupportedCriticalExtension),
-            false => Ok(()),
+    pub(crate) fn unsupported(&self, policy: UnknownExtensionPolicy) -> Result<(), Error> {
+        match (policy, self.critical) {
+            (UnknownExtensionPolicy::Strict, true) => Err(Error::UnsupportedCriticalExtension),
+            _ => Ok(()),
         }
     }
 }
@@ -63,12 +63,20 @@ pub(crate) fn set_extension_once<T>(
 
 pub(crate) fn remember_extension(
     extension: &Extension<'_>,
+    ext_policy: UnknownExtensionPolicy,
     mut handler: impl FnMut(ExtensionOid) -> Result<(), Error>,
 ) -> Result<(), Error> {
     match ExtensionOid::lookup(extension.id) {
         Some(oid) => handler(oid),
-        None => extension.unsupported(),
+        None => extension.unsupported(ext_policy),
     }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) enum UnknownExtensionPolicy {
+    #[default]
+    Strict,
+    IgnoreCritical,
 }
 
 /// A certificate revocation list (CRL) distribution point name, describing a source of
