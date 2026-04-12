@@ -129,7 +129,11 @@ fn check_presented_id_conforms_to_constraints(
             // Avoid having a catch-all branch here which might fail open on new variants
             let matches = match (name, base) {
                 (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
-                    dns_name::presented_id_matches_reference_id(name, IdRole::NameConstraint, base)
+                    dns_name::presented_id_matches_reference_id(
+                        name,
+                        IdRole::NameConstraint(subtrees),
+                        base,
+                    )
                 }
                 (GeneralName::DnsName(_), _) => continue,
 
@@ -211,7 +215,7 @@ fn check_presented_id_conforms_to_constraints(
     None
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum Subtrees {
     PermittedSubtrees,
     ExcludedSubtrees,
