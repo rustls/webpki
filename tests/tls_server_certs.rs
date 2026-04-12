@@ -17,8 +17,8 @@ use core::time::Duration;
 
 use pki_types::{CertificateDer, ServerName, UnixTime};
 use rcgen::{
-    Certificate, CertificateParams, CertifiedIssuer, CustomExtension, DnType, IsCa, KeyPair,
-    SanType, date_time_ymd,
+    Certificate, CertificateParams, CertifiedIssuer, CustomExtension, DnType, GeneralSubtree, IsCa,
+    KeyPair, NameConstraints, SanType, date_time_ymd,
 };
 use webpki::{InvalidNameContext, KeyUsage, anchor_from_trusted_cert};
 
@@ -70,6 +70,58 @@ fn uri_permitted_name_constraints(uri: &[u8]) -> CustomExtension {
     ext
 }
 
+/// CVE-2025-61727: a wildcard SAN like `*.example.com` can expand to a name (like
+/// `evil.example.com`) that falls inside an excluded subtree such as `evil.example.com`. Such
+/// certificates must be rejected even though the excluded subtree is narrower than the wildcard's
+/// parent label.
+#[test]
+fn wildcard_san_rejected_if_could_match_excluded_subtree() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![],
+        excluded_subtrees: vec![GeneralSubtree::DnsName("evil.example.com".to_string())],
+    }));
+    let ee = generate_cert(
+        vec![SanType::DnsName("*.example.com".try_into().unwrap())],
+        &issuer,
+    );
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[],
+            &[],
+            &["DnsName(\"*.example.com\")"]
+        ),
+        Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
+/// When a CA name constraint permits `www.example.com`, leaf certificates with a wildcard SAN of
+/// `*.example.com` should be rejected, because it could match names outside the permitted subtree.
+///
+/// <https://github.com/rustls/webpki/security/advisories/GHSA-xgp8-3hg3-c2mh>
+#[test]
+fn wildcard_san_rejected_if_could_match_name_outside_permitted_subtree() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DnsName("foo.example.com".to_string())],
+        excluded_subtrees: vec![],
+    }));
+    let ee = generate_cert(
+        vec![SanType::DnsName("*.example.com".try_into().unwrap())],
+        &issuer,
+    );
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[],
+            &[],
+            &["DnsName(\"*.example.com\")"]
+        ),
+        Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
 #[track_caller]
 fn check_cert(
     ee: &[u8],
@@ -111,6 +163,13 @@ fn check_cert(
     }
 
     Ok(())
+}
+
+fn make_issuer(name_constraints: Option<NameConstraints>) -> CertifiedIssuer<'static, KeyPair> {
+    let ca_key = KeyPair::generate().unwrap();
+    let mut ca_params = issuer_params("issuer.example.com").unwrap();
+    ca_params.name_constraints = name_constraints;
+    CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA cert")
 }
 
 fn generate_cert(sans: Vec<SanType>, issuer: &CertifiedIssuer<'_, KeyPair>) -> Certificate {
