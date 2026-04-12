@@ -126,10 +126,12 @@ fn check_presented_id_conforms_to_constraints(
                 Err(err) => return Some(Err(err)),
             };
 
+            // Avoid having a catch-all branch here which might fail open on new variants
             let matches = match (name, base) {
                 (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
                     dns_name::presented_id_matches_reference_id(name, IdRole::NameConstraint, base)
                 }
+                (GeneralName::DnsName(_), _) => continue,
 
                 (GeneralName::DirectoryName, GeneralName::DirectoryName) => Ok(
                     // Reject any uses of directory name constraints; we don't implement this.
@@ -150,10 +152,19 @@ fn check_presented_id_conforms_to_constraints(
                         Subtrees::ExcludedSubtrees => true,
                     },
                 ),
+                (GeneralName::DirectoryName, _) => continue,
 
                 (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
                     ip_address::presented_id_matches_constraint(name, base)
                 }
+                (GeneralName::IpAddress(_), _) => continue,
+
+                // We currently don't support URI constraints -- fail closed for now.
+                (
+                    GeneralName::UniformResourceIdentifier(_),
+                    GeneralName::UniformResourceIdentifier(_),
+                ) => Ok(false),
+                (GeneralName::UniformResourceIdentifier(_), _) => continue,
 
                 // RFC 4280 says "If a name constraints extension that is marked as
                 // critical imposes constraints on a particular name form, and an
@@ -168,12 +179,7 @@ fn check_presented_id_conforms_to_constraints(
                 {
                     Err(Error::NameConstraintViolation)
                 }
-
-                _ => {
-                    // mismatch between constraint and name types; continue with current
-                    // name and next constraint
-                    continue;
-                }
+                (GeneralName::Unsupported(_), _) => continue,
             };
 
             match (subtrees, matches) {
