@@ -92,8 +92,8 @@ fn check_presented_id_conforms_to_constraints(
     budget: &mut Budget,
 ) -> Option<Result<(), Error>> {
     let subtrees = [
-        (Subtrees::PermittedSubtrees, permitted_subtrees),
-        (Subtrees::ExcludedSubtrees, excluded_subtrees),
+        (Subtrees::Permitted, permitted_subtrees),
+        (Subtrees::Excluded, excluded_subtrees),
     ];
 
     fn general_subtree<'b>(input: &mut untrusted::Reader<'b>) -> Result<GeneralName<'b>, Error> {
@@ -149,8 +149,8 @@ fn check_presented_id_conforms_to_constraints(
                     // Rejection is achieved by not matching any PermittedSubtrees, and matching all
                     // ExcludedSubtrees.
                     match subtrees {
-                        Subtrees::PermittedSubtrees => false,
-                        Subtrees::ExcludedSubtrees => true,
+                        Subtrees::Permitted => false,
+                        Subtrees::Excluded => true,
                     },
                 ),
 
@@ -180,19 +180,19 @@ fn check_presented_id_conforms_to_constraints(
             };
 
             match (subtrees, matches) {
-                (Subtrees::PermittedSubtrees, Ok(true)) => {
+                (Subtrees::Permitted, Ok(true)) => {
                     has_permitted_subtrees_match = true;
                 }
 
-                (Subtrees::PermittedSubtrees, Ok(false)) => {
+                (Subtrees::Permitted, Ok(false)) => {
                     has_permitted_subtrees_mismatch = true;
                 }
 
-                (Subtrees::ExcludedSubtrees, Ok(true)) => {
+                (Subtrees::Excluded, Ok(true)) => {
                     return Some(Err(Error::NameConstraintViolation));
                 }
 
-                (Subtrees::ExcludedSubtrees, Ok(false)) => (),
+                (Subtrees::Excluded, Ok(false)) => (),
                 (_, Err(err)) => return Some(Err(err)),
             }
         }
@@ -210,8 +210,8 @@ fn check_presented_id_conforms_to_constraints(
 
 #[derive(Clone, Copy, PartialEq)]
 enum Subtrees {
-    PermittedSubtrees,
-    ExcludedSubtrees,
+    Permitted,
+    Excluded,
 }
 
 pub(crate) struct NameIterator<'a> {
