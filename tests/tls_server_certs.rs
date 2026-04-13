@@ -340,6 +340,50 @@ fn wildcard_san_rejected_if_in_excluded_subtree() {
 }
 
 #[test]
+fn wildcard_san_rejected_if_could_match_excluded_subtree() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![],
+        excluded_subtrees: vec![GeneralSubtree::DnsName("foo.example.com".to_string())],
+    }));
+    let ee = generate_cert(
+        vec![SanType::DnsName("*.example.com".try_into().unwrap())],
+        &issuer,
+    );
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[],
+            &[],
+            &["DnsName(\"*.example.com\")"]
+        ),
+        Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
+#[test]
+fn wildcard_san_rejected_if_could_match_name_outside_permitted_subtree() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DnsName("foo.example.com".to_string())],
+        excluded_subtrees: vec![],
+    }));
+    let ee = generate_cert(
+        vec![SanType::DnsName("*.example.com".try_into().unwrap())],
+        &issuer,
+    );
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[],
+            &[],
+            &["DnsName(\"*.example.com\")"]
+        ),
+        Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
+#[test]
 fn ip4_address_san_rejected_if_in_excluded_subtree() {
     let issuer = make_issuer(Some(NameConstraints {
         permitted_subtrees: vec![],
