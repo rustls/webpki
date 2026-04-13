@@ -319,8 +319,7 @@ pub(super) fn presented_id_matches_reference_id(
     //
     // For excluded subtrees: we still expand the wildcard so that a SAN whose expansions could
     // reach into an excluded subtree is rejected (see CVE-2025-61727).
-    if presented.peek(b'*')
-        && reference_dns_id_role != IdRole::NameConstraint(Subtrees::PermittedSubtrees)
+    if presented.peek(b'*') && reference_dns_id_role != IdRole::NameConstraint(Subtrees::Permitted)
     {
         if presented.skip(1).is_err() {
             unreachable!();
@@ -980,7 +979,7 @@ mod tests {
         for (presented, constraint, expected_result) in PRESENTED_MATCHES_CONSTRAINT {
             let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
-                IdRole::NameConstraint(Subtrees::PermittedSubtrees),
+                IdRole::NameConstraint(Subtrees::Permitted),
                 untrusted::Input::from(constraint),
             );
             assert_eq!(
@@ -995,7 +994,7 @@ mod tests {
         for (presented, constraint, expected_result) in WILDCARD_CONSTRAINT_CONTAINMENT {
             let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
-                IdRole::NameConstraint(Subtrees::PermittedSubtrees),
+                IdRole::NameConstraint(Subtrees::Permitted),
                 untrusted::Input::from(constraint),
             );
             assert_eq!(
@@ -1032,7 +1031,7 @@ mod tests {
         for (presented, constraint, expected_result) in WILDCARD_EXCLUDED_INTERSECTION {
             let actual_result = presented_id_matches_reference_id(
                 untrusted::Input::from(presented),
-                IdRole::NameConstraint(Subtrees::ExcludedSubtrees),
+                IdRole::NameConstraint(Subtrees::Excluded),
                 untrusted::Input::from(constraint),
             );
             assert_eq!(
