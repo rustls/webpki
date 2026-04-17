@@ -635,10 +635,40 @@ fn uri_san_rejected_against_uri_permitted_subtree() {
     );
 }
 
+/// Since we don't have real constraint matching implemented for URI names, fail closed.
+#[test]
+fn uri_san_rejected_against_uri_excluded_subtree() {
+    let ca_key = KeyPair::generate().unwrap();
+    let mut ca_params = issuer_params("issuer.example.com").unwrap();
+    ca_params
+        .custom_extensions
+        .push(uri_excluded_name_constraints(b"https://evil.example.com"));
+    let issuer = CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA");
+
+    let ee = generate_cert(
+        vec![SanType::URI("https://evil.example.com".try_into().unwrap())],
+        &issuer,
+    );
+    assert_eq!(
+        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
+        Err(webpki::Error::NameConstraintViolation),
+    );
+}
+
 // Hand-encode a NameConstraints extension (OID 2.5.29.30) with a single
 // permittedSubtree containing a URI GeneralName. rcgen's GeneralSubtree enum
 // doesn't expose a URI variant, so we emit the DER directly.
 fn uri_permitted_name_constraints(uri: &[u8]) -> CustomExtension {
+    uri_name_constraints(uri, 0xa0) // permittedSubtrees [0] IMPLICIT
+}
+
+// Hand-encode a NameConstraints extension (OID 2.5.29.30) with a single
+// excludedSubtree containing a URI GeneralName.
+fn uri_excluded_name_constraints(uri: &[u8]) -> CustomExtension {
+    uri_name_constraints(uri, 0xa1) // excludedSubtrees [1] IMPLICIT
+}
+
+fn uri_name_constraints(uri: &[u8], subtrees_tag: u8) -> CustomExtension {
     assert!(uri.len() < 128);
     // URI GeneralName: [6] IMPLICIT IA5String
     let mut uri_gn = vec![0x86, uri.len() as u8];
@@ -646,12 +676,12 @@ fn uri_permitted_name_constraints(uri: &[u8]) -> CustomExtension {
     // GeneralSubtree SEQUENCE { base GeneralName, ... }
     let mut subtree = vec![0x30, uri_gn.len() as u8];
     subtree.extend_from_slice(&uri_gn);
-    // permittedSubtrees [0] IMPLICIT GeneralSubtrees
-    let mut permitted = vec![0xa0, subtree.len() as u8];
-    permitted.extend_from_slice(&subtree);
+    // permittedSubtrees [0] or excludedSubtrees [1] IMPLICIT GeneralSubtrees
+    let mut subtrees = vec![subtrees_tag, subtree.len() as u8];
+    subtrees.extend_from_slice(&subtree);
     // NameConstraints SEQUENCE
-    let mut nc = vec![0x30, permitted.len() as u8];
-    nc.extend_from_slice(&permitted);
+    let mut nc = vec![0x30, subtrees.len() as u8];
+    nc.extend_from_slice(&subtrees);
 
     let mut ext = CustomExtension::from_oid_content(&[2, 5, 29, 30], nc);
     ext.set_criticality(true);
