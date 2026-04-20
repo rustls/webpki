@@ -752,6 +752,14 @@ mod tests {
             bit_string_flags(bad_padding_example),
             Err(Error::BadDer)
         ));
+
+        // invalid padding for empty set
+        for pad in 1..=255 {
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[pad])).err(),
+                Some(Error::BadDer)
+            );
+        }
     }
 
     #[test]
@@ -784,6 +792,14 @@ mod tests {
         for b in 0..256 {
             assert!(!bs.bit_set(b));
         }
+    }
+
+    #[test]
+    fn mispadded_bit_string_flags() {
+        assert_eq!(
+            bit_string_flags(untrusted::Input::from(&[0x04, 0xff])).err(),
+            Some(Error::BadDer)
+        );
     }
 
     #[test]
