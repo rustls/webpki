@@ -474,7 +474,7 @@ macro_rules! oid {
 
 #[cfg(test)]
 mod tests {
-    use super::DerTypeId;
+    use super::*;
     #[cfg(feature = "alloc")]
     use alloc::vec::Vec;
 
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn test_asn1_wrap() {
         // Prepend stuff to `bytes` to put it in a DER SEQUENCE.
-        let wrap_in_sequence = |bytes: &[u8]| super::asn1_wrap(super::Tag::Sequence, bytes);
+        let wrap_in_sequence = |bytes: &[u8]| asn1_wrap(Tag::Sequence, bytes);
 
         // Empty slice
         assert_eq!(vec![0x30, 0x00], wrap_in_sequence(&[]));
@@ -537,8 +537,6 @@ mod tests {
 
     #[test]
     fn test_optional_boolean() {
-        use super::{Error, FromDer};
-
         // Empty input results in false
         assert!(!bool::from_der(&mut bytes_reader(&[])).unwrap());
 
@@ -560,8 +558,6 @@ mod tests {
 
     #[test]
     fn test_bit_string_with_no_unused_bits() {
-        use super::{Error, bit_string_with_no_unused_bits};
-
         // Unexpected type
         assert_eq!(
             bit_string_with_no_unused_bits(&mut bytes_reader(&[0x01, 0x01, 0xff])).unwrap_err(),
@@ -602,8 +598,6 @@ mod tests {
 
     #[test]
     fn read_tag_and_get_value_default_limit() {
-        use super::{Error, read_tag_and_get_value};
-
         let inputs = &[
             // DER with short-form length encoded as three bytes.
             &[EXAMPLE_TAG, 0x83, 0xFF, 0xFF, 0xFF].as_slice(),
@@ -612,11 +606,10 @@ mod tests {
         ];
 
         for input in inputs {
-            let mut bytes = untrusted::Reader::new(untrusted::Input::from(input));
             // read_tag_and_get_value should reject DER with encoded lengths larger than two
             // bytes as BadDer.
             assert!(matches!(
-                read_tag_and_get_value(&mut bytes),
+                read_tag_and_get_value(&mut bytes_reader(input)),
                 Err(Error::BadDer)
             ));
         }
@@ -624,20 +617,15 @@ mod tests {
 
     #[test]
     fn read_tag_and_get_value_limited_high_form() {
-        use super::{Error, LONG_FORM_LEN_TWO_BYTES_MAX, read_tag_and_get_value_limited};
-
-        let mut bytes = untrusted::Reader::new(untrusted::Input::from(&[0xFF]));
         // read_tag_and_get_value_limited_high_form should reject DER with "high tag number form" tags.
         assert!(matches!(
-            read_tag_and_get_value_limited(&mut bytes, LONG_FORM_LEN_TWO_BYTES_MAX),
+            read_tag_and_get_value_limited(&mut bytes_reader(&[0xFF]), LONG_FORM_LEN_TWO_BYTES_MAX),
             Err(Error::BadDer)
         ));
     }
 
     #[test]
     fn read_tag_and_get_value_limited_non_canonical() {
-        use super::{Error, LONG_FORM_LEN_TWO_BYTES_MAX, read_tag_and_get_value_limited};
-
         let inputs = &[
             // Two byte length, with expressed length < 128.
             &[EXAMPLE_TAG, 0x81, 0x01].as_slice(),
@@ -650,10 +638,12 @@ mod tests {
         ];
 
         for input in inputs {
-            let mut bytes = untrusted::Reader::new(untrusted::Input::from(input));
             // read_tag_and_get_value_limited should reject DER with non-canonical lengths.
             assert!(matches!(
-                read_tag_and_get_value_limited(&mut bytes, LONG_FORM_LEN_TWO_BYTES_MAX),
+                read_tag_and_get_value_limited(
+                    &mut bytes_reader(input),
+                    LONG_FORM_LEN_TWO_BYTES_MAX
+                ),
                 Err(Error::BadDer)
             ));
         }
@@ -662,8 +652,6 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn read_tag_and_get_value_limited_limits() {
-        use super::{Error, read_tag_and_get_value_limited};
-
         let short_input = &[0xFF];
         let short_input_encoded = &[
             &[EXAMPLE_TAG],
@@ -710,9 +698,7 @@ mod tests {
         ];
 
         for tc in testcases {
-            let mut bytes = untrusted::Reader::new(untrusted::Input::from(tc.input));
-
-            let res = read_tag_and_get_value_limited(&mut bytes, tc.limit);
+            let res = read_tag_and_get_value_limited(&mut bytes_reader(tc.input), tc.limit);
             match &tc.err {
                 None => assert!(res.is_ok()),
                 Some(e) => {
@@ -724,7 +710,7 @@ mod tests {
     }
 
     #[expect(clippy::as_conversions)] // infallible.
-    const EXAMPLE_TAG: u8 = super::Tag::Sequence as u8;
+    const EXAMPLE_TAG: u8 = Tag::Sequence as u8;
 
     #[cfg(feature = "alloc")]
     #[expect(clippy::as_conversions)] // test code.
@@ -750,8 +736,6 @@ mod tests {
 
     #[test]
     fn misencoded_bit_string_flags() {
-        use super::{Error, bit_string_flags};
-
         let bad_padding_example = untrusted::Input::from(&[
             0x08, // 8 bit of padding (illegal!).
             0x06, // 1 byte of bit flags asserting bits 5 and 6.
@@ -773,8 +757,6 @@ mod tests {
 
     #[test]
     fn valid_bit_string_flags() {
-        use super::bit_string_flags;
-
         let example_key_usage = untrusted::Input::from(&[
             0x01, // 1 bit of padding.
             0x06, // 1 byte of bit flags asserting bits 5 and 6.
@@ -797,89 +779,57 @@ mod tests {
 
     #[test]
     fn test_small_nonnegative_integer() {
-        use super::{Error, FromDer, Tag};
-
         for value in 0..=127 {
             let data = [Tag::Integer.into(), 1, value];
-            let mut rd = untrusted::Reader::new(untrusted::Input::from(&data));
+            let mut rd = bytes_reader(&data);
             assert_eq!(u8::from_der(&mut rd), Ok(value),);
         }
 
         for value in 128..=255 {
             let data = [Tag::Integer.into(), 2, 0x00, value];
-            let mut rd = untrusted::Reader::new(untrusted::Input::from(&data));
+            let mut rd = bytes_reader(&data);
             assert_eq!(u8::from_der(&mut rd), Ok(value),);
         }
 
         // not an integer
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Sequence.into(),
-                1,
-                1
-            ]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Sequence.into(), 1, 1])),
             Err(Error::BadDer)
         );
 
         // negative
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Integer.into(),
-                1,
-                0xff
-            ]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Integer.into(), 1, 0xff])),
             Err(Error::BadDer)
         );
 
         // positive but too large
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Integer.into(),
-                2,
-                0x01,
-                0x00
-            ]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Integer.into(), 2, 0x01, 0x00])),
             Err(Error::BadDer)
         );
 
         // unnecessary leading zero
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Integer.into(),
-                2,
-                0x00,
-                0x05
-            ]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Integer.into(), 2, 0x00, 0x05])),
             Err(Error::BadDer)
         );
 
         // truncations
+        assert_eq!(u8::from_der(&mut bytes_reader(&[])), Err(Error::BadDer));
+
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Integer.into()])),
             Err(Error::BadDer)
         );
 
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Integer.into(),
-            ]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Integer.into(), 1])),
             Err(Error::BadDer)
         );
 
         assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Integer.into(),
-                1,
-            ]))),
-            Err(Error::BadDer)
-        );
-
-        assert_eq!(
-            u8::from_der(&mut untrusted::Reader::new(untrusted::Input::from(&[
-                Tag::Integer.into(),
-                2,
-                0
-            ]))),
+            u8::from_der(&mut bytes_reader(&[Tag::Integer.into(), 2, 0])),
             Err(Error::BadDer)
         );
     }
