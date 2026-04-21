@@ -730,9 +730,11 @@ impl Iterator for OidDecoder<'_> {
             return Some(next);
         }
 
-        let mut cur = 0;
+        let mut cur = 0_usize;
         for (i, &byte) in self.encoded.iter().enumerate() {
-            cur = (cur << 7) + usize::from(byte & 0x7f);
+            cur = cur
+                .saturating_mul(128)
+                .saturating_add(usize::from(byte & 0x7f));
             if byte & 0x80 > 0 {
                 continue;
             }
