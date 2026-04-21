@@ -77,25 +77,10 @@ fn presented_id_matches_reference_id(
     presented_id: untrusted::Input<'_>,
     reference_id: untrusted::Input<'_>,
 ) -> bool {
-    match (presented_id.len(), reference_id.len()) {
-        (4, 4) => (),
-        (16, 16) => (),
-        _ => {
-            return false;
-        }
-    };
-
-    let mut presented_ip_address = untrusted::Reader::new(presented_id);
-    let mut reference_ip_address = untrusted::Reader::new(reference_id);
-    while !presented_ip_address.at_end() {
-        let presented_ip_address_byte = presented_ip_address.read_byte().unwrap();
-        let reference_ip_address_byte = reference_ip_address.read_byte().unwrap();
-        if presented_ip_address_byte != reference_ip_address_byte {
-            return false;
-        }
+    match presented_id.len() {
+        4 | 16 => presented_id.as_slice_less_safe() == reference_id.as_slice_less_safe(),
+        _ => false,
     }
-
-    true
 }
 
 // https://tools.ietf.org/html/rfc5280#section-4.2.1.10 says:
