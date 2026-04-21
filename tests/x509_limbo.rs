@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::fs::File;
 
-use bzip2::read::BzDecoder;
 use chrono::{DateTime, Utc};
+use limbo_harness_support::LIMBO_JSON;
 use limbo_harness_support::models::{ExpectedResult, Feature, Limbo, Testcase, ValidationKind};
 use serde::{Deserialize, Serialize};
 
@@ -18,11 +18,7 @@ use webpki::{
 #[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --include-ignored`
 #[test]
 fn x509_limbo() {
-    let mut data_file =
-        File::open("third-party/x509-limbo/limbo.json.bz2").expect("failed to open data file");
-
-    let limbo: Limbo =
-        serde_json::from_reader(BzDecoder::new(&mut data_file)).expect("invalid test JSON");
+    let limbo: Limbo = serde_json::from_slice(LIMBO_JSON).expect("invalid test JSON");
 
     let exceptions = serde_json::from_reader(
         File::open("third-party/x509-limbo/exceptions.json")
