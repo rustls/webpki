@@ -1,0 +1,29 @@
+[package]
+name = "webpki-fuzz"
+version = "0.0.1"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+pki-types = { package = "rustls-pki-types", version = "1" }
+webpki = { package = "rustls-webpki", path = "..", default-features = false, features = ["alloc"] }
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "crl"
+path = "fuzzers/crl.rs"
+
+[[bin]]
+name = "cert"
+path = "fuzzers/cert.rs"
+
+[[bin]]
+name = "anchor"
+path = "fuzzers/anchor.rs"
