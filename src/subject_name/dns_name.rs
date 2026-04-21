@@ -337,7 +337,7 @@ pub(super) fn presented_id_matches_reference_id(
 
     loop {
         let presented_byte = match (presented.read_byte(), reference.read_byte()) {
-            (Ok(p), Ok(r)) if ascii_lower(p) == ascii_lower(r) => p,
+            (Ok(p), Ok(r)) if p.eq_ignore_ascii_case(&r) => p,
             _ => {
                 return Ok(false);
             }
@@ -372,14 +372,6 @@ pub(super) fn presented_id_matches_reference_id(
     assert!(reference.at_end());
 
     Ok(true)
-}
-
-#[inline]
-fn ascii_lower(b: u8) -> u8 {
-    match b {
-        b'A'..=b'Z' => b + b'a' - b'A',
-        _ => b,
-    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
