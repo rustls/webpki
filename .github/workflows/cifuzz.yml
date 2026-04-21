@@ -1,0 +1,53 @@
+name: Fuzz
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["main", "ci/*"]
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Fuzz Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Build seed corpus for certificate fuzzers
+        run: |
+          mkdir -p fuzz/seed-certs
+          find tests -name "*.der" ! -path "*/crls/*" ! -name "*.crl.der" -exec cp {} fuzz/seed-certs/ \;
+
+      - name: Fuzz CRL parsing
+        working-directory: fuzz
+        run: |
+          mkdir -p corpus/crl
+          cargo fuzz run crl corpus/crl ../tests/crls -- -max_total_time=60
+
+      - name: Fuzz certificate parsing
+        working-directory: fuzz
+        run: |
+          mkdir -p corpus/cert
+          cargo fuzz run cert corpus/cert seed-certs -- -max_total_time=60
+
+      - name: Fuzz trust anchor extraction
+        working-directory: fuzz
+        run: |
+          mkdir -p corpus/anchor
+          cargo fuzz run anchor corpus/anchor seed-certs -- -max_total_time=60
