@@ -69,10 +69,8 @@ fn evaluate_testcase(tc: &Testcase, exceptions: &HashMap<String, Exception>) -> 
     }
 
     let validation_result = run_validation(tc);
-    let actual_success = validation_result.is_ok();
-
     if let Some(exception) = exceptions.get(tc.id.as_str()) {
-        if actual_success == (exception.actual == "SUCCESS") {
+        if validation_result.is_ok() == (exception.actual == "SUCCESS") {
             return Outcome::KnownDivergence;
         }
         // If the exception no longer applies (behavior changed), fall through to normal comparison
