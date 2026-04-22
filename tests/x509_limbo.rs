@@ -70,7 +70,6 @@ fn evaluate_testcase(tc: &Testcase, exceptions: &HashMap<String, Exception>) -> 
 
     let validation_result = run_validation(tc);
     let actual_success = validation_result.is_ok();
-    let expected_success = matches!(tc.expected_result, ExpectedResult::Success);
 
     if let Some(exception) = exceptions.get(tc.id.as_str()) {
         if actual_success == (exception.actual == "SUCCESS") {
@@ -80,10 +79,10 @@ fn evaluate_testcase(tc: &Testcase, exceptions: &HashMap<String, Exception>) -> 
     }
 
     // Compare actual vs expected
-    match (expected_success, validation_result) {
-        (true, Ok(())) | (false, Err(_)) => Outcome::Pass,
-        (true, Err(err)) => Outcome::UnexpectedFailure(err),
-        (false, Ok(())) => Outcome::UnexpectedSuccess,
+    match (tc.expected_result, validation_result) {
+        (ExpectedResult::Success, Ok(())) | (ExpectedResult::Failure, Err(_)) => Outcome::Pass,
+        (ExpectedResult::Success, Err(err)) => Outcome::UnexpectedFailure(err),
+        (ExpectedResult::Failure, Ok(())) => Outcome::UnexpectedSuccess,
     }
 }
 
