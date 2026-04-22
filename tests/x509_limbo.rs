@@ -18,7 +18,7 @@ use webpki::{
 #[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --include-ignored`
 #[test]
 fn x509_limbo() {
-    let limbo: Limbo = serde_json::from_slice(LIMBO_JSON).expect("invalid test JSON");
+    let limbo = serde_json::from_slice::<Limbo>(LIMBO_JSON).expect("invalid test JSON");
 
     let exceptions = serde_json::from_reader(
         File::open("third-party/x509-limbo/exceptions.json")
@@ -93,22 +93,22 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
     let leaf =
         EndEntityCert::try_from(&leaf_der).map_err(|e| format!("leaf cert parse failed: {e}"))?;
 
-    let intermediates: Vec<_> = tc
+    let intermediates = tc
         .untrusted_intermediates
         .iter()
         .map(|ic| cert_der_from_pem(ic))
-        .collect();
+        .collect::<Vec<_>>();
 
-    let trust_anchor_ders: Vec<_> = tc
+    let trust_anchor_ders = tc
         .trusted_certs
         .iter()
         .map(|ta| cert_der_from_pem(ta))
-        .collect();
+        .collect::<Vec<_>>();
 
-    let trust_anchors: Vec<_> = trust_anchor_ders
+    let trust_anchors = trust_anchor_ders
         .iter()
         .filter_map(|der| anchor_from_trusted_cert(der).ok())
-        .collect();
+        .collect::<Vec<_>>();
 
     if trust_anchors.is_empty() && !trust_anchor_ders.is_empty() {
         return Err("trust anchor extraction failed".into());
@@ -122,7 +122,7 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
 
     let sig_algs = rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 
-    let crls: Vec<_> = tc
+    let crls = tc
         .crls
         .iter()
         .map(|pem| {
@@ -134,8 +134,8 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
             .expect("CRL DER parse failed")
             .into()
         })
-        .collect();
-    let crls: Vec<_> = crls.iter().collect();
+        .collect::<Vec<_>>();
+    let crls = crls.iter().collect::<Vec<_>>();
 
     let revocation_options = if !crls.is_empty() {
         let opts = RevocationOptionsBuilder::new(crls.as_slice()).unwrap();
