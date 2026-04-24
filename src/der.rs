@@ -377,22 +377,29 @@ pub(crate) fn bit_string_flags(input: untrusted::Input<'_>) -> Result<BitStringF
         //   "The initial octet shall encode, as an unsigned binary integer with bit 1 as the least
         //   significant bit, the number of unused bits in the final subsequent octet.
         //   The number shall be in the range zero to seven"
-        let padding_bits = bit_string.read_byte().map_err(|_| Error::BadDer)?;
+        let padding_bit_len = bit_string.read_byte().map_err(|_| Error::BadDer)?;
         let raw_bits = bit_string.read_bytes_to_end().as_slice_less_safe();
 
-        match (padding_bits, raw_bits.last()) {
-            // It's illegal to have more than 7 bits of padding.
-            (8.., _) => Err(Error::BadDer),
+        match (padding_bit_len, raw_bits) {
+            (0..=7, [.., last]) => {
+                // ITU X690-0207 11.2.1: The padding must be zero.
+                let padding = *last & ((1 << padding_bit_len) - 1);
+                if padding != 0 {
+                    return Err(Error::BadDer);
+                }
 
-            // If the raw bitflags are empty there should be no padding.
-            (0, None) => Ok(BitStringFlags { raw_bits }),
-            (_, None) => Err(Error::BadDer),
+                // ITU X690-0207 11.2.2: Trailing zero bytes aren't allowed.
+                if *last == 0 {
+                    return Err(Error::BadDer);
+                }
 
-            // If there are padding bits then the last bit of the last raw byte must be 0 or the
-            // distinguished encoding rules are not being followed.
-            (1..=7, Some(last)) if last & ((1 << padding_bits) - 1) != 0 => Err(Error::BadDer),
+                Ok(BitStringFlags { raw_bits })
+            }
 
-            (_, Some(_)) => Ok(BitStringFlags { raw_bits }),
+            // ITU X690-0207 11.2.2 Note 2: All bits set to zero.
+            (0, []) => Ok(BitStringFlags { raw_bits }),
+
+            _ => Err(Error::BadDer),
         }
     })
 }
@@ -751,6 +758,18 @@ mod tests {
             Err(Error::BadDer)
         ));
 
+        // Zero bits must be stripped before encoding.
+        for pad in 0..=7 {
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[pad, 0])).err(),
+                Some(Error::BadDer)
+            );
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[pad, 1, 0])).err(),
+                Some(Error::BadDer),
+            );
+        }
+
         // invalid padding for empty set
         for pad in 1..=255 {
             assert_eq!(
@@ -794,10 +813,23 @@ mod tests {
 
     #[test]
     fn mispadded_bit_string_flags() {
+        // All padding bits set.
         assert_eq!(
             bit_string_flags(untrusted::Input::from(&[0x04, 0xff])).err(),
             Some(Error::BadDer)
         );
+
+        // Only one padding bit set.
+        for i in 0..7 {
+            let invalid_padding_with_a_single_bit_set = 1 << i;
+            let value = 1 << 7;
+            let padded_value = value | invalid_padding_with_a_single_bit_set;
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[0x07, padded_value])).err(),
+                Some(Error::BadDer),
+                "{i}"
+            );
+        }
     }
 
     #[test]
