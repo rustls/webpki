@@ -751,6 +751,18 @@ mod tests {
             Err(Error::BadDer)
         ));
 
+        // Zero bits must be stripped before encoding.
+        for pad in 0..=7 {
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[pad, 0])).err(),
+                Some(Error::BadDer)
+            );
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[pad, 1, 0])).err(),
+                Some(Error::BadDer),
+            );
+        }
+
         // invalid padding for empty set
         for pad in 1..=255 {
             assert_eq!(
