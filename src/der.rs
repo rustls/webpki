@@ -377,10 +377,10 @@ pub(crate) fn bit_string_flags(input: untrusted::Input<'_>) -> Result<BitStringF
         //   "The initial octet shall encode, as an unsigned binary integer with bit 1 as the least
         //   significant bit, the number of unused bits in the final subsequent octet.
         //   The number shall be in the range zero to seven"
-        let padding_bits = bit_string.read_byte().map_err(|_| Error::BadDer)?;
+        let padding_bit_len = bit_string.read_byte().map_err(|_| Error::BadDer)?;
         let raw_bits = bit_string.read_bytes_to_end().as_slice_less_safe();
 
-        match (padding_bits, raw_bits.last()) {
+        match (padding_bit_len, raw_bits.last()) {
             // It's illegal to have more than 7 bits of padding.
             (8.., _) => Err(Error::BadDer),
 
@@ -390,7 +390,7 @@ pub(crate) fn bit_string_flags(input: untrusted::Input<'_>) -> Result<BitStringF
 
             // If there are padding bits then the last bit of the last raw byte must be 0 or the
             // distinguished encoding rules are not being followed.
-            (1..=7, Some(last)) if last & ((1 << padding_bits) - 1) != 0 => Err(Error::BadDer),
+            (1..=7, Some(last)) if last & ((1 << padding_bit_len) - 1) != 0 => Err(Error::BadDer),
 
             (_, Some(_)) => Ok(BitStringFlags { raw_bits }),
         }
