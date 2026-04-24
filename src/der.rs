@@ -794,10 +794,23 @@ mod tests {
 
     #[test]
     fn mispadded_bit_string_flags() {
+        // All padding bits set.
         assert_eq!(
             bit_string_flags(untrusted::Input::from(&[0x04, 0xff])).err(),
             Some(Error::BadDer)
         );
+
+        // Only one padding bit set.
+        for i in 0..7 {
+            let invalid_padding_with_a_single_bit_set = 1 << i;
+            let value = 1 << 7;
+            let padded_value = value | invalid_padding_with_a_single_bit_set;
+            assert_eq!(
+                bit_string_flags(untrusted::Input::from(&[0x07, padded_value])).err(),
+                Some(Error::BadDer),
+                "{i}"
+            );
+        }
     }
 
     #[test]
