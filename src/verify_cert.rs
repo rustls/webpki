@@ -28,6 +28,7 @@ use crate::end_entity::EndEntityCert;
 use crate::error::Error;
 #[cfg(feature = "alloc")]
 use crate::spki_for_anchor;
+use crate::x509::{ExtensionId, UnknownExtensionPolicy};
 use crate::{public_values_eq, subject_name};
 
 /// Build a [`VerifiedPath`] for an end-entity certificate from the given trust anchors.
@@ -41,6 +42,7 @@ pub struct PathBuilder<'a, 'p> {
     pub(crate) revocation: Option<RevocationOptions<'a>>,
     #[expect(clippy::type_complexity)]
     pub(crate) verify_path: Option<&'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
+    pub(crate) extension_policy: UnknownExtensionPolicy<'a>,
 }
 
 impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
@@ -65,6 +67,7 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
             intermediate_certs: &[],
             revocation: None,
             verify_path: None,
+            extension_policy: UnknownExtensionPolicy::default(),
         }
     }
 
@@ -81,6 +84,23 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     /// By default, revocation checking is disabled.
     pub fn with_revocation(mut self, revocation: RevocationOptions<'a>) -> Self {
         self.revocation = Some(revocation);
+        self
+    }
+
+    /// Ignore the listed unsupported critical extensions while parsing intermediate
+    /// certificates for path building.
+    ///
+    /// By default, path building rejects intermediate certificates containing unsupported
+    /// critical extensions. This is an opt-in escape hatch for applications that understand
+    /// the listed unsupported extensions and want webpki to accept them when they are marked
+    /// critical. The `ignored_critical_extensions` values identify DER OBJECT IDENTIFIER value
+    /// bytes through [`ExtensionId`]. Supported extensions are still processed normally.
+    pub fn with_ignored_critical_extensions(
+        mut self,
+        ignored_critical_extensions: &'a [ExtensionId<'a>],
+    ) -> Self {
+        self.extension_policy =
+            UnknownExtensionPolicy::AllowUnsupportedCritical(ignored_critical_extensions);
         self
     }
 
@@ -170,7 +190,10 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
         };
 
         loop_while_non_fatal_error(err, self.intermediate_certs, |cert_der| {
-            let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
+            let potential_issuer = Cert::from_der_with_extension_policy(
+                untrusted::Input::from(cert_der),
+                self.extension_policy,
+            )?;
             if !public_values_eq(potential_issuer.subject, path.head().issuer) {
                 return Err(Error::UnknownIssuer.into());
             }

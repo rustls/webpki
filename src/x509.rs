@@ -12,9 +12,49 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use core::fmt;
+
 use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC, DerIterator, FromDer};
 use crate::error::{DerTypeId, Error};
+use crate::public_values_eq;
 use crate::subject_name::GeneralName;
+use crate::verify_cert::OidDecoder;
+
+/// DER OBJECT IDENTIFIER value bytes identifying an X.509 extension.
+#[derive(Clone, Copy)]
+pub struct ExtensionId<'a> {
+    oid_value: untrusted::Input<'a>,
+}
+
+impl<'a> ExtensionId<'a> {
+    /// Construct a new [`ExtensionId`].
+    ///
+    /// `oid` is the DER OBJECT IDENTIFIER value bytes, without the OBJECT IDENTIFIER tag or
+    /// length.
+    pub const fn new(oid: &'a [u8]) -> Self {
+        Self {
+            oid_value: untrusted::Input::from(oid),
+        }
+    }
+
+    fn matches(&self, oid: untrusted::Input<'_>) -> bool {
+        public_values_eq(self.oid_value, oid)
+    }
+}
+
+impl fmt::Debug for ExtensionId<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ExtensionId(")?;
+        let decoder = OidDecoder::new(self.oid_value.as_slice_less_safe());
+        for (i, part) in decoder.enumerate() {
+            if i > 0 {
+                write!(f, ".")?;
+            }
+            write!(f, "{part}")?;
+        }
+        write!(f, ")")
+    }
+}
 
 pub(crate) struct Extension<'a> {
     pub(crate) critical: bool,
@@ -23,9 +63,16 @@ pub(crate) struct Extension<'a> {
 }
 
 impl Extension<'_> {
-    pub(crate) fn unsupported(&self, policy: UnknownExtensionPolicy) -> Result<(), Error> {
-        match (policy, self.critical) {
-            (UnknownExtensionPolicy::Strict, true) => Err(Error::UnsupportedCriticalExtension),
+    pub(crate) fn unsupported(&self, policy: UnknownExtensionPolicy<'_>) -> Result<(), Error> {
+        match policy {
+            UnknownExtensionPolicy::Strict if self.critical => {
+                Err(Error::UnsupportedCriticalExtension)
+            }
+            UnknownExtensionPolicy::AllowUnsupportedCritical(ids)
+                if self.critical && !ids.iter().any(|id| id.matches(self.id)) =>
+            {
+                Err(Error::UnsupportedCriticalExtension)
+            }
             _ => Ok(()),
         }
     }
@@ -63,7 +110,7 @@ pub(crate) fn set_extension_once<T>(
 
 pub(crate) fn remember_extension(
     extension: &Extension<'_>,
-    ext_policy: UnknownExtensionPolicy,
+    ext_policy: UnknownExtensionPolicy<'_>,
     mut handler: impl FnMut(ExtensionOid) -> Result<(), Error>,
 ) -> Result<(), Error> {
     match ExtensionOid::lookup(extension.id) {
@@ -73,10 +120,11 @@ pub(crate) fn remember_extension(
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) enum UnknownExtensionPolicy {
+pub(crate) enum UnknownExtensionPolicy<'a> {
     #[default]
     Strict,
     IgnoreCritical,
+    AllowUnsupportedCritical(&'a [ExtensionId<'a>]),
 }
 
 /// A certificate revocation list (CRL) distribution point name, describing a source of
@@ -151,3 +199,21 @@ const SCT_LIST_OID: [u8; 10] = [40 + 3, 6, 1, 4, 1, 214, 121, 2, 4, 2];
 ///
 /// <https://www.rfc-editor.org/rfc/rfc5280#appendix-A.2>
 const ID_CE: [u8; 2] = oid!(2, 5, 29);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_extension_policy_debug() {
+        let ignored = [ExtensionId::new(&[43, 6, 1, 4, 1, 42, 1])];
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                UnknownExtensionPolicy::AllowUnsupportedCritical(&ignored)
+            ),
+            "AllowUnsupportedCritical([ExtensionId(1.3.6.1.4.1.42.1)])"
+        );
+    }
+}

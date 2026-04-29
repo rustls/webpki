@@ -17,9 +17,29 @@ use core::slice;
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
+#[cfg(feature = "alloc")]
+use rcgen::{
+    BasicConstraints, CertificateParams, CertifiedIssuer, CustomExtension, DnType, IsCa, KeyPair,
+    KeyUsagePurpose,
+};
 use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::sct::LogIdAndTimestamp;
 use webpki::{ExtendedKeyUsage, PathBuilder, anchor_from_trusted_cert};
+
+#[cfg(feature = "alloc")]
+mod critical_extension_test_oids {
+    pub(super) const PRIVATE_CRITICAL_EXTENSION_OID_COMPONENTS: &[u64] = &[1, 3, 6, 1, 4, 1, 42, 1];
+    pub(super) const PRIVATE_CRITICAL_EXTENSION_OID: &[u8] = &[43, 6, 1, 4, 1, 42, 1];
+    pub(super) const OTHER_PRIVATE_CRITICAL_EXTENSION_OID: &[u8] = &[43, 6, 1, 4, 1, 42, 2];
+    pub(super) const NAME_CONSTRAINTS_OID_COMPONENTS: &[u64] = &[2, 5, 29, 30];
+    pub(super) const NAME_CONSTRAINTS_OID: &[u8] = &[85, 29, 30];
+}
+
+#[cfg(feature = "alloc")]
+use critical_extension_test_oids::{
+    NAME_CONSTRAINTS_OID, NAME_CONSTRAINTS_OID_COMPONENTS, OTHER_PRIVATE_CRITICAL_EXTENSION_OID,
+    PRIVATE_CRITICAL_EXTENSION_OID, PRIVATE_CRITICAL_EXTENSION_OID_COMPONENTS,
+};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -196,6 +216,96 @@ fn critical_extensions() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
+fn ignored_critical_extension_on_end_entity() {
+    let root = make_self_signed_issuer("Root", Vec::new());
+    let root_der = root.der().clone();
+    let ee = make_end_entity(&root, vec![private_critical_extension()]);
+
+    assert!(matches!(
+        webpki::EndEntityCert::try_from(&ee),
+        Err(webpki::Error::UnsupportedCriticalExtension)
+    ));
+
+    let ignored = [webpki::ExtensionId::new(PRIVATE_CRITICAL_EXTENSION_OID)];
+    let cert =
+        webpki::EndEntityCert::try_from_with_ignored_critical_extensions(&ee, &ignored).unwrap();
+    let anchors = [anchor_from_trusted_cert(&root_der).unwrap()];
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
+
+    assert!(builder.build(&cert, time).is_ok());
+}
+
+#[test]
+#[cfg(feature = "alloc")]
+fn ignored_critical_extension_on_intermediate() {
+    let root = make_self_signed_issuer("Root", Vec::new());
+    let root_der = root.der().clone();
+    let intermediate = make_intermediate(&root, vec![private_critical_extension()]);
+    let intermediate_der = intermediate.der().clone();
+    let ee = make_end_entity(&intermediate, Vec::new());
+    let anchors = [anchor_from_trusted_cert(&root_der).unwrap()];
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(slice::from_ref(&intermediate_der));
+
+    assert!(matches!(
+        builder.build(&cert, time),
+        Err(webpki::Error::UnsupportedCriticalExtension)
+    ));
+
+    let ignored = [webpki::ExtensionId::new(PRIVATE_CRITICAL_EXTENSION_OID)];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(slice::from_ref(&intermediate_der))
+    .with_ignored_critical_extensions(&ignored);
+
+    assert!(builder.build(&cert, time).is_ok());
+}
+
+#[test]
+#[cfg(feature = "alloc")]
+fn ignored_critical_extensions_match_exact_oid() {
+    let root = make_self_signed_issuer("Root", Vec::new());
+    let ee = make_end_entity(&root, vec![private_critical_extension()]);
+    let ignored = [webpki::ExtensionId::new(
+        OTHER_PRIVATE_CRITICAL_EXTENSION_OID,
+    )];
+
+    assert!(matches!(
+        webpki::EndEntityCert::try_from_with_ignored_critical_extensions(&ee, &ignored),
+        Err(webpki::Error::UnsupportedCriticalExtension)
+    ));
+}
+
+#[test]
+#[cfg(feature = "alloc")]
+fn ignored_critical_extensions_do_not_disable_supported_extension_parsing() {
+    let root = make_self_signed_issuer("Root", Vec::new());
+    let ee = make_end_entity(&root, vec![invalid_name_constraints_extension()]);
+    let ignored = [webpki::ExtensionId::new(NAME_CONSTRAINTS_OID)];
+
+    assert!(matches!(
+        webpki::EndEntityCert::try_from_with_ignored_critical_extensions(&ee, &ignored),
+        Err(webpki::Error::BadDer)
+    ));
+}
+
+#[test]
 fn read_root_with_zero_serial() {
     let ca = CertificateDer::from(&include_bytes!("misc/serial_zero.der")[..]);
     anchor_from_trusted_cert(&ca).expect("godaddy cert should parse as anchor");
@@ -369,6 +479,69 @@ fn expect_cert_uri_names<'name>(
         .expect("should parse end entity certificate correctly");
 
     assert!(cert.valid_uri_names().eq(expected_uris))
+}
+
+#[cfg(feature = "alloc")]
+fn make_self_signed_issuer(
+    org_name: &'static str,
+    custom_extensions: Vec<CustomExtension>,
+) -> CertifiedIssuer<'static, KeyPair> {
+    let params = issuer_params(org_name, custom_extensions);
+    let key = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+    CertifiedIssuer::self_signed(params, key).unwrap()
+}
+
+#[cfg(feature = "alloc")]
+fn make_intermediate(
+    issuer: &CertifiedIssuer<'_, KeyPair>,
+    custom_extensions: Vec<CustomExtension>,
+) -> CertifiedIssuer<'static, KeyPair> {
+    let params = issuer_params("Intermediate", custom_extensions);
+    let key = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+    CertifiedIssuer::signed_by(params, key, issuer).unwrap()
+}
+
+#[cfg(feature = "alloc")]
+fn issuer_params(
+    org_name: &'static str,
+    custom_extensions: Vec<CustomExtension>,
+) -> CertificateParams {
+    let mut params = CertificateParams::new(Vec::new()).unwrap();
+    params
+        .distinguished_name
+        .push(DnType::OrganizationName, org_name);
+    params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    params.key_usages = vec![KeyUsagePurpose::KeyCertSign];
+    params.custom_extensions = custom_extensions;
+    params
+}
+
+#[cfg(feature = "alloc")]
+fn make_end_entity(
+    issuer: &CertifiedIssuer<'_, KeyPair>,
+    custom_extensions: Vec<CustomExtension>,
+) -> CertificateDer<'static> {
+    let mut params = CertificateParams::new(vec!["example.com".into()]).unwrap();
+    params.is_ca = IsCa::ExplicitNoCa;
+    params.custom_extensions = custom_extensions;
+
+    let key = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+    params.signed_by(&key, issuer).unwrap().der().clone()
+}
+
+#[cfg(feature = "alloc")]
+fn private_critical_extension() -> CustomExtension {
+    let mut extension =
+        CustomExtension::from_oid_content(PRIVATE_CRITICAL_EXTENSION_OID_COMPONENTS, vec![5, 0]);
+    extension.set_criticality(true);
+    extension
+}
+
+#[cfg(feature = "alloc")]
+fn invalid_name_constraints_extension() -> CustomExtension {
+    let mut extension = CustomExtension::from_oid_content(NAME_CONSTRAINTS_OID_COMPONENTS, vec![]);
+    extension.set_criticality(true);
+    extension
 }
 
 #[cfg(feature = "alloc")]

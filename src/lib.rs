@@ -85,6 +85,7 @@ pub use {
         ExtendedKeyUsage, ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId,
         KeyPurposeIdIter, PathBuilder, RequiredEkuNotFoundContext, VerifiedPath,
     },
+    x509::ExtensionId,
 };
 
 #[cfg(feature = "alloc")]
