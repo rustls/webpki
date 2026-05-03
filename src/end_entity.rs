@@ -31,7 +31,7 @@ use crate::{cert, sct, signed_data};
 ///
 /// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
 ///   is valid for the current usage scenario. For server authentication, use
-///   [`crate::ExtendedKeyUsage::server_auth()`].
+///   [`crate::ExtendedKeyUsage::SERVER_AUTH`].
 /// * [`EndEntityCert::verify_is_valid_for_subject_name()`]: Verify that the server's
 ///   certificate is valid for the host or IP address that is being connected to.
 /// * [`EndEntityCert::verify_signature()`]: Verify that the signature of server's
@@ -42,7 +42,7 @@ use crate::{cert, sct, signed_data};
 ///
 /// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
 ///   is valid for the current usage scenario. For client authentication, use
-///   [`crate::ExtendedKeyUsage::client_auth()`].
+///   [`crate::ExtendedKeyUsage::CLIENT_AUTH`].
 /// * [`EndEntityCert::verify_signature()`]: Verify that the signature of client's
 ///   `CertificateVerify` message is valid using the public key from the
 ///   client's certificate.
