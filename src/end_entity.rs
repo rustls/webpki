@@ -110,7 +110,7 @@ impl EndEntityCert<'_> {
         revocation: Option<RevocationOptions<'_>>,
         verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
     ) -> Result<VerifiedPath<'p>, Error> {
-        verify_cert::ChainOptions {
+        verify_cert::PathBuilder {
             eku: usage,
             supported_sig_algs,
             trust_anchors,
