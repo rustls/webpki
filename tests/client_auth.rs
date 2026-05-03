@@ -19,7 +19,7 @@ use std::error::Error as StdError;
 use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
 use rcgen::{Certificate, ExtendedKeyUsagePurpose};
-use webpki::{ExtendedKeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, PathBuilder, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
 
 mod common;
 use common::{make_end_entity, make_issuer};
@@ -78,20 +78,16 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
 
 fn check_cert(ee: &[u8], ca: CertificateDer<'static>) -> Result<(), webpki::Error> {
     let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::CLIENT_AUTH,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+        anchors,
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    cert.verify_for_usage(
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-        anchors,
-        &[],
-        time,
-        &ExtendedKeyUsage::CLIENT_AUTH,
-        None,
-        None,
-    )
-    .map(|_| ())
+    builder.build(&cert, time).map(|_| ())
 }
 
 fn test_certs(

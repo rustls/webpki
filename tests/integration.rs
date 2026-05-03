@@ -19,7 +19,7 @@ use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
 use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::sct::LogIdAndTimestamp;
-use webpki::{ExtendedKeyUsage, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, PathBuilder, anchor_from_trusted_cert};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -31,23 +31,18 @@ fn netflix() {
     let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let intermediates = &[inter];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_492_441_716)); // 2017-04-17T15:08:36Z
-
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[inter],
-            time,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .is_ok()
-    );
+    assert!(builder.build(&cert, time).is_ok());
 }
 
 /// See also https://github.com/rustls/rustls/issues/2448
@@ -59,23 +54,18 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
     let ca = CertificateDer::from(&include_bytes!("sanofi/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let intermediates = &[inter];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_746_549_566)); // 2025-05-06T17:39:26Z
-
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[inter],
-            time,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .is_ok()
-    );
+    assert!(builder.build(&cert, time).is_ok());
 }
 
 /* This is notable because it is a popular use of IP address subjectAltNames. */
@@ -88,25 +78,19 @@ fn cloudflare_dns() {
     let inter = CertificateDer::from(&include_bytes!("cloudflare_dns/inter.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("cloudflare_dns/ca.der")[..]);
 
-    let ca_cert = CertificateDer::from(&ca[..]);
-    let anchors = [anchor_from_trusted_cert(&ca_cert).unwrap()];
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let intermediates = &[inter];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_663_495_771));
-
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[inter],
-            time,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .is_ok()
-    );
+    assert!(builder.build(&cert, time).is_ok());
 
     let check_name = |name: &str| {
         let subject_name_ref = ServerName::try_from(name).unwrap();
@@ -146,21 +130,15 @@ fn wpt() {
     let ca = CertificateDer::from(&include_bytes!("wpt/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_619_256_684)); // 2021-04-24T09:31:24Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[],
-            time,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .is_ok()
-    );
+    assert!(builder.build(&cert, time).is_ok());
 }
 
 #[test]
@@ -169,22 +147,15 @@ fn ed25519() {
     let ca = CertificateDer::from(&include_bytes!("ed25519/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_547_363_522)); // 2019-01-13T07:12:02Z
-
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[],
-            time,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .is_ok()
-    );
+    assert!(builder.build(&cert, time).is_ok());
 }
 
 #[test]
@@ -193,26 +164,22 @@ fn critical_extensions() {
     let root = CertificateDer::from(&include_bytes!("critical_extensions/root-cert.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("critical_extensions/ca-cert.der")[..]);
 
-    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
     let anchors = [anchor_from_trusted_cert(&root).unwrap()];
-    let intermediates = [ca];
+    let intermediates = &[ca];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(intermediates);
 
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
     let ee = CertificateDer::from(
         &include_bytes!("critical_extensions/ee-cert-noncrit-unknown-ext.der")[..],
     );
     let ee_cert = webpki::EndEntityCert::try_from(&ee).unwrap();
     assert!(
-        ee_cert
-            .verify_for_usage(
-                ALL_VERIFICATION_ALGS,
-                &anchors,
-                &intermediates,
-                time,
-                &ExtendedKeyUsage::SERVER_AUTH,
-                None,
-                None,
-            )
-            .is_ok(),
+        builder.build(&ee_cert, time).is_ok(),
         "accept non-critical unknown extension"
     );
 
@@ -247,22 +214,15 @@ fn read_ee_with_neg_serial() {
     let ee = CertificateDer::from(&include_bytes!("misc/serial_neg_ee.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_667_401_500)); // 2022-11-02T15:05:00Z
-
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    assert!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[],
-            time,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .is_ok()
-    );
+    assert!(builder.build(&cert, time).is_ok());
 }
 
 #[test]
@@ -419,6 +379,12 @@ fn cert_time_validity() {
     let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    )
+    .with_intermediate_certs(slice::from_ref(&inter));
 
     let not_before = UnixTime::since_unix_epoch(Duration::from_secs(1_478_563_200));
     let not_after = UnixTime::since_unix_epoch(Duration::from_secs(1_541_203_199));
@@ -430,16 +396,7 @@ fn cert_time_validity() {
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
 
     assert_eq!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            slice::from_ref(&inter),
-            just_before,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .err(),
+        builder.build(&cert, just_before).err(),
         Some(webpki::Error::CertNotValidYet {
             time: just_before,
             not_before
@@ -447,16 +404,7 @@ fn cert_time_validity() {
     );
 
     assert_eq!(
-        cert.verify_for_usage(
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[inter],
-            just_after,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            None,
-            None,
-        )
-        .err(),
+        builder.build(&cert, just_after).err(),
         Some(webpki::Error::CertExpired {
             time: just_after,
             not_after

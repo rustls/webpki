@@ -26,8 +26,9 @@ use rcgen::{
 #[cfg(feature = "alloc")]
 use webpki::OwnedCertRevocationList;
 use webpki::{
-    BorrowedCertRevocationList, CertRevocationList, ExtendedKeyUsage, RevocationCheckDepth,
-    RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy, anchor_from_trusted_cert,
+    BorrowedCertRevocationList, CertRevocationList, ExtendedKeyUsage, PathBuilder,
+    RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy,
+    anchor_from_trusted_cert,
 };
 use x509_parser::oid_registry;
 
@@ -44,24 +45,23 @@ fn check_cert(
 ) -> Result<(), webpki::Error> {
     let ca = CertificateDer::from(ca);
     let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
-    let ee = CertificateDer::from(ee);
-    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let intermediates = intermediates
         .iter()
         .map(|cert| CertificateDer::from(*cert))
         .collect::<Vec<_>>();
 
-    cert.verify_for_usage(
-        ALGS,
-        anchors,
-        &intermediates,
-        time,
-        &ExtendedKeyUsage::CLIENT_AUTH,
-        revocation,
-        None,
-    )
-    .map(|_| ())
+    let builder = PathBuilder::new(&ExtendedKeyUsage::CLIENT_AUTH, ALGS, anchors)
+        .with_intermediate_certs(&intermediates);
+
+    let builder = match revocation {
+        Some(crls) => builder.with_revocation(crls),
+        None => builder,
+    };
+
+    let ee = CertificateDer::from(ee);
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+    builder.build(&cert, time).map(|_| ())
 }
 
 #[test]

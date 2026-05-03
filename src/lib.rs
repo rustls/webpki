@@ -83,7 +83,7 @@ pub use {
     trust_anchor::anchor_from_trusted_cert,
     verify_cert::{
         ExtendedKeyUsage, ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId,
-        KeyPurposeIdIter, RequiredEkuNotFoundContext, VerifiedPath,
+        KeyPurposeIdIter, PathBuilder, RequiredEkuNotFoundContext, VerifiedPath,
     },
 };
 

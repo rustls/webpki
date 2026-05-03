@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use pki_types::pem::PemObject;
 use pki_types::{CertificateDer, CertificateRevocationListDer, ServerName, UnixTime};
 use webpki::{
-    EndEntityCert, ExpirationPolicy, ExtendedKeyUsage, OwnedCertRevocationList,
+    EndEntityCert, ExpirationPolicy, ExtendedKeyUsage, OwnedCertRevocationList, PathBuilder,
     RevocationCheckDepth, RevocationOptionsBuilder, UnknownStatusPolicy, anchor_from_trusted_cert,
 };
 
@@ -107,6 +107,13 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .map(|ic| cert_der_from_pem(ic))
         .collect::<Vec<_>>();
 
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+        &trust_anchors,
+    )
+    .with_intermediate_certs(&intermediates);
+
     let crls = tc
         .crls
         .iter()
@@ -122,14 +129,17 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .collect::<Vec<_>>();
     let crls = crls.iter().collect::<Vec<_>>();
 
-    let revocation_options = if !crls.is_empty() {
-        let opts = RevocationOptionsBuilder::new(crls.as_slice()).unwrap();
-        opts.with_depth(RevocationCheckDepth::Chain);
-        opts.with_status_policy(UnknownStatusPolicy::Deny);
-        opts.with_expiration_policy(ExpirationPolicy::Enforce);
-        Some(opts.build())
+    let builder = if !crls.is_empty() {
+        builder.with_revocation(
+            RevocationOptionsBuilder::new(crls.as_slice())
+                .unwrap()
+                .with_depth(RevocationCheckDepth::Chain)
+                .with_status_policy(UnknownStatusPolicy::Deny)
+                .with_expiration_policy(ExpirationPolicy::Enforce)
+                .build(),
+        )
     } else {
-        None
+        builder
     };
 
     let leaf_der = cert_der_from_pem(&tc.peer_certificate);
@@ -142,16 +152,9 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
             .expect("invalid validation time!"),
     );
 
-    leaf.verify_for_usage(
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-        &trust_anchors,
-        &intermediates[..],
-        validation_time,
-        &ExtendedKeyUsage::SERVER_AUTH,
-        revocation_options,
-        None,
-    )
-    .map_err(|e| e.to_string())?;
+    builder
+        .build(&leaf, validation_time)
+        .map_err(|e| e.to_string())?;
 
     // Verify subject name if expected
     if let Some(peer_name) = tc.expected_peer_name.as_ref() {
