@@ -908,6 +908,7 @@ pub(crate) enum Role {
 mod tests {
     use alloc::borrow::ToOwned;
     use alloc::string::{String, ToString};
+    use core::time::Duration;
     use std::dbg;
     use std::slice;
 
@@ -1362,8 +1363,6 @@ mod tests {
         verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
         budget: Option<Budget>,
     ) -> Result<VerifiedPath<'a>, ControlFlow<Error, Error>> {
-        use core::time::Duration;
-
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
         let opts = PathBuilder {
