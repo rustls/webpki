@@ -65,7 +65,7 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
     assert_eq!(
         err,
         webpki::Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
-            required: ExtendedKeyUsage::client_auth(),
+            required: ExtendedKeyUsage::CLIENT_AUTH,
             present: vec![vec![1, 3, 6, 1, 5, 5, 7, 3, 1]],
         })
     );
@@ -87,7 +87,7 @@ fn check_cert(ee: &[u8], ca: CertificateDer<'static>) -> Result<(), webpki::Erro
         anchors,
         &[],
         time,
-        &ExtendedKeyUsage::client_auth(),
+        &ExtendedKeyUsage::CLIENT_AUTH,
         None,
         None,
     )

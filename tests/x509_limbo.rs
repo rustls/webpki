@@ -149,7 +149,7 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         &trust_anchors,
         &intermediates[..],
         validation_time,
-        &ExtendedKeyUsage::server_auth(),
+        &ExtendedKeyUsage::SERVER_AUTH,
         revocation_options,
         None,
     )

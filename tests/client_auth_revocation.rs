@@ -57,7 +57,7 @@ fn check_cert(
         anchors,
         &intermediates,
         time,
-        &ExtendedKeyUsage::client_auth(),
+        &ExtendedKeyUsage::CLIENT_AUTH,
         revocation,
         None,
     )

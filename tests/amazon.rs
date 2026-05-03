@@ -243,7 +243,7 @@ pub fn amazon() {
                     &anchors,
                     &intermediates,
                     time,
-                    &ExtendedKeyUsage::server_auth(),
+                    &ExtendedKeyUsage::SERVER_AUTH,
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -256,7 +256,7 @@ pub fn amazon() {
                     &legacy_anchors,
                     &intermediates_legacy,
                     time,
-                    &ExtendedKeyUsage::server_auth(),
+                    &ExtendedKeyUsage::SERVER_AUTH,
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -269,7 +269,7 @@ pub fn amazon() {
                     &all_anchors,
                     &intermediates_legacy,
                     time,
-                    &ExtendedKeyUsage::server_auth(),
+                    &ExtendedKeyUsage::SERVER_AUTH,
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -291,7 +291,7 @@ pub fn amazon() {
                     &anchors,
                     &intermediates,
                     time,
-                    &ExtendedKeyUsage::server_auth(),
+                    &ExtendedKeyUsage::SERVER_AUTH,
                     crls.map(|l| revocation_options_for_test(l)),
                     None,
                 )
@@ -306,7 +306,7 @@ pub fn amazon() {
                     &anchors,
                     &intermediates,
                     time,
-                    &ExtendedKeyUsage::server_auth(),
+                    &ExtendedKeyUsage::SERVER_AUTH,
                     Some(revocation_options_for_test(crls)),
                     None,
                 )
@@ -325,7 +325,7 @@ pub fn amazon() {
                 &anchors,
                 &intermediates,
                 time,
-                &ExtendedKeyUsage::server_auth(),
+                &ExtendedKeyUsage::SERVER_AUTH,
                 None,
                 None,
             )

@@ -520,21 +520,6 @@ pub struct ExtendedKeyUsage {
 }
 
 impl ExtendedKeyUsage {
-    /// Construct a new [`ExtendedKeyUsage`] as appropriate for server certificate authentication.
-    ///
-    /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not
-    /// require the certificate to specify the eKU extension.
-    pub const fn server_auth() -> Self {
-        Self::required_if_present(EKU_SERVER_AUTH)
-    }
-
-    /// Construct a new [`ExtendedKeyUsage`] as appropriate for client certificate authentication.
-    ///
-    /// As specified in <>, this does not require the certificate to specify the eKU extension.
-    pub const fn client_auth() -> Self {
-        Self::required_if_present(EKU_CLIENT_AUTH)
-    }
-
     /// Construct a new [`ExtendedKeyUsage`] requiring a certificate to support the specified OID.
     pub const fn required(oid: &'static [u8]) -> Self {
         Self {
@@ -560,6 +545,17 @@ impl ExtendedKeyUsage {
             .as_slice_less_safe(),
         )
     }
+
+    /// An [`ExtendedKeyUsage`] for server certificate authentication.
+    ///
+    /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not
+    /// require the certificate to specify the eKU extension.
+    pub const SERVER_AUTH: Self = Self::required_if_present(EKU_SERVER_AUTH);
+
+    /// An [`ExtendedKeyUsage`] as appropriate for client certificate authentication.
+    ///
+    /// As specified in <https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.12>, this does not require the certificate to specify the eKU extension.
+    pub const CLIENT_AUTH: Self = Self::required_if_present(EKU_CLIENT_AUTH);
 
     /// Human-readable representation of the server authentication OID.
     pub const SERVER_AUTH_REPR: &[usize] = &[1, 3, 6, 1, 5, 5, 7, 3, 1];
@@ -935,13 +931,13 @@ mod tests {
     #[test]
     fn oid_decoding() {
         assert_eq!(
-            ExtendedKeyUsage::server_auth()
+            ExtendedKeyUsage::SERVER_AUTH
                 .oid_values()
                 .collect::<Vec<_>>(),
             ExtendedKeyUsage::SERVER_AUTH_REPR
         );
         assert_eq!(
-            ExtendedKeyUsage::client_auth()
+            ExtendedKeyUsage::CLIENT_AUTH
                 .oid_values()
                 .collect::<Vec<_>>(),
             ExtendedKeyUsage::CLIENT_AUTH_REPR
@@ -1366,7 +1362,7 @@ mod tests {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
         let opts = PathBuilder {
-            eku: &ExtendedKeyUsage::server_auth(),
+            eku: &ExtendedKeyUsage::SERVER_AUTH,
             supported_sig_algs: rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
             trust_anchors,
             intermediate_certs,
