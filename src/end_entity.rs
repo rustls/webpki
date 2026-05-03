@@ -116,8 +116,9 @@ impl EndEntityCert<'_> {
             trust_anchors,
             intermediate_certs,
             revocation,
+            verify_path,
         }
-        .build_chain(self, time, verify_path)
+        .build_chain(self, time)
     }
 
     /// Verifies that the certificate is valid for the given Subject Name.

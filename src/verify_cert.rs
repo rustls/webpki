@@ -38,29 +38,27 @@ pub(crate) struct ChainOptions<'a, 'p> {
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
     pub(crate) intermediate_certs: &'p [CertificateDer<'p>],
     pub(crate) revocation: Option<RevocationOptions<'a>>,
+    #[expect(clippy::type_complexity)]
+    pub(crate) verify_path: Option<&'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
 }
 
 impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
-    #[expect(clippy::type_complexity)]
     pub(crate) fn build_chain(
         &self,
         end_entity: &'p EndEntityCert<'p>,
         time: UnixTime,
-        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
     ) -> Result<VerifiedPath<'p>, Error> {
         let mut path = PartialPath::new(end_entity);
-        match self.build_chain_inner(&mut path, time, verify_path, 0, &mut Budget::default()) {
+        match self.build_chain_inner(&mut path, time, 0, &mut Budget::default()) {
             Ok(anchor) => Ok(VerifiedPath::new(end_entity, anchor, path)),
             Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => Err(err),
         }
     }
 
-    #[expect(clippy::type_complexity)]
     fn build_chain_inner(
         &self,
         path: &mut PartialPath<'p>,
         time: UnixTime,
-        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
         sub_ca_count: usize,
         budget: &mut Budget,
     ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
@@ -83,7 +81,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
                 self.check_signed_chain(&node, time, trust_anchor, budget)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
 
-                let Some(verify) = verify_path else {
+                let Some(verify) = self.verify_path else {
                     return Ok(trust_anchor);
                 };
 
@@ -130,7 +128,7 @@ impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
 
             budget.consume_build_chain_call()?;
             path.push(potential_issuer)?;
-            let result = self.build_chain_inner(path, time, verify_path, next_sub_ca_count, budget);
+            let result = self.build_chain_inner(path, time, next_sub_ca_count, budget);
             if result.is_err() {
                 path.pop();
             }
@@ -1374,15 +1372,10 @@ mod tests {
             trust_anchors,
             intermediate_certs,
             revocation: None,
+            verify_path,
         };
 
-        match opts.build_chain_inner(
-            &mut path,
-            time,
-            verify_path,
-            0,
-            &mut budget.unwrap_or_default(),
-        ) {
+        match opts.build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default()) {
             Ok(anchor) => Ok(VerifiedPath::new(ee_cert, anchor, path)),
             Err(err) => Err(err),
         }
