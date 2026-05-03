@@ -14,14 +14,10 @@
 
 use core::ops::Deref;
 
-use pki_types::{
-    CertificateDer, ServerName, SignatureVerificationAlgorithm, TrustAnchor, UnixTime,
-};
+use pki_types::{CertificateDer, ServerName, SignatureVerificationAlgorithm};
 
-use crate::crl::RevocationOptions;
 use crate::error::Error;
 use crate::subject_name::{verify_dns_names, verify_ip_address_names};
-use crate::verify_cert::{self, ExtendedKeyUsageValidator, VerifiedPath};
 use crate::{cert, sct, signed_data};
 
 /// An end-entity certificate.
@@ -29,9 +25,9 @@ use crate::{cert, sct, signed_data};
 /// Server certificate processing in a TLS connection consists of several
 /// steps. All of these steps are necessary:
 ///
-/// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
-///   is valid for the current usage scenario. For server authentication, use
-///   [`crate::ExtendedKeyUsage::SERVER_AUTH`].
+/// * Build a [`VerifiedPath`][crate::VerifiedPath] using a [PathBuilder][crate::PathBuilder]:
+///   verify that the peer's certificate is valid for the current usage scenario. For server
+///   authentication, use [`crate::ExtendedKeyUsage::SERVER_AUTH`].
 /// * [`EndEntityCert::verify_is_valid_for_subject_name()`]: Verify that the server's
 ///   certificate is valid for the host or IP address that is being connected to.
 /// * [`EndEntityCert::verify_signature()`]: Verify that the signature of server's
@@ -40,9 +36,9 @@ use crate::{cert, sct, signed_data};
 /// Client certificate processing in a TLS connection consists of analogous
 /// steps. All of these steps are necessary:
 ///
-/// * [`EndEntityCert::verify_for_usage()`]: Verify that the peer's certificate
-///   is valid for the current usage scenario. For client authentication, use
-///   [`crate::ExtendedKeyUsage::CLIENT_AUTH`].
+/// * Build a [`VerifiedPath`][crate::VerifiedPath] using a [PathBuilder][crate::PathBuilder]:
+///   verify that the peer's certificate is valid for the current usage scenario. For client
+///   authentication, use [`crate::ExtendedKeyUsage::CLIENT_AUTH`].
 /// * [`EndEntityCert::verify_signature()`]: Verify that the signature of client's
 ///   `CertificateVerify` message is valid using the public key from the
 ///   client's certificate.
@@ -73,54 +69,6 @@ impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
 }
 
 impl EndEntityCert<'_> {
-    /// Verifies that the end-entity certificate is valid for use against the
-    /// specified Extended Key Usage (EKU).
-    ///
-    /// * `supported_sig_algs` is the list of signature algorithms that are
-    ///   trusted for use in certificate signatures; the end-entity certificate's
-    ///   public key is not validated against this list.
-    /// * `trust_anchors` is the list of root CAs to trust in the built path.
-    /// * `intermediate_certs` is the sequence of intermediate certificates that
-    ///   a peer sent for the purpose of path building.
-    /// * `time` is the time for which the validation is effective (usually the
-    ///   current time).
-    /// * `usage` is the intended usage of the certificate, indicating what kind
-    ///   of usage we're verifying the certificate for. The default [`ExtendedKeyUsageValidator`]
-    ///   implementation is [`ExtendedKeyUsage`](crate::ExtendedKeyUsage).
-    /// * `crls` is the list of certificate revocation lists to check
-    ///   the certificate against.
-    /// * `verify_path` is an optional verification function for path candidates.
-    ///
-    /// If successful, yields a `VerifiedPath` type that can be used to inspect a verified chain
-    /// of certificates that leads from the `end_entity` to one of the `self.trust_anchors`.
-    ///
-    /// `verify_path` will only be called for potentially verified paths, that is, paths that
-    /// have been verified up to the trust anchor. As such, `verify_path()` cannot be used to
-    /// verify a path that doesn't satisfy the constraints listed above; it can only be used to
-    /// reject a path that does satisfy the aforementioned constraints. If `verify_path` returns
-    /// an error, path building will continue in order to try other options.
-    #[expect(clippy::too_many_arguments, clippy::type_complexity)]
-    pub fn verify_for_usage<'p>(
-        &'p self,
-        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
-        trust_anchors: &'p [TrustAnchor<'_>],
-        intermediate_certs: &'p [CertificateDer<'p>],
-        time: UnixTime,
-        usage: &dyn ExtendedKeyUsageValidator,
-        revocation: Option<RevocationOptions<'_>>,
-        verify_path: Option<&dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
-    ) -> Result<VerifiedPath<'p>, Error> {
-        verify_cert::PathBuilder {
-            eku: usage,
-            supported_sig_algs,
-            trust_anchors,
-            intermediate_certs,
-            revocation,
-            verify_path,
-        }
-        .build(self, time)
-    }
-
     /// Verifies that the certificate is valid for the given Subject Name.
     pub fn verify_is_valid_for_subject_name(
         &self,

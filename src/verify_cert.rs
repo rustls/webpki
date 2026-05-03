@@ -30,9 +30,10 @@ use crate::error::Error;
 use crate::spki_for_anchor;
 use crate::{public_values_eq, subject_name};
 
+/// Build a [`VerifiedPath`] for an end-entity certificate from the given trust anchors.
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
 // the `VerifiedPath`.
-pub(crate) struct PathBuilder<'a, 'p> {
+pub struct PathBuilder<'a, 'p> {
     pub(crate) eku: &'a dyn ExtendedKeyUsageValidator,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
@@ -43,7 +44,68 @@ pub(crate) struct PathBuilder<'a, 'p> {
 }
 
 impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
-    pub(crate) fn build(
+    /// Build a new [`PathBuilder`] with the given parameters.
+    ///
+    /// * `eku` is the intended usage of the certificate, indicating what kind
+    ///   of usage we're verifying the certificate for. The default [`ExtendedKeyUsageValidator`]
+    ///   implementation is [`ExtendedKeyUsage`].
+    /// * `supported_sig_algs` is the list of signature algorithms that are
+    ///   trusted for use in certificate signatures; the end-entity certificate's
+    ///   public key is not validated against this list.
+    /// * `trust_anchors` is the list of root CAs to trust in the built path.
+    pub fn new(
+        eku: &'p dyn ExtendedKeyUsageValidator,
+        supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
+        trust_anchors: &'p [TrustAnchor<'p>],
+    ) -> Self {
+        Self {
+            eku,
+            supported_sig_algs,
+            trust_anchors,
+            intermediate_certs: &[],
+            revocation: None,
+            verify_path: None,
+        }
+    }
+
+    /// Set the sequence of intermediate certificates to use for path building.
+    ///
+    /// These should be sent by the peer. Defaults to empty.
+    pub fn with_intermediate_certs(mut self, intermediate_certs: &'p [CertificateDer<'p>]) -> Self {
+        self.intermediate_certs = intermediate_certs;
+        self
+    }
+
+    /// Set the revocation options to use for path building.
+    ///
+    /// By default, revocation checking is disabled.
+    pub fn with_revocation(mut self, revocation: RevocationOptions<'a>) -> Self {
+        self.revocation = Some(revocation);
+        self
+    }
+
+    /// Set a path verification function to use for path building.
+    ///
+    /// `verify()` will only be called for potentially verified paths, that is, paths that
+    /// have been verified up to the trust anchor. As such, `verify()` cannot be used to
+    /// verify a path that doesn't satisfy the constraints listed above; it can only be used to
+    /// reject a path that does satisfy the aforementioned constraints. If `verify()` returns
+    /// an error, path building will continue in order to try other options.
+    ///
+    /// By default, no additional path verification is done.
+    pub fn with_path_verification(
+        mut self,
+        verify: &'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>,
+    ) -> Self {
+        self.verify_path = Some(verify);
+        self
+    }
+
+    /// Build a [`VerifiedPath`] for `end_entity` at the given `time`.
+    ///
+    /// If successful, yields a `VerifiedPath` type that can be used to inspect a verified chain
+    /// of certificates that leads from the `end_entity` to one of the `self.trust_anchors`.
+    pub fn build(
         &self,
         end_entity: &'p EndEntityCert<'p>,
         time: UnixTime,
@@ -173,9 +235,7 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     }
 }
 
-/// Path from end-entity certificate to trust anchor that's been verified.
-///
-/// See [`EndEntityCert::verify_for_usage()`] for more details on what verification entails.
+/// Path from end-entity certificate to trust anchor that's been verified by a [`PathBuilder`].
 pub struct VerifiedPath<'p> {
     end_entity: &'p EndEntityCert<'p>,
     intermediates: Intermediates<'p>,
@@ -1361,18 +1421,23 @@ mod tests {
     ) -> Result<VerifiedPath<'a>, ControlFlow<Error, Error>> {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
-        let opts = PathBuilder {
-            eku: &ExtendedKeyUsage::SERVER_AUTH,
-            supported_sig_algs: rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+
+        let builder = PathBuilder::new(
+            &ExtendedKeyUsage::SERVER_AUTH,
+            rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
             trust_anchors,
-            intermediate_certs,
-            revocation: None,
-            verify_path,
+        )
+        .with_intermediate_certs(intermediate_certs);
+        let builder = match verify_path {
+            Some(verify) => builder.with_path_verification(verify),
+            None => builder,
         };
 
-        match opts.build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default()) {
+        match builder.build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default()) {
             Ok(anchor) => Ok(VerifiedPath::new(ee_cert, anchor, path)),
             Err(err) => Err(err),
         }
     }
+
+    //const EKU_SERVER_AUTH: ExtendedKeyUsage = ExtendedKeyUsage::server_auth();
 }

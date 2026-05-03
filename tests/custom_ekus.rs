@@ -3,7 +3,7 @@
 use core::time::Duration;
 
 use pki_types::{CertificateDer, UnixTime};
-use webpki::{ExtendedKeyUsage, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, PathBuilder, RequiredEkuNotFoundContext, anchor_from_trusted_cert};
 
 fn check_cert(
     ee: &[u8],
@@ -14,23 +14,11 @@ fn check_cert(
 ) {
     let ca = CertificateDer::from(ca);
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let builder = PathBuilder::new(eku, rustls_aws_lc_rs::ALL_VERIFICATION_ALGS, &anchors);
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
-
-    assert_eq!(
-        cert.verify_for_usage(
-            rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-            &anchors,
-            &[],
-            time,
-            eku,
-            None,
-            None,
-        )
-        .map(|_| ()),
-        result
-    );
+    assert_eq!(builder.build(&cert, time).map(|_| ()), result);
 }
 
 #[test]

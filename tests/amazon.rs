@@ -6,7 +6,7 @@ use core::time::Duration;
 use pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::{
-    CertRevocationList, EndEntityCert, ExtendedKeyUsage, OwnedCertRevocationList,
+    CertRevocationList, EndEntityCert, ExtendedKeyUsage, OwnedCertRevocationList, PathBuilder,
     RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy,
     anchor_from_trusted_cert,
 };
@@ -21,7 +21,6 @@ fn revocation_options_for_test<'a>(
         .build()
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 pub fn amazon() {
     // The 4 Amazon roots
@@ -237,45 +236,62 @@ pub fn amazon() {
             Some(&intermediates_crls),
             Some(&all_crls),
         ] {
-            assert!(
-                cert.verify_for_usage(
-                    ALL_VERIFICATION_ALGS,
-                    &anchors,
-                    &intermediates,
-                    time,
-                    &ExtendedKeyUsage::SERVER_AUTH,
-                    crls.map(|l| revocation_options_for_test(l)),
-                    None,
-                )
-                .is_ok()
-            );
+            let builder = PathBuilder::new(
+                &ExtendedKeyUsage::SERVER_AUTH,
+                ALL_VERIFICATION_ALGS,
+                &anchors,
+            )
+            .with_intermediate_certs(&intermediates);
 
-            assert!(
-                cert.verify_for_usage(
-                    ALL_VERIFICATION_ALGS,
-                    &legacy_anchors,
-                    &intermediates_legacy,
-                    time,
-                    &ExtendedKeyUsage::SERVER_AUTH,
-                    crls.map(|l| revocation_options_for_test(l)),
-                    None,
-                )
-                .is_ok()
-            );
+            let builder = match crls {
+                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
+                None => builder,
+            };
 
-            let path = cert
-                .verify_for_usage(
-                    ALL_VERIFICATION_ALGS,
-                    &all_anchors,
-                    &intermediates_legacy,
-                    time,
-                    &ExtendedKeyUsage::SERVER_AUTH,
-                    crls.map(|l| revocation_options_for_test(l)),
-                    None,
-                )
-                .unwrap();
+            assert!(builder.build(&cert, time).is_ok());
+
+            let builder = PathBuilder::new(
+                &ExtendedKeyUsage::SERVER_AUTH,
+                ALL_VERIFICATION_ALGS,
+                &legacy_anchors,
+            )
+            .with_intermediate_certs(&intermediates_legacy);
+
+            let builder = match crls {
+                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
+                None => builder,
+            };
+
+            assert!(builder.build(&cert, time).is_ok());
+
+            let builder = PathBuilder::new(
+                &ExtendedKeyUsage::SERVER_AUTH,
+                ALL_VERIFICATION_ALGS,
+                &all_anchors,
+            )
+            .with_intermediate_certs(&intermediates_legacy);
+
+            let builder = match crls {
+                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
+                None => builder,
+            };
+
+            assert!(builder.build(&cert, time).is_ok());
+
+            let builder = PathBuilder::new(
+                &ExtendedKeyUsage::SERVER_AUTH,
+                ALL_VERIFICATION_ALGS,
+                &all_anchors,
+            )
+            .with_intermediate_certs(&intermediates_legacy);
+
+            let builder = match crls {
+                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
+                None => builder,
+            };
 
             // verify should find shortest path
+            let path = builder.build(&cert, time).unwrap();
             assert!(anchors.contains(path.anchor()));
         }
     }
@@ -285,51 +301,52 @@ pub fn amazon() {
         let cert = EndEntityCert::try_from(&cert).unwrap();
 
         for &crls in &[None, Some(&roots_crls)] {
-            assert!(
-                cert.verify_for_usage(
-                    ALL_VERIFICATION_ALGS,
-                    &anchors,
-                    &intermediates,
-                    time,
-                    &ExtendedKeyUsage::SERVER_AUTH,
-                    crls.map(|l| revocation_options_for_test(l)),
-                    None,
-                )
-                .is_ok()
-            );
+            let builder = PathBuilder::new(
+                &ExtendedKeyUsage::SERVER_AUTH,
+                ALL_VERIFICATION_ALGS,
+                &anchors,
+            )
+            .with_intermediate_certs(&intermediates);
+
+            let builder = match crls {
+                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
+                None => builder,
+            };
+
+            assert!(builder.build(&cert, time).is_ok());
         }
 
         for &crls in &[&intermediates_crls, &all_crls] {
+            let builder = PathBuilder::new(
+                &ExtendedKeyUsage::SERVER_AUTH,
+                ALL_VERIFICATION_ALGS,
+                &anchors,
+            )
+            .with_intermediate_certs(&intermediates)
+            .with_revocation(revocation_options_for_test(crls));
+
             assert!(
-                cert.verify_for_usage(
-                    ALL_VERIFICATION_ALGS,
-                    &anchors,
-                    &intermediates,
-                    time,
-                    &ExtendedKeyUsage::SERVER_AUTH,
-                    Some(revocation_options_for_test(crls)),
-                    None,
-                )
-                .is_err_and(|e| matches!(e, webpki::Error::CertRevoked))
+                builder
+                    .build(&cert, time)
+                    .is_err_and(|e| matches!(e, webpki::Error::CertRevoked))
             );
         }
     }
 
     for &(cert, _dns_name) in expired_certs {
+        let builder = PathBuilder::new(
+            &ExtendedKeyUsage::SERVER_AUTH,
+            ALL_VERIFICATION_ALGS,
+            &anchors,
+        )
+        .with_intermediate_certs(&intermediates);
+
         let cert = CertificateDer::from(cert);
         let cert = EndEntityCert::try_from(&cert).unwrap();
-
         assert!(
-            cert.verify_for_usage(
-                ALL_VERIFICATION_ALGS,
-                &anchors,
-                &intermediates,
-                time,
-                &ExtendedKeyUsage::SERVER_AUTH,
-                None,
-                None,
-            )
-            .is_err_and(|e| matches!(e, webpki::Error::CertExpired { .. }))
+            builder
+                .build(&cert, time)
+                .is_err_and(|e| matches!(e, webpki::Error::CertExpired { .. }))
         );
     }
 }

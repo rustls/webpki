@@ -21,7 +21,7 @@ use rcgen::{
     DistinguishedName, DnType, GeneralSubtree, IsCa, KeyPair, NameConstraints, SanType,
     date_time_ymd,
 };
-use webpki::{ExtendedKeyUsage, InvalidNameContext, anchor_from_trusted_cert};
+use webpki::{ExtendedKeyUsage, InvalidNameContext, PathBuilder, anchor_from_trusted_cert};
 
 mod common;
 use common::issuer_params;
@@ -36,19 +36,16 @@ fn check_cert(
 ) -> Result<(), webpki::Error> {
     let ca_cert_der = CertificateDer::from(ca);
     let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
+    let builder = PathBuilder::new(
+        &ExtendedKeyUsage::SERVER_AUTH,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
 
     let ee_der = CertificateDer::from(ee);
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
     let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
-    cert.verify_for_usage(
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-        &anchors,
-        &[],
-        time,
-        &ExtendedKeyUsage::SERVER_AUTH,
-        None,
-        None,
-    )?;
+    builder.build(&cert, time)?;
 
     for valid in valid_names {
         let name = ServerName::try_from(*valid).unwrap();
