@@ -32,7 +32,7 @@ use crate::{public_values_eq, subject_name};
 
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
 // the `VerifiedPath`.
-pub(crate) struct ChainOptions<'a, 'p> {
+pub(crate) struct PathBuilder<'a, 'p> {
     pub(crate) eku: &'a dyn ExtendedKeyUsageValidator,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
@@ -42,7 +42,7 @@ pub(crate) struct ChainOptions<'a, 'p> {
     pub(crate) verify_path: Option<&'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
 }
 
-impl<'a, 'p: 'a> ChainOptions<'a, 'p> {
+impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     pub(crate) fn build_chain(
         &self,
         end_entity: &'p EndEntityCert<'p>,
@@ -1366,7 +1366,7 @@ mod tests {
 
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
-        let opts = ChainOptions {
+        let opts = PathBuilder {
             eku: &ExtendedKeyUsage::server_auth(),
             supported_sig_algs: rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
             trust_anchors,
