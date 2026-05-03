@@ -86,16 +86,6 @@ fn evaluate_testcase(tc: &Testcase, exceptions: &HashMap<String, Exception>) -> 
 
 /// Run validation and return Ok(()) on success, or an error message on failure
 fn run_validation(tc: &Testcase) -> Result<(), String> {
-    let leaf_der = cert_der_from_pem(&tc.peer_certificate);
-    let leaf =
-        EndEntityCert::try_from(&leaf_der).map_err(|e| format!("leaf cert parse failed: {e}"))?;
-
-    let intermediates = tc
-        .untrusted_intermediates
-        .iter()
-        .map(|ic| cert_der_from_pem(ic))
-        .collect::<Vec<_>>();
-
     let trust_anchor_ders = tc
         .trusted_certs
         .iter()
@@ -111,13 +101,11 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         return Err("trust anchor extraction failed".into());
     }
 
-    let validation_time = UnixTime::since_unix_epoch(
-        (tc.validation_time.unwrap_or_else(Utc::now) - DateTime::UNIX_EPOCH)
-            .to_std()
-            .expect("invalid validation time!"),
-    );
-
-    let sig_algs = rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
+    let intermediates = tc
+        .untrusted_intermediates
+        .iter()
+        .map(|ic| cert_der_from_pem(ic))
+        .collect::<Vec<_>>();
 
     let crls = tc
         .crls
@@ -144,8 +132,18 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         None
     };
 
+    let leaf_der = cert_der_from_pem(&tc.peer_certificate);
+    let leaf =
+        EndEntityCert::try_from(&leaf_der).map_err(|e| format!("leaf cert parse failed: {e}"))?;
+
+    let validation_time = UnixTime::since_unix_epoch(
+        (tc.validation_time.unwrap_or_else(Utc::now) - DateTime::UNIX_EPOCH)
+            .to_std()
+            .expect("invalid validation time!"),
+    );
+
     leaf.verify_for_usage(
-        sig_algs,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
         &trust_anchors,
         &intermediates[..],
         validation_time,
