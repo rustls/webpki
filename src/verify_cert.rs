@@ -43,7 +43,7 @@ pub(crate) struct PathBuilder<'a, 'p> {
 }
 
 impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
-    pub(crate) fn build_chain(
+    pub(crate) fn build(
         &self,
         end_entity: &'p EndEntityCert<'p>,
         time: UnixTime,
