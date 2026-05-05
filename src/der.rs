@@ -388,6 +388,11 @@ pub(crate) fn bit_string_flags(input: untrusted::Input<'_>) -> Result<BitStringF
                     return Err(Error::BadDer);
                 }
 
+                // ITU X690-0207 11.2.2: Trailing zero bytes aren't allowed.
+                if *last == 0 {
+                    return Err(Error::BadDer);
+                }
+
                 Ok(BitStringFlags { raw_bits })
             }
 
