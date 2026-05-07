@@ -71,11 +71,11 @@ name = "webpki"
 
 [features]
 default = ["std"]
-alloc = ["ring?/alloc", "pki-types/alloc"]
+alloc = ["pki-types/alloc"]
 aws-lc-rs-unstable = ["aws-lc-rs", "aws-lc-rs/unstable"]
 aws-lc-rs = ["dep:aws-lc-rs", "aws-lc-rs/aws-lc-sys", "aws-lc-rs/prebuilt-nasm"]
 aws-lc-rs-fips = ["dep:aws-lc-rs", "aws-lc-rs/fips"]
-ring = ["dep:ring"]
+ring = ["dep:ring", "ring/alloc", "alloc"]
 std = ["alloc", "pki-types/std"]
 
 [dependencies]
