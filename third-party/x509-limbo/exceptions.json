@@ -9,11 +9,6 @@
     "actual": "FAILURE",
     "reason": "webpki does not support self-signed certificates"
   },
-  "rfc5280::nc::permitted-dn-match": {
-    "expected": "SUCCESS",
-    "actual": "FAILURE",
-    "reason": "webpki does not support DirectoryName name constraints"
-  },
   "rfc5280::nc::permitted-self-issued": {
     "expected": "SUCCESS",
     "actual": "FAILURE",
