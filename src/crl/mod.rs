@@ -130,13 +130,35 @@ impl RevocationOptions<'_> {
             return Ok(None);
         }
 
-        let crl = self
-            .crls
-            .iter()
-            .find(|candidate_crl| candidate_crl.authoritative(path));
+        let mut best_crl: Option<&CertRevocationList<'_>> = None;
+
+        for crl in self.crls.iter().copied() {
+            if !crl.authoritative(path) {
+                continue;
+            }
+
+            if !crl.has_crl_number() {
+                // From RFC 5280, Section 5.2.3:
+                //    CRL issuers conforming to this profile MUST include this extension in all
+                //    CRLs and MUST mark this extension as non-critical.
+                // We therefore skip this CRL as invalid.
+                continue;
+            }
+
+            if best_crl
+                .is_none_or(|best| best.same_scope_as(crl) && crl.has_newer_crl_number_than(best))
+            {
+                // Note that once we find a CRL with an applicable scope, we skip any CRLs with
+                // different, but also applicable scopes. See [`CertRevocationList::authoritative`]
+                // for scenarios when that would happen.
+                // TODO(amichalik): optionally check all the scopes. This would require O(n^2)
+                // algorithm in no-alloc scenario, I think.
+                best_crl = Some(crl);
+            }
+        }
 
         use UnknownStatusPolicy::*;
-        let crl = match (crl, self.status_policy) {
+        let crl = match (best_crl, self.status_policy) {
             (Some(crl), _) => crl,
             // If the policy allows unknown, return Ok(None) to indicate that the certificate
             // was not confirmed as CertNotRevoked, but that this isn't an error condition.
