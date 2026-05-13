@@ -18,6 +18,7 @@ use pki_types::{CertificateDer, ServerName, SignatureVerificationAlgorithm};
 
 use crate::error::Error;
 use crate::subject_name::{verify_dns_names, verify_ip_address_names};
+use crate::x509::{ExtensionId, UnknownExtensionPolicy};
 use crate::{cert, sct, signed_data};
 
 /// An end-entity certificate.
@@ -64,6 +65,35 @@ impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
     fn try_from(cert: &'a CertificateDer<'a>) -> Result<Self, Self::Error> {
         Ok(Self {
             inner: cert::Cert::from_der(untrusted::Input::from(cert.as_ref()))?,
+        })
+    }
+}
+
+impl<'a> EndEntityCert<'a> {
+    /// Parse the ASN.1 DER-encoded X.509 encoding of the certificate, ignoring the
+    /// listed unsupported critical extensions.
+    ///
+    /// By default, webpki rejects certificates containing unsupported critical extensions,
+    /// as required by RFC 5280. This constructor is an opt-in escape hatch for applications
+    /// that understand the listed unsupported extensions and want webpki to accept them when
+    /// they are marked critical.
+    /// The `ignored_critical_extensions` values are DER OBJECT IDENTIFIER value bytes, without
+    /// the OBJECT IDENTIFIER tag or length.
+    ///
+    /// Supported extensions are still processed normally. Listing a supported extension here does
+    /// not disable validation of its value. This constructor only applies the policy when parsing
+    /// this end-entity certificate. Use
+    /// [`PathBuilder::with_ignored_critical_extensions`](crate::PathBuilder::with_ignored_critical_extensions)
+    /// to apply the same policy when parsing intermediate certificates during path building.
+    pub fn try_from_with_ignored_critical_extensions(
+        cert: &'a CertificateDer<'a>,
+        ignored_critical_extensions: &[ExtensionId<'_>],
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            inner: cert::Cert::from_der_with_extension_policy(
+                untrusted::Input::from(cert.as_ref()),
+                UnknownExtensionPolicy::AllowUnsupportedCritical(ignored_critical_extensions),
+            )?,
         })
     }
 }
