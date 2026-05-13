@@ -2,7 +2,7 @@
 use alloc::collections::BTreeMap;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
-use core::fmt::Debug;
+use core::{cmp::Ordering, fmt::Debug};
 
 use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
@@ -79,6 +79,22 @@ impl CertRevocationList<'_> {
         }
     }
 
+    pub(crate) fn same_scope_as(&self, other: &Self) -> bool {
+        self.issuer() == other.issuer()
+            && self.issuing_distribution_point() == other.issuing_distribution_point()
+    }
+
+    pub(crate) fn has_crl_number(&self) -> bool {
+        self.crl_number().is_some()
+    }
+
+    pub(crate) fn has_newer_crl_number_than(&self, other: &Self) -> bool {
+        match (self.crl_number(), other.crl_number()) {
+            (Some(left), Some(right)) => crl_number_cmp(left, right).is_gt(),
+            _ => false,
+        }
+    }
+
     /// Returns true if the CRL can be considered authoritative for the given certificate.
     ///
     /// A CRL is considered authoritative for a certificate when:
@@ -144,11 +160,7 @@ impl CertRevocationList<'_> {
 
     /// Checks the verification time is before the time in the CRL nextUpdate field.
     pub(crate) fn check_expiration(&self, time: UnixTime) -> Result<(), Error> {
-        let next_update = match self {
-            #[cfg(feature = "alloc")]
-            CertRevocationList::Owned(crl) => crl.next_update,
-            CertRevocationList::Borrowed(crl) => crl.next_update,
-        };
+        let next_update = self.next_update();
 
         if time >= next_update {
             return Err(Error::CrlExpired { time, next_update });
@@ -156,6 +168,28 @@ impl CertRevocationList<'_> {
 
         Ok(())
     }
+
+    fn next_update(&self) -> UnixTime {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.next_update,
+            CertRevocationList::Borrowed(crl) => crl.next_update,
+        }
+    }
+
+    fn crl_number(&self) -> Option<&[u8]> {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => crl.crl_number.as_deref(),
+            CertRevocationList::Borrowed(crl) => crl
+                .crl_number
+                .map(|crl_number| crl_number.as_slice_less_safe()),
+        }
+    }
+}
+
+fn crl_number_cmp(left: &[u8], right: &[u8]) -> Ordering {
+    left.len().cmp(&right.len()).then_with(|| left.cmp(right))
 }
 
 /// Owned representation of a RFC 5280[^1] profile Certificate Revocation List (CRL).
@@ -175,6 +209,8 @@ pub struct OwnedCertRevocationList {
     signed_data: OwnedSignedData,
 
     next_update: UnixTime,
+
+    crl_number: Option<Vec<u8>>,
 }
 
 #[cfg(feature = "alloc")]
@@ -225,6 +261,8 @@ pub struct BorrowedCertRevocationList<'a> {
     revoked_certs: untrusted::Input<'a>,
 
     next_update: UnixTime,
+
+    crl_number: Option<untrusted::Input<'a>>,
 }
 
 impl<'a> BorrowedCertRevocationList<'a> {
@@ -263,6 +301,9 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 .map(|idp| idp.as_slice_less_safe().to_vec()),
             revoked_certs,
             next_update: self.next_update,
+            crl_number: self
+                .crl_number
+                .map(|crl_number| crl_number.as_slice_less_safe().to_vec()),
         })
     }
 
@@ -278,18 +319,16 @@ impl<'a> BorrowedCertRevocationList<'a> {
                     //   up to 20 octets.  Conforming CRL issuers MUST NOT use CRLNumber
                     //   values longer than 20 octets.
                     //
-                    extension.value.read_all(Error::InvalidCrlNumber, |der| {
-                        let crl_number = der::nonnegative_integer(der)
-                            .map_err(|_| Error::InvalidCrlNumber)?
-                            .as_slice_less_safe();
-                        if crl_number.len() <= 20 {
+                    let crl_number = extension.value.read_all(Error::InvalidCrlNumber, |der| {
+                        let crl_number =
+                            der::nonnegative_integer(der).map_err(|_| Error::InvalidCrlNumber)?;
+                        if crl_number.as_slice_less_safe().len() <= 20 {
                             Ok(crl_number)
                         } else {
                             Err(Error::InvalidCrlNumber)
                         }
                     })?;
-                    // We enforce the cRLNumber is sensible, but don't retain the value for use.
-                    Ok(())
+                    set_extension_once(&mut self.crl_number, || Ok(crl_number))
                 }
 
                 // id-ce-deltaCRLIndicator 2.5.29.27 - RFC 5280 §5.2.4
@@ -408,6 +447,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
                 revoked_certs,
                 issuing_distribution_point: None,
                 next_update,
+                crl_number: None,
             };
 
             // RFC 5280 §5.1.2.7:
@@ -473,6 +513,7 @@ impl core::hash::Hash for BorrowedCertRevocationList<'_> {
             issuing_distribution_point,
             revoked_certs,
             next_update,
+            crl_number,
         } = self;
         signed_data.hash(state);
         issuer.as_slice_less_safe().hash(state);
@@ -481,6 +522,9 @@ impl core::hash::Hash for BorrowedCertRevocationList<'_> {
             .hash(state);
         revoked_certs.as_slice_less_safe().hash(state);
         next_update.hash(state);
+        crl_number
+            .map(|crl_number| crl_number.as_slice_less_safe())
+            .hash(state);
     }
 }
 
