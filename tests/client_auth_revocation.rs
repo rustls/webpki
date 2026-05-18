@@ -50,8 +50,9 @@ fn check_cert(
         .map(|cert| CertificateDer::from(*cert))
         .collect::<Vec<_>>();
 
-    let builder = PathBuilder::new(&ExtendedKeyUsage::CLIENT_AUTH, ALGS, anchors)
-        .with_intermediate_certs(&intermediates);
+    let builder = PathBuilder::new(ALGS, anchors)
+        .with_intermediate_certs(&intermediates)
+        .with_eku_validator(&ExtendedKeyUsage::CLIENT_AUTH);
 
     let builder = match revocation {
         Some(crls) => builder.with_revocation(crls),

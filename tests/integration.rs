@@ -19,7 +19,7 @@ use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
 use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::sct::LogIdAndTimestamp;
-use webpki::{ExtendedKeyUsage, PathBuilder, anchor_from_trusted_cert};
+use webpki::{PathBuilder, anchor_from_trusted_cert};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
@@ -32,12 +32,8 @@ fn netflix() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    let builder =
+        PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors).with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_492_441_716)); // 2017-04-17T15:08:36Z
     let ee = CertificateDer::from(ee);
@@ -55,12 +51,8 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    let builder =
+        PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors).with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_746_549_566)); // 2025-05-06T17:39:26Z
     let ee = CertificateDer::from(ee);
@@ -80,12 +72,8 @@ fn cloudflare_dns() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    let builder =
+        PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors).with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_663_495_771));
     let ee = CertificateDer::from(ee);
@@ -130,11 +118,7 @@ fn wpt() {
     let ca = CertificateDer::from(&include_bytes!("wpt/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    );
+    let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_619_256_684)); // 2021-04-24T09:31:24Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
@@ -147,11 +131,7 @@ fn ed25519() {
     let ca = CertificateDer::from(&include_bytes!("ed25519/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    );
+    let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_547_363_522)); // 2019-01-13T07:12:02Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
@@ -166,12 +146,8 @@ fn critical_extensions() {
 
     let anchors = [anchor_from_trusted_cert(&root).unwrap()];
     let intermediates = &[ca];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    let builder =
+        PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors).with_intermediate_certs(intermediates);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
     let ee = CertificateDer::from(
@@ -214,11 +190,7 @@ fn read_ee_with_neg_serial() {
     let ee = CertificateDer::from(&include_bytes!("misc/serial_neg_ee.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    );
+    let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors);
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_667_401_500)); // 2022-11-02T15:05:00Z
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
@@ -379,12 +351,8 @@ fn cert_time_validity() {
     let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        ALL_VERIFICATION_ALGS,
-        &anchors,
-    )
-    .with_intermediate_certs(slice::from_ref(&inter));
+    let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors)
+        .with_intermediate_certs(slice::from_ref(&inter));
 
     let not_before = UnixTime::since_unix_epoch(Duration::from_secs(1_478_563_200));
     let not_after = UnixTime::since_unix_epoch(Duration::from_secs(1_541_203_199));

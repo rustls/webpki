@@ -6,9 +6,8 @@ use core::time::Duration;
 use pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls_aws_lc_rs::ALL_VERIFICATION_ALGS;
 use webpki::{
-    CertRevocationList, EndEntityCert, ExtendedKeyUsage, OwnedCertRevocationList, PathBuilder,
-    RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy,
-    anchor_from_trusted_cert,
+    CertRevocationList, EndEntityCert, OwnedCertRevocationList, PathBuilder, RevocationCheckDepth,
+    RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy, anchor_from_trusted_cert,
 };
 
 fn revocation_options_for_test<'a>(
@@ -236,12 +235,8 @@ pub fn amazon() {
             Some(&intermediates_crls),
             Some(&all_crls),
         ] {
-            let builder = PathBuilder::new(
-                &ExtendedKeyUsage::SERVER_AUTH,
-                ALL_VERIFICATION_ALGS,
-                &anchors,
-            )
-            .with_intermediate_certs(&intermediates);
+            let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors)
+                .with_intermediate_certs(&intermediates);
 
             let builder = match crls {
                 Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
@@ -250,12 +245,8 @@ pub fn amazon() {
 
             assert!(builder.build(&cert, time).is_ok());
 
-            let builder = PathBuilder::new(
-                &ExtendedKeyUsage::SERVER_AUTH,
-                ALL_VERIFICATION_ALGS,
-                &legacy_anchors,
-            )
-            .with_intermediate_certs(&intermediates_legacy);
+            let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &legacy_anchors)
+                .with_intermediate_certs(&intermediates_legacy);
 
             let builder = match crls {
                 Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
@@ -264,12 +255,8 @@ pub fn amazon() {
 
             assert!(builder.build(&cert, time).is_ok());
 
-            let builder = PathBuilder::new(
-                &ExtendedKeyUsage::SERVER_AUTH,
-                ALL_VERIFICATION_ALGS,
-                &all_anchors,
-            )
-            .with_intermediate_certs(&intermediates_legacy);
+            let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &all_anchors)
+                .with_intermediate_certs(&intermediates_legacy);
 
             let builder = match crls {
                 Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
@@ -278,12 +265,8 @@ pub fn amazon() {
 
             assert!(builder.build(&cert, time).is_ok());
 
-            let builder = PathBuilder::new(
-                &ExtendedKeyUsage::SERVER_AUTH,
-                ALL_VERIFICATION_ALGS,
-                &all_anchors,
-            )
-            .with_intermediate_certs(&intermediates_legacy);
+            let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &all_anchors)
+                .with_intermediate_certs(&intermediates_legacy);
 
             let builder = match crls {
                 Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
@@ -301,12 +284,8 @@ pub fn amazon() {
         let cert = EndEntityCert::try_from(&cert).unwrap();
 
         for &crls in &[None, Some(&roots_crls)] {
-            let builder = PathBuilder::new(
-                &ExtendedKeyUsage::SERVER_AUTH,
-                ALL_VERIFICATION_ALGS,
-                &anchors,
-            )
-            .with_intermediate_certs(&intermediates);
+            let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors)
+                .with_intermediate_certs(&intermediates);
 
             let builder = match crls {
                 Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
@@ -317,13 +296,9 @@ pub fn amazon() {
         }
 
         for &crls in &[&intermediates_crls, &all_crls] {
-            let builder = PathBuilder::new(
-                &ExtendedKeyUsage::SERVER_AUTH,
-                ALL_VERIFICATION_ALGS,
-                &anchors,
-            )
-            .with_intermediate_certs(&intermediates)
-            .with_revocation(revocation_options_for_test(crls));
+            let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors)
+                .with_intermediate_certs(&intermediates)
+                .with_revocation(revocation_options_for_test(crls));
 
             assert!(
                 builder
@@ -334,12 +309,8 @@ pub fn amazon() {
     }
 
     for &(cert, _dns_name) in expired_certs {
-        let builder = PathBuilder::new(
-            &ExtendedKeyUsage::SERVER_AUTH,
-            ALL_VERIFICATION_ALGS,
-            &anchors,
-        )
-        .with_intermediate_certs(&intermediates);
+        let builder = PathBuilder::new(ALL_VERIFICATION_ALGS, &anchors)
+            .with_intermediate_certs(&intermediates);
 
         let cert = CertificateDer::from(cert);
         let cert = EndEntityCert::try_from(&cert).unwrap();

@@ -14,7 +14,8 @@ fn check_cert(
 ) {
     let ca = CertificateDer::from(ca);
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
-    let builder = PathBuilder::new(eku, rustls_aws_lc_rs::ALL_VERIFICATION_ALGS, &anchors);
+    let builder =
+        PathBuilder::new(rustls_aws_lc_rs::ALL_VERIFICATION_ALGS, &anchors).with_eku_validator(eku);
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();

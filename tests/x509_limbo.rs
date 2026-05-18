@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use pki_types::pem::PemObject;
 use pki_types::{CertificateDer, CertificateRevocationListDer, ServerName, UnixTime};
 use webpki::{
-    EndEntityCert, ExpirationPolicy, ExtendedKeyUsage, OwnedCertRevocationList, PathBuilder,
-    RevocationCheckDepth, RevocationOptionsBuilder, UnknownStatusPolicy, anchor_from_trusted_cert,
+    EndEntityCert, ExpirationPolicy, OwnedCertRevocationList, PathBuilder, RevocationCheckDepth,
+    RevocationOptionsBuilder, UnknownStatusPolicy, anchor_from_trusted_cert,
 };
 
 #[ignore] // Runs slower than other unit tests - opt-in with `cargo test -- --include-ignored`
@@ -107,12 +107,8 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .map(|ic| cert_der_from_pem(ic))
         .collect::<Vec<_>>();
 
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-        &trust_anchors,
-    )
-    .with_intermediate_certs(&intermediates);
+    let builder = PathBuilder::new(rustls_aws_lc_rs::ALL_VERIFICATION_ALGS, &trust_anchors)
+        .with_intermediate_certs(&intermediates);
 
     let crls = tc
         .crls
