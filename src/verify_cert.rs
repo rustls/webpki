@@ -54,12 +54,11 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     ///   public key is not validated against this list.
     /// * `trust_anchors` is the list of root CAs to trust in the built path.
     pub fn new(
-        eku: &'p dyn ExtendedKeyUsageValidator,
         supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
         trust_anchors: &'p [TrustAnchor<'p>],
     ) -> Self {
         Self {
-            eku,
+            eku: &ExtendedKeyUsage::SERVER_AUTH,
             supported_sig_algs,
             trust_anchors,
             intermediate_certs: &[],
@@ -73,6 +72,15 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     /// These should be sent by the peer. Defaults to empty.
     pub fn with_intermediate_certs(mut self, intermediate_certs: &'p [CertificateDer<'p>]) -> Self {
         self.intermediate_certs = intermediate_certs;
+        self
+    }
+
+    /// Set the extended key usage validator to use for path building.
+    ///
+    /// Defaults to [`ExtendedKeyUsage::SERVER_AUTH`], which requires the certificate to have the
+    /// EKU for server authentication if it has any EKUs.
+    pub fn with_eku_validator(mut self, eku: &'a dyn ExtendedKeyUsageValidator) -> Self {
+        self.eku = eku;
         self
     }
 
@@ -1422,12 +1430,8 @@ mod tests {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
 
-        let builder = PathBuilder::new(
-            &ExtendedKeyUsage::SERVER_AUTH,
-            rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-            trust_anchors,
-        )
-        .with_intermediate_certs(intermediate_certs);
+        let builder = PathBuilder::new(rustls_aws_lc_rs::ALL_VERIFICATION_ALGS, trust_anchors)
+            .with_intermediate_certs(intermediate_certs);
         let builder = match verify_path {
             Some(verify) => builder.with_path_verification(verify),
             None => builder,
