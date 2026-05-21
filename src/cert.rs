@@ -292,7 +292,7 @@ fn version3(input: &mut untrusted::Reader<'_>) -> Result<(), Error> {
 pub(crate) fn lenient_certificate_serial_number<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<untrusted::Input<'a>, Error> {
-    // https://tools.ietf.org/html/rfc5280#section-4.1.2.2:
+    // https://www.rfc-editor.org/info/rfc5280/#section-4.1.2.2:
     // * Conforming CAs MUST NOT use serialNumber values longer than 20 octets."
     // * "The serial number MUST be a positive integer [...]"
     //

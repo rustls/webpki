@@ -55,7 +55,7 @@ pub fn spki_for_anchor(anchor: &TrustAnchor<'_>) -> SubjectPublicKeyInfoDer<'sta
 fn extract_trust_anchor_from_v1_cert_der(
     cert_der: untrusted::Input<'_>,
 ) -> Result<TrustAnchor<'_>, Error> {
-    // X.509 Certificate: https://tools.ietf.org/html/rfc5280#section-4.1.
+    // X.509 Certificate: https://www.rfc-editor.org/info/rfc5280/#section-4.1.
     cert_der.read_all(Error::BadDer, |cert_der| {
         der::nested(
             cert_der,

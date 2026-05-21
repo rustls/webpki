@@ -76,8 +76,8 @@ pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Resu
 /// `<x>*<y>.<DNSID>`, where `<x>` and/or `<y>` may be empty, we follow a stricter policy common
 /// to most validation libraries (e.g. NSS) and only accept wildcard labels that are exactly `*`.
 ///
-/// [RFC 5280 Section 7.2]: https://tools.ietf.org/html/rfc5280#section-7.2
-/// [RFC 6125 Section 4.1]: https://www.rfc-editor.org/rfc/rfc6125#section-4.1
+/// [RFC 5280 Section 7.2]: https://www.rfc-editor.org/info/rfc5280/#section-7.2
+/// [RFC 6125 Section 4.1]: https://www.rfc-editor.org/info/rfc6125/#section-4.1
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub(crate) struct WildcardDnsNameRef<'a>(&'a [u8]);
 
@@ -387,7 +387,7 @@ pub(super) enum IdRole {
     NameConstraint(Subtrees),
 }
 
-// https://tools.ietf.org/html/rfc5280#section-4.2.1.6:
+// https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.6:
 //
 //   When the subjectAltName extension contains a domain name system
 //   label, the domain name MUST be stored in the dNSName (an IA5String).

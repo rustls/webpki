@@ -28,7 +28,7 @@ pub(crate) use dns_name::{WildcardDnsNameRef, verify_dns_names};
 mod ip_address;
 pub(crate) use ip_address::verify_ip_address_names;
 
-// https://tools.ietf.org/html/rfc5280#section-4.2.1.10
+// https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.10
 pub(crate) fn check_name_constraints(
     constraints: Option<&mut untrusted::Reader<'_>>,
     path: &PathNode<'_>,
@@ -113,7 +113,7 @@ fn check_presented_id_conforms_to_constraints(
                 return Some(Err(e));
             }
 
-            // http://tools.ietf.org/html/rfc5280#section-4.2.1.10: "Within this
+            // https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.10: "Within this
             // profile, the minimum and maximum fields are not used with any name
             // forms, thus, the minimum MUST be zero, and maximum MUST be absent."
             //

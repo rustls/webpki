@@ -454,7 +454,7 @@ fn check_eku(
     }
 }
 
-// https://tools.ietf.org/html/rfc5280#section-4.1.2.5
+// https://www.rfc-editor.org/info/rfc5280/#section-4.1.2.5
 fn check_validity(input: &mut untrusted::Reader<'_>, time: UnixTime) -> Result<(), Error> {
     let not_before = UnixTime::from_der(input)?;
     let not_after = UnixTime::from_der(input)?;
@@ -476,7 +476,7 @@ fn check_validity(input: &mut untrusted::Reader<'_>, time: UnixTime) -> Result<(
     Ok(())
 }
 
-// https://tools.ietf.org/html/rfc5280#section-4.2.1.9
+// https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.9
 fn check_basic_constraints(
     input: Option<&mut untrusted::Reader<'_>>,
     role: Role,
@@ -624,7 +624,7 @@ impl ExtendedKeyUsage {
 }
 
 impl ExtendedKeyUsageValidator for ExtendedKeyUsage {
-    // https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+    // https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.12
     fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error> {
         let mut empty = true;
         #[cfg(feature = "alloc")]
