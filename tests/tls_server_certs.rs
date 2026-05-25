@@ -686,14 +686,27 @@ fn uri_name_constraints(uri: &[u8], subtrees_tag: u8) -> CustomExtension {
 }
 
 #[test]
-fn permit_directory_name_not_implemented() {
+fn permit_directory_name_match() {
+    // Constraint = [CN] is a prefix of EE = [CN, O=test].
     let mut dn = DistinguishedName::new();
-    dn.push(DnType::CountryName, "CN");
+    dn.push(DnType::CommonName, "subject.example.com");
     let issuer = make_issuer(Some(NameConstraints {
         permitted_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
         excluded_subtrees: vec![],
     }));
-    let ee = generate_cert(vec![], &issuer);
+    let ee = generate_cert_with_names(Some("subject.example.com"), None, vec![], &issuer);
+    assert_eq!(check_cert(ee.der(), issuer.der(), &[], &[], &[]), Ok(()));
+}
+
+#[test]
+fn permit_directory_name_no_match() {
+    let mut dn = DistinguishedName::new();
+    dn.push(DnType::CommonName, "different value");
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
+        excluded_subtrees: vec![],
+    }));
+    let ee = generate_cert_with_names(Some("subject.example.com"), None, vec![], &issuer);
     assert_eq!(
         check_cert(ee.der(), issuer.der(), &[], &[], &[]),
         Err(webpki::Error::NameConstraintViolation)
@@ -701,17 +714,70 @@ fn permit_directory_name_not_implemented() {
 }
 
 #[test]
-fn exclude_directory_name_not_implemented() {
+fn exclude_directory_name_match() {
     let mut dn = DistinguishedName::new();
-    dn.push(DnType::CountryName, "CN");
+    dn.push(DnType::CommonName, "subject.example.com");
     let issuer = make_issuer(Some(NameConstraints {
         permitted_subtrees: vec![],
         excluded_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
     }));
-    let ee = generate_cert(vec![], &issuer);
+    let ee = generate_cert_with_names(Some("subject.example.com"), None, vec![], &issuer);
     assert_eq!(
         check_cert(ee.der(), issuer.der(), &[], &[], &[]),
         Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
+#[test]
+fn exclude_directory_name_no_match() {
+    let mut dn = DistinguishedName::new();
+    dn.push(DnType::CommonName, "different value");
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![],
+        excluded_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
+    }));
+    let ee = generate_cert_with_names(Some("subject.example.com"), None, vec![], &issuer);
+    assert_eq!(check_cert(ee.der(), issuer.der(), &[], &[], &[]), Ok(()));
+}
+
+#[test]
+fn permit_directory_name_exact_match() {
+    // Constraint matches the entire EE DN, not just a prefix.
+    let mut dn = DistinguishedName::new();
+    dn.push(DnType::CommonName, "subject.example.com");
+    dn.push(DnType::OrganizationName, "test");
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
+        excluded_subtrees: vec![],
+    }));
+    let ee = generate_cert_with_names(Some("subject.example.com"), None, vec![], &issuer);
+    assert_eq!(check_cert(ee.der(), issuer.der(), &[], &[], &[]), Ok(()));
+}
+
+#[test]
+fn permit_directory_name_deeper_subtree() {
+    // Constraint is shorter than EE DN; EE has extra RDN(s) at the tail.
+    let mut dn = DistinguishedName::new();
+    dn.push(DnType::CommonName, "subject.example.com");
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
+        excluded_subtrees: vec![],
+    }));
+    let ee = generate_cert_with_names(
+        Some("subject.example.com"),
+        None,
+        vec![SanType::DnsName("dns.example.com".try_into().unwrap())],
+        &issuer,
+    );
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &["dns.example.com"],
+            &[],
+            &["DnsName(\"dns.example.com\")"]
+        ),
+        Ok(())
     );
 }
 
