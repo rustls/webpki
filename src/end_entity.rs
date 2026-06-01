@@ -99,8 +99,8 @@ impl EndEntityCert<'_> {
     /// of {`ECDSA_P256_SHA256`, `ECDSA_P384_SHA256`}, depending on how the TLS
     /// implementation is configured.
     ///
-    /// For current TLS 1.3 drafts, `signature_alg` corresponds to TLS's
-    /// `algorithm` fields of type `SignatureScheme`. There is (currently) a
+    /// For TLS 1.3 (RFC 8446), `signature_alg` corresponds to TLS's
+    /// `algorithm` field of type `SignatureScheme`. There is (currently) a
     /// one-to-one correspondence between TLS 1.3's `SignatureScheme` and
     /// `SignatureVerificationAlgorithm`.
     pub fn verify_signature(
