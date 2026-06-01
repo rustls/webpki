@@ -511,7 +511,7 @@ fn check_basic_constraints(
     }
 }
 
-/// Additional context for the `RequiredEkuNotFoundContext` error variant.
+/// Additional context for the [`Error::RequiredEkuNotFound`] error variant.
 ///
 /// The contents of this type depend on whether the `alloc` feature is enabled.
 #[derive(Clone, PartialEq, Eq)]
@@ -660,7 +660,7 @@ pub trait ExtendedKeyUsageValidator {
     /// `iter` yields the EKU OIDs in the certificate, or an error if the EKU extension
     /// is malformed. `validate()` should yield `Ok(())` if the EKU values match the
     /// required policy, or an `Error` if they do not. Ideally the `Error` should be
-    /// `Error::RequiredEkuNotFoundContext` if the policy is not met.
+    /// `Error::RequiredEkuNotFound` if the policy is not met.
     fn validate(&self, iter: KeyPurposeIdIter<'_, '_>) -> Result<(), Error>;
 }
 
