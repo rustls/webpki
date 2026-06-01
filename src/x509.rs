@@ -80,7 +80,7 @@ pub(crate) enum UnknownExtensionPolicy {
 }
 
 /// A certificate revocation list (CRL) distribution point name, describing a source of
-/// CRL information for a given certificate as described in RFC 5280 section 4.2.3.13[^1].
+/// CRL information for a given certificate as described in RFC 5280 section 4.2.1.13[^1].
 ///
 /// [^1]: <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.13>
 pub(crate) enum DistributionPointName<'a> {
