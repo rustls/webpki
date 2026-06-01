@@ -92,7 +92,7 @@ impl From<Tag> for u8 {
     #[expect(clippy::as_conversions)]
     fn from(tag: Tag) -> Self {
         tag as Self
-    } // XXX: narrowing conversion.
+    }
 }
 
 #[inline(always)]
