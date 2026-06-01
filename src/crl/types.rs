@@ -296,7 +296,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 // We explicitly do not support delta CRLs.
                 Standard(27) => Err(Error::UnsupportedDeltaCrl),
 
-                // id-ce-issuingDistributionPoint 2.5.29.28 - RFC 5280 §5.2.4
+                // id-ce-issuingDistributionPoint 2.5.29.28 - RFC 5280 §5.2.5
                 // We recognize the extension and retain its value for use.
                 Standard(28) => {
                     set_extension_once(&mut self.issuing_distribution_point, || Ok(extension.value))
