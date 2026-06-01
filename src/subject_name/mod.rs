@@ -175,7 +175,7 @@ fn check_presented_id_conforms_to_constraints(
                 }),
                 (GeneralName::UniformResourceIdentifier(_), _) => continue,
 
-                // RFC 4280 says "If a name constraints extension that is marked as
+                // RFC 5280 says "If a name constraints extension that is marked as
                 // critical imposes constraints on a particular name form, and an
                 // instance of that name form appears in the subject field or
                 // subjectAltName extension of a subsequent certificate, then the
