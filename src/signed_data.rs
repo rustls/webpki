@@ -114,8 +114,8 @@ impl<'a> SignedData<'a> {
     /// `tbsCertificate`/`tbsResponseData`; the second component is a `SignedData`
     /// structure that can be passed to `verify_signed_data`.
     ///
-    /// The provided size_limit will enforce the largest possible outermost `SEQUENCE` this
-    /// function will read.
+    /// The provided `size_limit` bounds the size of the
+    /// `tbsCertificate`/`tbsResponseData` `SEQUENCE` this function will read.
     pub(crate) fn from_der(
         der: &mut untrusted::Reader<'a>,
         size_limit: usize,
