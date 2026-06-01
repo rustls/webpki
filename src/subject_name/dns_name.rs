@@ -125,9 +125,9 @@ impl core::fmt::Debug for WildcardDnsNameRef<'_> {
 // 0-127. For example, UTF-8 is OK but UTF-16 is not.
 //
 // RFC6125 says that a wildcard label may be of the form <x>*<y>.<DNSID>, where
-// <x> and/or <y> may be empty. However, NSS requires <y> to be empty, and we
-// follow NSS's stricter policy by accepting wildcards only of the form
-// <x>*.<DNSID>, where <x> may be empty.
+// <x> and/or <y> may be empty. However, we are stricter than NSS and accept
+// wildcards only of the form *.<DNSID>, i.e. a wildcard label that consists
+// solely of '*' (both <x> and <y> empty).
 //
 // An relative presented DNS ID matches both an absolute reference ID and a
 // relative reference ID. Absolute presented DNS IDs are not supported:
