@@ -137,11 +137,11 @@ impl<'a> SignedData<'a> {
     }
 
     /// Verify `signed_data` using the public key in the DER-encoded
-    /// SubjectPublicKeyInfo `spki` using one of the algorithms in
+    /// SubjectPublicKeyInfo `spki_value` using one of the algorithms in
     /// `supported_algorithms`.
     ///
     /// The algorithm is chosen based on the algorithm information encoded in the
-    /// algorithm identifiers in `public_key` and `signed_data.algorithm`. The
+    /// algorithm identifiers in `spki_value` and `signed_data.algorithm`. The
     /// ordering of the algorithms in `supported_algorithms` does not really matter,
     /// but generally more common algorithms should go first, as it is scanned
     /// linearly for matches.
@@ -154,13 +154,13 @@ impl<'a> SignedData<'a> {
         budget.consume_signature()?;
 
         // We need to verify the signature in `signed_data` using the public key
-        // in `public_key`. In order to know which *ring* signature verification
-        // algorithm to use, we need to know the public key algorithm (ECDSA,
+        // in `spki_value`. In order to know which `SignatureVerificationAlgorithm`
+        // to use, we need to know the public key algorithm (ECDSA,
         // RSA PKCS#1, etc.), the curve (if applicable), and the digest algorithm.
         // `signed_data` identifies only the public key algorithm and the digest
-        // algorithm, and `public_key` identifies only the public key algorithm and
+        // algorithm, and `spki_value` identifies only the public key algorithm and
         // the curve (if any). Thus, we have to combine information from both
-        // inputs to figure out which `ring::signature::VerificationAlgorithm` to
+        // inputs to figure out which `SignatureVerificationAlgorithm` to
         // use to verify the signature.
         //
         // This is all further complicated by the fact that we don't have any
