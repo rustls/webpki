@@ -2,6 +2,7 @@
 use alloc::collections::BTreeMap;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
+use core::cmp::Ordering;
 use core::fmt::Debug;
 
 use pki_types::{SignatureVerificationAlgorithm, UnixTime};
@@ -155,6 +156,36 @@ impl CertRevocationList<'_> {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn crl_number(&self) -> CrlNumber<'_> {
+        match self {
+            #[cfg(feature = "alloc")]
+            CertRevocationList::Owned(crl) => CrlNumber {
+                value: &crl.crl_number,
+            },
+            CertRevocationList::Borrowed(crl) => CrlNumber {
+                value: crl.crl_number.as_slice_less_safe(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct CrlNumber<'a> {
+    /// Parsed nonnegative INTEGER bytes.
+    /// It has no DER sign padding, and no unnecessary leading zeroes.
+    value: &'a [u8],
+}
+
+impl PartialOrd for CrlNumber<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(
+            self.value
+                .len()
+                .cmp(&other.value.len())
+                .then_with(|| self.value.cmp(other.value)),
+        )
     }
 }
 

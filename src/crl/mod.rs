@@ -130,13 +130,31 @@ impl RevocationOptions<'_> {
             return Ok(None);
         }
 
-        let crl = self
-            .crls
-            .iter()
-            .find(|candidate_crl| candidate_crl.authoritative(path));
+        let mut best_crl: Option<&CertRevocationList<'_>> = None;
+
+        for crl in self.crls.iter().copied() {
+            if !crl.authoritative(path) {
+                continue;
+            }
+
+            let best_so_far = best_crl.get_or_insert(crl);
+
+            // Now check if `crl` supersedes `best_so_far`.
+            // First, check if the scope is the same
+            if crl.issuer() != best_so_far.issuer()
+                || crl.issuing_distribution_point() != best_so_far.issuing_distribution_point()
+            {
+                continue;
+            }
+
+            // Then, check if it has newer CRL number.
+            if crl.crl_number() > best_so_far.crl_number() {
+                best_crl = Some(crl);
+            }
+        }
 
         use UnknownStatusPolicy::*;
-        let crl = match (crl, self.status_policy) {
+        let crl = match (best_crl, self.status_policy) {
             (Some(crl), _) => crl,
             // If the policy allows unknown, return Ok(None) to indicate that the certificate
             // was not confirmed as CertNotRevoked, but that this isn't an error condition.

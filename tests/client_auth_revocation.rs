@@ -26,9 +26,9 @@ use rcgen::{
 #[cfg(feature = "alloc")]
 use webpki::OwnedCertRevocationList;
 use webpki::{
-    BorrowedCertRevocationList, CertRevocationList, ExtendedKeyUsage, PathBuilder,
-    RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, UnknownStatusPolicy,
-    anchor_from_trusted_cert,
+    BorrowedCertRevocationList, CertRevocationList, ExpirationPolicy, ExtendedKeyUsage,
+    PathBuilder, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
+    UnknownStatusPolicy, anchor_from_trusted_cert,
 };
 use x509_parser::oid_registry;
 
@@ -990,7 +990,7 @@ fn ee_revoked_expired_crl() {
         .unwrap()
         .with_depth(RevocationCheckDepth::EndEntity)
         .with_status_policy(UnknownStatusPolicy::Allow)
-        .with_expiration_policy(webpki::ExpirationPolicy::Enforce)
+        .with_expiration_policy(ExpirationPolicy::Enforce)
         .build();
 
     assert!(matches!(
@@ -1002,6 +1002,180 @@ fn ee_revoked_expired_crl() {
         ),
         Err(webpki::Error::CrlExpired { .. })
     ));
+}
+
+#[test]
+fn expired_crl_does_not_shadow_current_crl_when_enforcing_expiration() {
+    let chain = CertChain::no_key_usages("expired_first_enforce");
+    let expired_not_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        SerialNumber::from(0xFFFF),
+        None,
+        0x1FED_F00D - 120,
+        0x1FED_F00D - 60,
+        1,
+    );
+    let current_not_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        SerialNumber::from(0xFFFF),
+        None,
+        0x1FED_F00D - 60,
+        0x1FED_F00D + 60,
+        2,
+    );
+
+    let expired_not_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&expired_not_revoked).unwrap(),
+    );
+    let current_not_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&current_not_revoked).unwrap(),
+    );
+    let crls = &[&expired_not_revoked, &current_not_revoked];
+
+    let revocation = RevocationOptionsBuilder::new(crls)
+        .unwrap()
+        .with_depth(RevocationCheckDepth::EndEntity)
+        .with_status_policy(UnknownStatusPolicy::Allow)
+        .with_expiration_policy(ExpirationPolicy::Enforce)
+        .build();
+
+    assert_eq!(
+        check_cert(
+            chain.ee_cert.der(),
+            &chain.intermediates(),
+            chain.root.der(),
+            Some(revocation),
+        ),
+        Ok(())
+    );
+}
+
+#[test]
+fn expired_crl_does_not_shadow_newer_revocation_when_ignoring_expiration() {
+    let chain = CertChain::no_key_usages("expired_first_ignore");
+    let expired_not_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        SerialNumber::from(0xFFFF),
+        None,
+        0x1FED_F00D - 120,
+        0x1FED_F00D - 60,
+        1,
+    );
+    let current_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        chain.ee_serial.clone(),
+        None,
+        0x1FED_F00D - 60,
+        0x1FED_F00D + 60,
+        2,
+    );
+
+    let expired_not_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&expired_not_revoked).unwrap(),
+    );
+    let current_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&current_revoked).unwrap(),
+    );
+    let crls = &[&expired_not_revoked, &current_revoked];
+
+    let revocation = RevocationOptionsBuilder::new(crls)
+        .unwrap()
+        .with_depth(RevocationCheckDepth::EndEntity)
+        .with_status_policy(UnknownStatusPolicy::Allow)
+        .with_expiration_policy(ExpirationPolicy::Ignore)
+        .build();
+
+    assert_eq!(
+        check_cert(
+            chain.ee_cert.der(),
+            &chain.intermediates(),
+            chain.root.der(),
+            Some(revocation),
+        ),
+        Err(webpki::Error::CertRevoked)
+    );
+}
+
+#[test]
+fn crl_number_in_other_partition_does_not_shadow_revoked_partition() {
+    let chain = CertChain::with_crl_dps("partitioned_crl_order", vec![MATCHING_URI.to_string()]);
+    let other_partition_not_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        SerialNumber::from(0xFFFF),
+        Some(idp(NON_MATCHING_URI)),
+        NOT_BEFORE_SECS,
+        NOT_AFTER_SECS,
+        100,
+    );
+    let revoked_partition = chain.int_a.generate_crl_with_updates_and_number(
+        chain.ee_serial.clone(),
+        Some(idp(MATCHING_URI)),
+        NOT_BEFORE_SECS,
+        NOT_AFTER_SECS,
+        1,
+    );
+
+    let other_partition_not_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&other_partition_not_revoked).unwrap(),
+    );
+    let revoked_partition = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&revoked_partition).unwrap(),
+    );
+    let crls = &[&other_partition_not_revoked, &revoked_partition];
+
+    let revocation = RevocationOptionsBuilder::new(crls)
+        .unwrap()
+        .with_depth(RevocationCheckDepth::EndEntity)
+        .with_status_policy(UnknownStatusPolicy::Allow)
+        .build();
+
+    assert_eq!(
+        check_cert(
+            chain.ee_cert.der(),
+            &chain.intermediates(),
+            chain.root.der(),
+            Some(revocation),
+        ),
+        Err(webpki::Error::CertRevoked)
+    );
+}
+
+#[test]
+fn crl_number_order_uses_integer_value_not_lexicographic_bytes() {
+    let chain = CertChain::no_key_usages("crl_number_order");
+    let crl_255_not_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        SerialNumber::from(0xFFFF),
+        None,
+        NOT_BEFORE_SECS,
+        NOT_AFTER_SECS,
+        0xFF,
+    );
+    let crl_256_revoked = chain.int_a.generate_crl_with_updates_and_number(
+        chain.ee_serial.clone(),
+        None,
+        NOT_BEFORE_SECS,
+        NOT_AFTER_SECS,
+        0x0100,
+    );
+
+    let crl_255_not_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&crl_255_not_revoked).unwrap(),
+    );
+    let crl_256_revoked = CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&crl_256_revoked).unwrap(),
+    );
+    let crls = &[&crl_255_not_revoked, &crl_256_revoked];
+
+    let revocation = RevocationOptionsBuilder::new(crls)
+        .unwrap()
+        .with_depth(RevocationCheckDepth::EndEntity)
+        .with_status_policy(UnknownStatusPolicy::Allow)
+        .build();
+
+    assert_eq!(
+        check_cert(
+            chain.ee_cert.der(),
+            &chain.intermediates(),
+            chain.root.der(),
+            Some(revocation),
+        ),
+        Err(webpki::Error::CertRevoked)
+    );
 }
 
 // Cert has two normal DPs; first doesn't match IDP, second does.
@@ -1312,6 +1486,26 @@ impl Intermediate {
             .into()
     }
 
+    fn generate_crl_with_updates_and_number(
+        &self,
+        serial: SerialNumber,
+        issuing_dp: Option<CrlIssuingDistributionPoint>,
+        this_update_secs: u64,
+        next_update_secs: u64,
+        crl_number: u64,
+    ) -> CertificateRevocationListDer<'static> {
+        crl_params_with_updates_and_number(
+            serial,
+            issuing_dp,
+            this_update_secs,
+            next_update_secs,
+            crl_number,
+        )
+        .signed_by(&self.issuer)
+        .unwrap()
+        .into()
+    }
+
     fn generate_crl_with_crl_sign(
         &self,
         serial: SerialNumber,
@@ -1337,11 +1531,26 @@ fn crl_params(
     issuing_distribution_point: Option<CrlIssuingDistributionPoint>,
     not_after_secs: Option<u64>,
 ) -> CertificateRevocationListParams {
+    crl_params_with_updates_and_number(
+        serial_number,
+        issuing_distribution_point,
+        NOT_BEFORE_SECS,
+        not_after_secs.unwrap_or(NOT_AFTER_SECS),
+        1234,
+    )
+}
+
+fn crl_params_with_updates_and_number(
+    serial_number: SerialNumber,
+    issuing_distribution_point: Option<CrlIssuingDistributionPoint>,
+    this_update_secs: u64,
+    next_update_secs: u64,
+    crl_number: u64,
+) -> CertificateRevocationListParams {
     CertificateRevocationListParams {
-        this_update: date_time_ymd(1970, 1, 1) + Duration::from_secs(NOT_BEFORE_SECS),
-        next_update: date_time_ymd(1970, 1, 1)
-            + Duration::from_secs(not_after_secs.unwrap_or(NOT_AFTER_SECS)),
-        crl_number: SerialNumber::from(1234),
+        this_update: date_time_ymd(1970, 1, 1) + Duration::from_secs(this_update_secs),
+        next_update: date_time_ymd(1970, 1, 1) + Duration::from_secs(next_update_secs),
+        crl_number: SerialNumber::from(crl_number),
         issuing_distribution_point,
         key_identifier_method: KeyIdMethod::Sha256,
         revoked_certs: vec![RevokedCertParams {
@@ -1516,9 +1725,13 @@ fn build_crl_dps_extension(dps: &[Vec<u8>]) -> Vec<u8> {
 }
 
 fn matching_idp() -> CrlIssuingDistributionPoint {
+    idp(MATCHING_URI)
+}
+
+fn idp(uri: &str) -> CrlIssuingDistributionPoint {
     CrlIssuingDistributionPoint {
         distribution_point: CrlDistributionPoint {
-            uris: vec![MATCHING_URI.to_string()],
+            uris: vec![uri.to_string()],
         },
         scope: None,
     }
