@@ -934,9 +934,11 @@ impl TryFrom<u8> for RevocationReason {
 #[cfg(feature = "alloc")]
 #[cfg(test)]
 mod tests {
+    use core::hash::{Hash, Hasher};
     use core::time::Duration;
 
     use pki_types::CertificateDer;
+    use std::collections::hash_map::DefaultHasher;
     use std::println;
 
     use super::*;
@@ -1214,6 +1216,24 @@ mod tests {
         let owned_revoked_cert = revoked_cert.to_owned();
         println!("{owned_revoked_cert:?}"); // OwnedRevokedCert should be debug.
         let _ = owned_revoked_cert.clone(); // OwnedRevokedCert should be clone.
+    }
+
+    #[test]
+    fn test_borrowed_crl_hash() {
+        fn hash(crl: &BorrowedCertRevocationList<'_>) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            crl.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        let crl =
+            BorrowedCertRevocationList::from_der(include_bytes!("../../tests/crls/crl.valid.der"))
+                .unwrap();
+        let same_crl =
+            BorrowedCertRevocationList::from_der(include_bytes!("../../tests/crls/crl.valid.der"))
+                .unwrap();
+
+        assert_eq!(hash(&crl), hash(&same_crl));
     }
 
     #[test]
