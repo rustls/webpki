@@ -24,11 +24,6 @@
     "actual": "FAILURE",
     "reason": "webpki intentionally rejects CA certificates in leaf position (CaUsedAsEndEntity)"
   },
-  "crl::crlnumber-missing": {
-    "expected": "FAILURE",
-    "actual": "SUCCESS",
-    "reason": "webpki does not enforce RFC 5280 requirement for CRLNumber extension presence"
-  },
   "crl::crlnumber-critical": {
     "expected": "FAILURE",
     "actual": "SUCCESS",

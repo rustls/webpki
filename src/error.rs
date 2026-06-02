@@ -90,6 +90,9 @@ pub enum Error {
     ///  - it was too long
     InvalidCrlNumber,
 
+    /// A CRL number extension was missing from a CRL.
+    MissingCrlNumber,
+
     /// A iPAddress name constraint was invalid:
     /// - it had a sparse network mask (ie, cannot be written in CIDR form).
     /// - it was too long or short
@@ -254,7 +257,7 @@ impl Error {
             Self::InvalidCertValidity => 190,
             Self::InvalidNetworkMaskConstraint => 180,
             Self::InvalidSerialNumber => 170,
-            Self::InvalidCrlNumber => 160,
+            Self::InvalidCrlNumber | Self::MissingCrlNumber => 160,
 
             // Errors related to unsupported features.
             Self::UnsupportedCrlSignatureAlgorithmForPublicKey(_)

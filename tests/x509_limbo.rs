@@ -118,15 +118,14 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .crls
         .iter()
         .map(|pem| {
-            OwnedCertRevocationList::from_der(
-                CertificateRevocationListDer::from_pem_slice(pem.as_bytes())
-                    .expect("CRL PEM parse failed")
-                    .as_ref(),
-            )
-            .expect("CRL DER parse failed")
-            .into()
+            let der = CertificateRevocationListDer::from_pem_slice(pem.as_bytes())
+                .map_err(|e| format!("CRL PEM parse failed: {e}"))?;
+
+            OwnedCertRevocationList::from_der(der.as_ref())
+                .map(Into::into)
+                .map_err(|e| format!("CRL DER parse failed: {e}"))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let crls = crls.iter().collect::<Vec<_>>();
 
     let builder = if !crls.is_empty() {
