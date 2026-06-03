@@ -66,25 +66,23 @@ mod x509;
 #[cfg(test)]
 pub(crate) mod test_utils;
 
-pub use {
-    cert::Cert,
-    crl::{
-        BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, CrlsRequired,
-        ExpirationPolicy, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
-        RevocationReason, UnknownStatusPolicy,
-    },
-    der::DerIterator,
-    end_entity::EndEntityCert,
-    error::{
-        DerTypeId, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
-        UnsupportedSignatureAlgorithmForPublicKeyContext,
-    },
-    rpk_entity::RawPublicKeyEntity,
-    trust_anchor::anchor_from_trusted_cert,
-    verify_cert::{
-        ExtendedKeyUsage, ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId,
-        KeyPurposeIdIter, PathBuilder, RequiredEkuNotFoundContext, VerifiedPath,
-    },
+pub use cert::Cert;
+pub use crl::{
+    BorrowedCertRevocationList, BorrowedRevokedCert, CertRevocationList, CrlsRequired,
+    ExpirationPolicy, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
+    RevocationReason, UnknownStatusPolicy,
+};
+pub use der::DerIterator;
+pub use end_entity::EndEntityCert;
+pub use error::{
+    DerTypeId, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
+    UnsupportedSignatureAlgorithmForPublicKeyContext,
+};
+pub use rpk_entity::RawPublicKeyEntity;
+pub use trust_anchor::anchor_from_trusted_cert;
+pub use verify_cert::{
+    ExtendedKeyUsage, ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId,
+    KeyPurposeIdIter, PathBuilder, RequiredEkuNotFoundContext, VerifiedPath,
 };
 
 #[cfg(feature = "alloc")]

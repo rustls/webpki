@@ -16,7 +16,8 @@
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::{Error, error::DerTypeId};
+use crate::Error;
+use crate::error::DerTypeId;
 
 /// Iterator to parse a sequence of DER-encoded values of type `T`.
 #[derive(Debug)]

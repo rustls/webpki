@@ -965,8 +965,7 @@ mod tests {
     use alloc::borrow::ToOwned;
     use alloc::string::{String, ToString};
     use core::time::Duration;
-    use std::dbg;
-    use std::slice;
+    use std::{dbg, slice};
 
     use super::*;
     use crate::test_utils;

@@ -17,7 +17,8 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use base64::{Engine as _, engine::general_purpose};
+use base64::Engine as _;
+use base64::engine::general_purpose;
 use pki_types::alg_id;
 
 use crate::error::{DerTypeId, Error, UnsupportedSignatureAlgorithmForPublicKeyContext};
