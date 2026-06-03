@@ -16,8 +16,6 @@
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
 use rcgen::{Certificate, CertificateParams, DnType, KeyPair, SignatureAlgorithm, SigningKey};
-use x509_parser::prelude::*;
-
 use rustls_aws_lc_rs::{
     ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ECDSA_P521_SHA256,
     ECDSA_P521_SHA384, ECDSA_P521_SHA512, ED25519, RSA_PKCS1_2048_8192_SHA256,
@@ -25,6 +23,7 @@ use rustls_aws_lc_rs::{
     RSA_PSS_2048_8192_SHA256_LEGACY_KEY, RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
     RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
 };
+use x509_parser::prelude::*;
 
 mod common;
 

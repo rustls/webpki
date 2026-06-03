@@ -12,17 +12,17 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
+use pki_types::SignatureVerificationAlgorithm;
+
 use crate::der::{self, FromDer};
 use crate::error::{
     DerTypeId, Error, UnsupportedSignatureAlgorithmContext,
     UnsupportedSignatureAlgorithmForPublicKeyContext,
 };
 use crate::verify_cert::Budget;
-
-use pki_types::SignatureVerificationAlgorithm;
-
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
 
 /// X.509 certificates and related items that are signed are almost always
 /// encoded in the format "tbs||signatureAlgorithm||signature". This structure

@@ -72,6 +72,8 @@ pub use crl::{
     ExpirationPolicy, RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder,
     RevocationReason, UnknownStatusPolicy,
 };
+#[cfg(feature = "alloc")]
+pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 pub use der::DerIterator;
 pub use end_entity::EndEntityCert;
 pub use error::{
@@ -80,16 +82,12 @@ pub use error::{
 };
 pub use rpk_entity::RawPublicKeyEntity;
 pub use trust_anchor::anchor_from_trusted_cert;
+#[cfg(feature = "alloc")]
+pub use trust_anchor::spki_for_anchor;
 pub use verify_cert::{
     ExtendedKeyUsage, ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId,
     KeyPurposeIdIter, PathBuilder, RequiredEkuNotFoundContext, VerifiedPath,
 };
-
-#[cfg(feature = "alloc")]
-pub use trust_anchor::spki_for_anchor;
-
-#[cfg(feature = "alloc")]
-pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 
 fn public_values_eq(a: untrusted::Input<'_>, b: untrusted::Input<'_>) -> bool {
     a.as_slice_less_safe() == b.as_slice_less_safe()

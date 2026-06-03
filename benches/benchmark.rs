@@ -1,20 +1,19 @@
 #![allow(clippy::incompatible_msrv)]
 
-use bencher::{Bencher, benchmark_group, benchmark_main};
-use once_cell::sync::Lazy;
-use rcgen::{
-    BasicConstraints, CertificateParams, CertificateRevocationListParams, IsCa, Issuer,
-    KeyIdMethod, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256, RevocationReason,
-    RevokedCertParams, SerialNumber, date_time_ymd,
-};
-
-use pki_types::CertificateRevocationListDer;
 use std::fs::File;
 use std::hint::black_box;
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 use std::sync::Mutex;
 
+use bencher::{Bencher, benchmark_group, benchmark_main};
+use once_cell::sync::Lazy;
+use pki_types::CertificateRevocationListDer;
+use rcgen::{
+    BasicConstraints, CertificateParams, CertificateRevocationListParams, IsCa, Issuer,
+    KeyIdMethod, KeyPair, KeyUsagePurpose, PKCS_ECDSA_P256_SHA256, RevocationReason,
+    RevokedCertParams, SerialNumber, date_time_ymd,
+};
 use webpki::{BorrowedCertRevocationList, CertRevocationList, OwnedCertRevocationList};
 
 /// Lazy initialized CRL issuer to be used when generating CRL data. Includes

@@ -479,9 +479,10 @@ macro_rules! oid {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[cfg(feature = "alloc")]
     use alloc::vec::Vec;
+
+    use super::*;
 
     #[cfg(feature = "alloc")]
     #[test]

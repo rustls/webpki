@@ -14,9 +14,9 @@
 
 #![cfg(feature = "alloc")]
 
+use core::time::Duration;
 use std::error::Error as StdError;
 
-use core::time::Duration;
 use pki_types::{CertificateDer, UnixTime};
 use rcgen::{Certificate, ExtendedKeyUsagePurpose};
 use webpki::{ExtendedKeyUsage, PathBuilder, RequiredEkuNotFoundContext, anchor_from_trusted_cert};

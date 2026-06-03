@@ -12,13 +12,13 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use core::fmt::Debug;
+
 use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::error::Error;
 use crate::verify_cert::{Budget, PathNode, Role};
 use crate::{der, public_values_eq};
-
-use core::fmt::Debug;
 
 mod types;
 pub use types::{

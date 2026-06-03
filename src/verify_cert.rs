@@ -967,11 +967,12 @@ mod tests {
     use core::time::Duration;
     use std::{dbg, slice};
 
+    use rcgen::{CertifiedIssuer, Issuer, KeyPair, SigningKey};
+
     use super::*;
     use crate::test_utils;
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
     use crate::trust_anchor::anchor_from_trusted_cert;
-    use rcgen::{CertifiedIssuer, Issuer, KeyPair, SigningKey};
 
     #[test]
     fn roundtrip() {

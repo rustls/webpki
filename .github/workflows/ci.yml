@@ -28,7 +28,7 @@ jobs:
           components: rustfmt
 
       - name: Check formatting
-        run: cargo +nightly fmt --all -- --check --config imports_granularity=module
+        run: cargo +nightly fmt-unstable --check
 
   clippy:
     name: Clippy

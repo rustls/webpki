@@ -955,10 +955,10 @@ impl TryFrom<u8> for RevocationReason {
 mod tests {
     use core::hash::{Hash, Hasher};
     use core::time::Duration;
-
-    use pki_types::CertificateDer;
     use std::collections::hash_map::DefaultHasher;
     use std::println;
+
+    use pki_types::CertificateDer;
 
     use super::*;
     use crate::cert::Cert;

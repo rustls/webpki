@@ -1,7 +1,8 @@
+use pki_types::{SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
+
 use crate::error::Error;
 use crate::signed_data::SubjectPublicKeyInfo;
 use crate::{DerTypeId, der, signed_data};
-use pki_types::{SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
 
 /// A Raw Public Key, used for connections using raw public keys as specified
 /// in [RFC 7250](https://www.rfc-editor.org/rfc/rfc7250).
