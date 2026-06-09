@@ -365,7 +365,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "limbo-harness-support"
 version = "0.1.0"
-source = "git+https://github.com/C2SP/x509-limbo?rev=700bc657992b688f305f8f3ce08195da04543545#700bc657992b688f305f8f3ce08195da04543545"
+source = "git+https://github.com/C2SP/x509-limbo?rev=1983423436313a6605461056470e21242d066416#1983423436313a6605461056470e21242d066416"
 dependencies = [
  "chrono",
  "regress",

@@ -83,7 +83,7 @@ untrusted = "0.9"
 base64 = "0.22"
 bencher = "0.1.5"
 chrono = "0.4"
-limbo-harness-support = { git = "https://github.com/C2SP/x509-limbo", rev = "700bc657992b688f305f8f3ce08195da04543545" }
+limbo-harness-support = { git = "https://github.com/C2SP/x509-limbo", rev = "1983423436313a6605461056470e21242d066416" }
 once_cell = "1.17.2"
 rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs"] }
 rustls-aws-lc-rs = { version = "0.1.0-dev.0" }
