@@ -438,7 +438,33 @@ fn check_issuer_independent_properties(
     })?;
     untrusted::read_all_optional(cert.eku, Error::BadDer, |input| check_eku(input, eku))?;
 
+    if let Some(key_usage) = cert.key_usage {
+        // RFC 5280 requires the KeyUsage extension be present in CA certificates, but historically
+        // its absence has been tolerated and treated as if all usages were asserted. We follow that
+        // convention here and only enforce keyCertSign when a KeyUsage extension is present.
+        check_key_usage_cert_sign(key_usage, role)?;
+    }
+
     Ok(())
+}
+
+/// Check that issuer certificate have the keyCertSign bit set in their KeyUsage extension.
+///
+/// <https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.3>
+/// <https://www.rfc-editor.org/info/rfc5280/#section-6.1.4> step (n)
+fn check_key_usage_cert_sign(key_usage: untrusted::Input<'_>, role: Role) -> Result<(), Error> {
+    // The KeyUsage extension is a BIT STRING; keyCertSign is bit 5.
+    const KEY_CERT_SIGN: usize = 5;
+    let bit_string = der::expect_tag(&mut untrusted::Reader::new(key_usage), der::Tag::BitString)?;
+    match (
+        role,
+        der::bit_string_flags(bit_string)?.bit_set(KEY_CERT_SIGN),
+    ) {
+        (Role::Issuer, true) | (Role::EndEntity, false) => Ok(()),
+        (Role::Issuer, false) => Err(Error::IssuerNotCertSigner),
+        // Disallowed per https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.9
+        (Role::EndEntity, true) => Err(Error::EndEntityCertHasCertSignKeyUsage),
+    }
 }
 
 fn check_eku(
@@ -1283,6 +1309,66 @@ mod tests {
         let params = issuer_params(org_name);
         let key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
         CertifiedIssuer::signed_by(params, key, issuer).unwrap()
+    }
+
+    #[test]
+    fn intermediate_without_key_cert_sign_rejected() {
+        // An intermediate that carries a KeyUsage extension which does not assert keyCertSign
+        // must not be usable as a CA certificate during path building.
+        let trust_anchor = make_issuer("Trust Anchor");
+        let trust_anchors = &[anchor_from_trusted_cert(trust_anchor.der()).unwrap()];
+
+        let mut params = issuer_params("Intermediate");
+        params.key_usages = vec![rcgen::KeyUsagePurpose::CrlSign];
+        let key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let intermediate = CertifiedIssuer::signed_by(params, key, &trust_anchor).unwrap();
+        let intermediates = &[intermediate.der().clone()];
+
+        let ee = make_end_entity(&intermediate);
+        let ee_cert = &EndEntityCert::try_from(ee.cert.der()).unwrap();
+
+        assert!(matches!(
+            verify_chain(trust_anchors, intermediates, ee_cert, None, None),
+            Err(ControlFlow::Continue(Error::IssuerNotCertSigner))
+        ));
+    }
+
+    #[test]
+    fn intermediate_without_key_usage_accepted() {
+        // An intermediate without any KeyUsage extension is treated as if all usages are asserted,
+        // so it remains usable as a CA certificate.
+        let trust_anchor = make_issuer("Trust Anchor");
+        let trust_anchors = &[anchor_from_trusted_cert(trust_anchor.der()).unwrap()];
+
+        let mut params = issuer_params("Intermediate");
+        params.key_usages = vec![];
+        let key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let intermediate = CertifiedIssuer::signed_by(params, key, &trust_anchor).unwrap();
+        let intermediates = &[intermediate.der().clone()];
+
+        let ee = make_end_entity(&intermediate);
+        let ee_cert = &EndEntityCert::try_from(ee.cert.der()).unwrap();
+
+        assert!(verify_chain(trust_anchors, intermediates, ee_cert, None, None).is_ok());
+    }
+
+    #[test]
+    fn trust_anchor_without_key_cert_sign_accepted() {
+        // The keyCertSign check applies only to intermediate certificates, not trust anchors.
+        // A trust anchor whose KeyUsage omits keyCertSign must still be usable.
+        let mut ta_params = issuer_params("Trust Anchor");
+        ta_params.key_usages = vec![rcgen::KeyUsagePurpose::CrlSign];
+        let ta_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let trust_anchor = CertifiedIssuer::self_signed(ta_params, ta_key).unwrap();
+        let trust_anchors = &[anchor_from_trusted_cert(trust_anchor.der()).unwrap()];
+
+        let intermediate = make_intermediate("Intermediate", &trust_anchor);
+        let intermediates = &[intermediate.der().clone()];
+
+        let ee = make_end_entity(&intermediate);
+        let ee_cert = &EndEntityCert::try_from(ee.cert.der()).unwrap();
+
+        assert!(verify_chain(trust_anchors, intermediates, ee_cert, None, None).is_ok());
     }
 
     fn build_and_verify_degenerate_chain(
