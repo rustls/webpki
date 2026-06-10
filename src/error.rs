@@ -77,6 +77,9 @@ pub enum Error {
     /// An end-entity certificate is being used as a CA certificate.
     EndEntityUsedAsCa,
 
+    /// An end-entity certificate has the keyCertSign bit set in its KeyUsage extension.
+    EndEntityCertHasCertSignKeyUsage,
+
     /// An X.509 extension is invalid.
     ExtensionValueInvalid,
 
@@ -109,6 +112,15 @@ pub enum Error {
 
     /// The signature is invalid for the given public key.
     InvalidSignatureForPublicKey,
+
+    /// An intermediate certificate was missing the keyCertSign bit in its KeyUsage extension.
+    ///
+    /// See [RFC 5280 section 4.2.1.3] and [RFC 5280 section 6.1.4] step (n). Note that this is
+    /// only enforced for intermediate certificates, not for trust anchors.
+    ///
+    /// [RFC 5280 section 4.2.1.3]: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
+    /// [RFC 5280 section 6.1.4]: https://datatracker.ietf.org/doc/html/rfc5280#section-6.1.4
+    IssuerNotCertSigner,
 
     /// A CRL was signed by an issuer that has a KeyUsage bitstring that does not include
     /// the cRLSign key usage bit.
@@ -250,7 +262,9 @@ impl Error {
             Self::RequiredEkuNotFound(_) => 240,
             Self::NameConstraintViolation => 230,
             Self::PathLenConstraintViolated => 220,
+            Self::IssuerNotCertSigner => 215,
             Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
+            Self::EndEntityCertHasCertSignKeyUsage => 205,
             Self::IssuerNotCrlSigner => 200,
 
             // Errors related to supported features used in an invalid way.

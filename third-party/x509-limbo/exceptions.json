@@ -144,11 +144,6 @@
     "actual": "SUCCESS",
     "reason": "webpki does not enforce consistency between BasicConstraints.cA and KeyUsage.keyCertSign in trust anchors"
   },
-  "rfc5280::leaf-ku-keycertsign": {
-    "expected": "FAILURE",
-    "actual": "SUCCESS",
-    "reason": "webpki does not reject EE certs with keyCertSign in KeyUsage"
-  },
   "webpki::aki::root-with-aki-missing-keyidentifier": {
     "expected": "FAILURE",
     "actual": "SUCCESS",
