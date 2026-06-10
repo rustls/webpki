@@ -50,13 +50,13 @@ fn check_cert(
         .map(|cert| CertificateDer::from(*cert))
         .collect::<Vec<_>>();
 
-    let builder = PathBuilder::new(&ExtendedKeyUsage::CLIENT_AUTH, ALGS, anchors)
-        .with_intermediate_certs(&intermediates);
-
-    let builder = match revocation {
-        Some(crls) => builder.with_revocation(crls),
-        None => builder,
-    };
+    let builder = PathBuilder::new(
+        &intermediates,
+        revocation,
+        &ExtendedKeyUsage::CLIENT_AUTH,
+        ALGS,
+        anchors,
+    );
 
     let ee = CertificateDer::from(ee);
     let cert = webpki::EndEntityCert::try_from(&ee).unwrap();

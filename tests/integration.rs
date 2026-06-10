@@ -33,11 +33,12 @@ fn netflix() {
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
     let builder = PathBuilder::new(
+        intermediates,
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_492_441_716)); // 2017-04-17T15:08:36Z
     let ee = CertificateDer::from(ee);
@@ -56,11 +57,12 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
     let builder = PathBuilder::new(
+        intermediates,
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_746_549_566)); // 2025-05-06T17:39:26Z
     let ee = CertificateDer::from(ee);
@@ -81,11 +83,12 @@ fn cloudflare_dns() {
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
     let builder = PathBuilder::new(
+        intermediates,
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_663_495_771));
     let ee = CertificateDer::from(ee);
@@ -131,6 +134,8 @@ fn wpt() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let builder = PathBuilder::new(
+        &[],
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
@@ -148,6 +153,8 @@ fn ed25519() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let builder = PathBuilder::new(
+        &[],
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
@@ -167,11 +174,12 @@ fn critical_extensions() {
     let anchors = [anchor_from_trusted_cert(&root).unwrap()];
     let intermediates = &[ca];
     let builder = PathBuilder::new(
+        intermediates,
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
-    )
-    .with_intermediate_certs(intermediates);
+    );
 
     let time = UnixTime::since_unix_epoch(Duration::from_secs(1_670_779_098));
     let ee = CertificateDer::from(
@@ -215,6 +223,8 @@ fn read_ee_with_neg_serial() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let builder = PathBuilder::new(
+        &[],
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
@@ -380,11 +390,12 @@ fn cert_time_validity() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let builder = PathBuilder::new(
+        slice::from_ref(&inter),
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
         &anchors,
-    )
-    .with_intermediate_certs(slice::from_ref(&inter));
+    );
 
     let not_before = UnixTime::since_unix_epoch(Duration::from_secs(1_478_563_200));
     let not_after = UnixTime::since_unix_epoch(Duration::from_secs(1_541_203_199));

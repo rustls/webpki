@@ -46,6 +46,11 @@ pub struct PathBuilder<'a, 'p> {
 impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     /// Build a new [`PathBuilder`] with the given parameters.
     ///
+    /// * `intermediate_certs` is the list of intermediate certificates to use for path building.
+    ///   These certificates should be sent by the peer. They are not trusted, but can be used to
+    ///   build a path to a trusted root.
+    /// * `revocation` provides the revocation options to use for path building. If `None`, no
+    ///   revocation checks will be performed.
     /// * `eku` is the intended usage of the certificate, indicating what kind
     ///   of usage we're verifying the certificate for. The default [`ExtendedKeyUsageValidator`]
     ///   implementation is [`ExtendedKeyUsage`].
@@ -54,6 +59,8 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     ///   public key is not validated against this list.
     /// * `trust_anchors` is the list of root CAs to trust in the built path.
     pub fn new(
+        intermediate_certs: &'p [CertificateDer<'p>],
+        revocation: Option<RevocationOptions<'a>>,
         eku: &'p dyn ExtendedKeyUsageValidator,
         supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
         trust_anchors: &'p [TrustAnchor<'p>],
@@ -62,26 +69,10 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
             eku,
             supported_sig_algs,
             trust_anchors,
-            intermediate_certs: &[],
-            revocation: None,
+            intermediate_certs,
+            revocation,
             verify_path: None,
         }
-    }
-
-    /// Set the sequence of intermediate certificates to use for path building.
-    ///
-    /// These should be sent by the peer. Defaults to empty.
-    pub fn with_intermediate_certs(mut self, intermediate_certs: &'p [CertificateDer<'p>]) -> Self {
-        self.intermediate_certs = intermediate_certs;
-        self
-    }
-
-    /// Set the revocation options to use for path building.
-    ///
-    /// By default, revocation checking is disabled.
-    pub fn with_revocation(mut self, revocation: RevocationOptions<'a>) -> Self {
-        self.revocation = Some(revocation);
-        self
     }
 
     /// Set a path verification function to use for path building.
@@ -1509,11 +1500,12 @@ mod tests {
         let mut path = PartialPath::new(ee_cert);
 
         let builder = PathBuilder::new(
+            intermediate_certs,
+            None,
             &ExtendedKeyUsage::SERVER_AUTH,
             rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
             trust_anchors,
-        )
-        .with_intermediate_certs(intermediate_certs);
+        );
         let builder = match verify_path {
             Some(verify) => builder.with_path_verification(verify),
             None => builder,

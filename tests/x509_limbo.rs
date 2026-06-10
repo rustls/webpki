@@ -113,13 +113,6 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .map(|ic| cert_der_from_pem(ic))
         .collect::<Vec<_>>();
 
-    let builder = PathBuilder::new(
-        &ExtendedKeyUsage::SERVER_AUTH,
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-        &trust_anchors,
-    )
-    .with_intermediate_certs(&intermediates);
-
     let crls = tc
         .crls
         .iter()
@@ -134,18 +127,20 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .collect::<Result<Vec<_>, _>>()?;
     let crls = crls.iter().collect::<Vec<_>>();
 
-    let builder = if !crls.is_empty() {
-        builder.with_revocation(
+    let builder = PathBuilder::new(
+        &intermediates,
+        (!crls.is_empty()).then(|| {
             RevocationOptionsBuilder::new(crls.as_slice())
                 .unwrap()
                 .with_depth(RevocationCheckDepth::Chain)
                 .with_status_policy(UnknownStatusPolicy::Deny)
                 .with_expiration_policy(ExpirationPolicy::Enforce)
-                .build(),
-        )
-    } else {
-        builder
-    };
+                .build()
+        }),
+        &ExtendedKeyUsage::SERVER_AUTH,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+        &trust_anchors,
+    );
 
     let leaf_der = cert_der_from_pem(&tc.peer_certificate);
     let leaf =

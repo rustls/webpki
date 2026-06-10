@@ -37,6 +37,8 @@ fn check_cert(
     let ca_cert_der = CertificateDer::from(ca);
     let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
     let builder = PathBuilder::new(
+        &[],
+        None,
         &ExtendedKeyUsage::SERVER_AUTH,
         rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
         &anchors,
