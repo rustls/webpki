@@ -237,58 +237,42 @@ pub fn amazon() {
             Some(&all_crls),
         ] {
             let builder = PathBuilder::new(
+                &intermediates,
+                crls.map(|c| revocation_options_for_test(c)),
                 &ExtendedKeyUsage::SERVER_AUTH,
                 ALL_VERIFICATION_ALGS,
                 &anchors,
-            )
-            .with_intermediate_certs(&intermediates);
-
-            let builder = match crls {
-                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
-                None => builder,
-            };
+            );
 
             assert!(builder.build(&cert, time).is_ok());
 
             let builder = PathBuilder::new(
+                &intermediates_legacy,
+                crls.map(|c| revocation_options_for_test(c)),
                 &ExtendedKeyUsage::SERVER_AUTH,
                 ALL_VERIFICATION_ALGS,
                 &legacy_anchors,
-            )
-            .with_intermediate_certs(&intermediates_legacy);
-
-            let builder = match crls {
-                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
-                None => builder,
-            };
+            );
 
             assert!(builder.build(&cert, time).is_ok());
 
             let builder = PathBuilder::new(
+                &intermediates_legacy,
+                crls.map(|c| revocation_options_for_test(c)),
                 &ExtendedKeyUsage::SERVER_AUTH,
                 ALL_VERIFICATION_ALGS,
                 &all_anchors,
-            )
-            .with_intermediate_certs(&intermediates_legacy);
-
-            let builder = match crls {
-                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
-                None => builder,
-            };
+            );
 
             assert!(builder.build(&cert, time).is_ok());
 
             let builder = PathBuilder::new(
+                &intermediates_legacy,
+                crls.map(|c| revocation_options_for_test(c)),
                 &ExtendedKeyUsage::SERVER_AUTH,
                 ALL_VERIFICATION_ALGS,
                 &all_anchors,
-            )
-            .with_intermediate_certs(&intermediates_legacy);
-
-            let builder = match crls {
-                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
-                None => builder,
-            };
+            );
 
             // verify should find shortest path
             let path = builder.build(&cert, time).unwrap();
@@ -302,28 +286,24 @@ pub fn amazon() {
 
         for &crls in &[None, Some(&roots_crls)] {
             let builder = PathBuilder::new(
+                &intermediates,
+                crls.map(|c| revocation_options_for_test(c)),
                 &ExtendedKeyUsage::SERVER_AUTH,
                 ALL_VERIFICATION_ALGS,
                 &anchors,
-            )
-            .with_intermediate_certs(&intermediates);
-
-            let builder = match crls {
-                Some(crls) => builder.with_revocation(revocation_options_for_test(crls)),
-                None => builder,
-            };
+            );
 
             assert!(builder.build(&cert, time).is_ok());
         }
 
         for &crls in &[&intermediates_crls, &all_crls] {
             let builder = PathBuilder::new(
+                &intermediates,
+                Some(revocation_options_for_test(crls)),
                 &ExtendedKeyUsage::SERVER_AUTH,
                 ALL_VERIFICATION_ALGS,
                 &anchors,
-            )
-            .with_intermediate_certs(&intermediates)
-            .with_revocation(revocation_options_for_test(crls));
+            );
 
             assert!(
                 builder
@@ -335,11 +315,12 @@ pub fn amazon() {
 
     for &(cert, _dns_name) in expired_certs {
         let builder = PathBuilder::new(
+            &intermediates,
+            None,
             &ExtendedKeyUsage::SERVER_AUTH,
             ALL_VERIFICATION_ALGS,
             &anchors,
-        )
-        .with_intermediate_certs(&intermediates);
+        );
 
         let cert = CertificateDer::from(cert);
         let cert = EndEntityCert::try_from(&cert).unwrap();

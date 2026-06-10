@@ -79,6 +79,8 @@ fn cert_with_serverauth_eku_rejected_for_client_auth() {
 fn check_cert(ee: &[u8], ca: CertificateDer<'static>) -> Result<(), webpki::Error> {
     let anchors = &[anchor_from_trusted_cert(&ca).unwrap()];
     let builder = PathBuilder::new(
+        &[],
+        None,
         &ExtendedKeyUsage::CLIENT_AUTH,
         rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
         anchors,
