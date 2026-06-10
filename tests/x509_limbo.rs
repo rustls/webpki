@@ -70,6 +70,15 @@ fn evaluate_testcase(tc: &Testcase, exceptions: &HashMap<String, Exception>) -> 
         if validation_result.is_ok() == (exception.actual == "SUCCESS") {
             return Outcome::KnownDivergence;
         }
+
+        if validation_result.is_err() && (exception.actual == "SUCCESS") {
+            return Outcome::UnexpectedFailure(format!(
+                "expected SUCCESS but got FAILURE ({}), reason: {}",
+                validation_result.err().unwrap(),
+                exception.reason
+            ));
+        }
+
         // If the exception no longer applies (behavior changed), fall through to normal comparison
     }
 
