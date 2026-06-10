@@ -39,14 +39,12 @@ fn x509_limbo() {
     }
 
     summary.print();
-
-    if summary.has_failures() {
-        panic!(
-            "x509-limbo: {} unexpected failures, {} unexpected successes",
-            summary.unexpected_failures.len(),
-            summary.unexpected_successes.len()
-        );
-    }
+    assert!(
+        summary.unexpected_failures.is_empty() && summary.unexpected_successes.is_empty(),
+        "x509-limbo: {} unexpected failures, {} unexpected successes",
+        summary.unexpected_failures.len(),
+        summary.unexpected_successes.len()
+    );
 }
 
 fn evaluate_testcase(tc: &Testcase, exceptions: &HashMap<String, Exception>) -> Outcome {
@@ -246,9 +244,5 @@ impl Summary {
             + self.known_divergences.len()
             + self.unexpected_failures.len()
             + self.unexpected_successes.len()
-    }
-
-    fn has_failures(&self) -> bool {
-        !self.unexpected_failures.is_empty() || !self.unexpected_successes.is_empty()
     }
 }
