@@ -344,17 +344,20 @@ fn remember_cert_extension<'a>(
         };
 
         set_extension_once(out, || {
-            extension.value.read_all(Error::BadDer, |value| match id {
-                // Unlike the other extensions we remember KU is a BitString and not a Sequence. We
-                // read the raw bytes here and parse at the time of use.
-                Standard(15) => Ok(value.read_bytes_to_end()),
+            extension.value.read_all(
+                Error::TrailingData(DerTypeId::Extension),
+                |value| match id {
+                    // Unlike the other extensions we remember KU is a BitString and not a Sequence. We
+                    // read the raw bytes here and parse at the time of use.
+                    Standard(15) => Ok(value.read_bytes_to_end()),
 
-                // signedCertificateTimestampList is an OCTET STRING
-                SignedCertificateTimestampList => der::expect_tag(value, Tag::OctetString),
+                    // signedCertificateTimestampList is an OCTET STRING
+                    SignedCertificateTimestampList => der::expect_tag(value, Tag::OctetString),
 
-                // All other remembered certificate extensions are wrapped in a Sequence.
-                _ => der::expect_tag(value, Tag::Sequence),
-            })
+                    // All other remembered certificate extensions are wrapped in a Sequence.
+                    _ => der::expect_tag(value, Tag::Sequence),
+                },
+            )
         })
     })
 }
