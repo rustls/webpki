@@ -382,9 +382,17 @@ pub(crate) struct CrlDistributionPoint<'a> {
 impl<'a> CrlDistributionPoint<'a> {
     /// Return the distribution point names (if any).
     pub(crate) fn names(&self) -> Result<Option<DistributionPointName<'a>>, Error> {
-        self.distribution_point
-            .map(|input| DistributionPointName::from_der(&mut untrusted::Reader::new(input)))
-            .transpose()
+        untrusted::read_all_optional(
+            self.distribution_point,
+            Error::TrailingData(DerTypeId::DistributionPointName),
+            |reader| {
+                let Some(reader) = reader else {
+                    return Ok(None);
+                };
+
+                Ok(Some(DistributionPointName::from_der(reader)?))
+            },
+        )
     }
 }
 
