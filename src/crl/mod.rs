@@ -18,7 +18,7 @@ use pki_types::{SignatureVerificationAlgorithm, UnixTime};
 
 use crate::error::Error;
 use crate::verify_cert::{Budget, PathNode, Role};
-use crate::{der, public_values_eq};
+use crate::{DerTypeId, der, public_values_eq};
 
 mod types;
 pub use types::{
@@ -204,22 +204,26 @@ enum KeyUsageMode {
 impl KeyUsageMode {
     // https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.3
     fn check(self, input: Option<untrusted::Input<'_>>) -> Result<(), Error> {
-        let bit_string = match input {
-            Some(input) => {
-                der::expect_tag(&mut untrusted::Reader::new(input), der::Tag::BitString)?
-            }
-            // While RFC 5280 requires KeyUsage be present, historically the absence of a KeyUsage
-            // has been treated as "Any Usage". We follow that convention here and assume the absence
-            // of KeyUsage implies the required_ku_bit_if_present we're checking for.
-            None => return Ok(()),
-        };
+        untrusted::read_all_optional(
+            input,
+            Error::TrailingData(DerTypeId::KeyUsageExtension),
+            |reader| {
+                let Some(reader) = reader else {
+                    // While RFC 5280 requires KeyUsage be present, historically the absence of a KeyUsage
+                    // has been treated as "Any Usage". We follow that convention here and assume the absence
+                    // of KeyUsage implies the required_ku_bit_if_present we're checking for.
+                    return Ok(());
+                };
 
-        let flags = der::bit_string_flags(bit_string)?;
-        #[expect(clippy::as_conversions)] // u8 always fits in usize.
-        match flags.bit_set(self as usize) {
-            true => Ok(()),
-            false => Err(Error::IssuerNotCrlSigner),
-        }
+                let bit_string = der::expect_tag(reader, der::Tag::BitString)?;
+                let flags = der::bit_string_flags(bit_string)?;
+                #[expect(clippy::as_conversions)] // u8 always fits in usize.
+                match flags.bit_set(self as usize) {
+                    true => Ok(()),
+                    false => Err(Error::IssuerNotCrlSigner),
+                }
+            },
+        )
     }
 }
 

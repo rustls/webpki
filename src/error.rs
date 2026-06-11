@@ -428,4 +428,5 @@ pub enum DerTypeId {
     IssuingDistributionPoint,
     IssuerUniqueId,
     SubjectUniqueId,
+    KeyUsageExtension,
 }
