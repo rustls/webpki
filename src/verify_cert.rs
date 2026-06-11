@@ -28,7 +28,7 @@ use crate::end_entity::EndEntityCert;
 use crate::error::Error;
 #[cfg(feature = "alloc")]
 use crate::spki_for_anchor;
-use crate::{public_values_eq, subject_name};
+use crate::{DerTypeId, public_values_eq, subject_name};
 
 /// Build a [`VerifiedPath`] for an end-entity certificate from the given trust anchors.
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
@@ -446,16 +446,22 @@ fn check_issuer_independent_properties(
 fn check_key_usage_cert_sign(key_usage: untrusted::Input<'_>, role: Role) -> Result<(), Error> {
     // The KeyUsage extension is a BIT STRING; keyCertSign is bit 5.
     const KEY_CERT_SIGN: usize = 5;
-    let bit_string = der::expect_tag(&mut untrusted::Reader::new(key_usage), der::Tag::BitString)?;
-    match (
-        role,
-        der::bit_string_flags(bit_string)?.bit_set(KEY_CERT_SIGN),
-    ) {
-        (Role::Issuer, true) | (Role::EndEntity, false) => Ok(()),
-        (Role::Issuer, false) => Err(Error::IssuerNotCertSigner),
-        // Disallowed per https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.9
-        (Role::EndEntity, true) => Err(Error::EndEntityCertHasCertSignKeyUsage),
-    }
+
+    key_usage.read_all(
+        Error::TrailingData(DerTypeId::KeyUsageExtension),
+        |reader| {
+            let bit_string = der::expect_tag(reader, der::Tag::BitString)?;
+            match (
+                role,
+                der::bit_string_flags(bit_string)?.bit_set(KEY_CERT_SIGN),
+            ) {
+                (Role::Issuer, true) | (Role::EndEntity, false) => Ok(()),
+                (Role::Issuer, false) => Err(Error::IssuerNotCertSigner),
+                // Disallowed per https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.9
+                (Role::EndEntity, true) => Err(Error::EndEntityCertHasCertSignKeyUsage),
+            }
+        },
+    )
 }
 
 fn check_eku(
