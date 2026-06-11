@@ -15,7 +15,10 @@
 #![cfg(feature = "alloc")]
 
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
-use rcgen::{Certificate, CertificateParams, DnType, KeyPair, SignatureAlgorithm, SigningKey};
+use rcgen::{
+    Certificate, CertificateParams, DnType, IsCa, KeyPair, KeyUsagePurpose, SignatureAlgorithm,
+    SigningKey,
+};
 use rustls_aws_lc_rs::{
     ECDSA_P256_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA256, ECDSA_P384_SHA384, ECDSA_P521_SHA256,
     ECDSA_P521_SHA384, ECDSA_P521_SHA512, ED25519, RSA_PKCS1_2048_8192_SHA256,
@@ -522,6 +525,45 @@ fn rsa_2048_key_rejected_by_rsa_pkcs1_3072_8192_sha384_rpk() {
     );
 }
 
+#[test]
+fn key_usage_digital_signature_accepted() {
+    // An end-entity certificate that asserts the digitalSignature bit in its KeyUsage extension
+    // may be used to verify a signature.
+    let test_cert = TestCertificate::generate_with_key_usages(
+        &rcgen::PKCS_ECDSA_P256_SHA256,
+        "key usage test",
+        vec![KeyUsagePurpose::DigitalSignature],
+    );
+    let good_sig = test_cert.sign(MESSAGE);
+    assert_eq!(
+        check_sig(test_cert.cert.der(), ECDSA_P256_SHA256, MESSAGE, &good_sig),
+        Ok(())
+    );
+}
+
+#[test]
+fn key_usage_without_digital_signature_rejected() {
+    // An end-entity certificate that carries a KeyUsage extension which does not assert the
+    // digitalSignature bit must not be usable to verify a signature, even when the signature
+    // itself is valid.
+    let test_cert = TestCertificate::generate_with_key_usages(
+        &rcgen::PKCS_ECDSA_P256_SHA256,
+        "key usage test",
+        vec![KeyUsagePurpose::KeyAgreement],
+    );
+    let good_sig = test_cert.sign(MESSAGE);
+    assert_eq!(
+        check_sig(test_cert.cert.der(), ECDSA_P256_SHA256, MESSAGE, &good_sig),
+        Err(webpki::Error::KeyUsageMissingDigitalSignature)
+    );
+    // The raw public key API does not see the certificate's KeyUsage extension, so it remains
+    // usable to verify the same signature.
+    assert_eq!(
+        check_sig_rpk(&test_cert.spki_der, ECDSA_P256_SHA256, MESSAGE, &good_sig),
+        Ok(())
+    );
+}
+
 struct TestCertificate {
     key_pair: KeyPair,
     cert: Certificate,
@@ -530,12 +572,24 @@ struct TestCertificate {
 
 impl TestCertificate {
     fn generate(alg: &'static SignatureAlgorithm, org: &str) -> Self {
+        Self::generate_with_key_usages(alg, org, vec![])
+    }
+
+    fn generate_with_key_usages(
+        alg: &'static SignatureAlgorithm,
+        org: &str,
+        key_usages: Vec<KeyUsagePurpose>,
+    ) -> Self {
         let key_pair = KeyPair::generate_for(alg).unwrap();
 
         let mut ee_params = CertificateParams::new(vec![]).unwrap();
         ee_params
             .distinguished_name
             .push(DnType::OrganizationName, org);
+
+        // rcgen only emits the extensions block (including KeyUsage) when this is set.
+        ee_params.is_ca = IsCa::ExplicitNoCa;
+        ee_params.key_usages = key_usages;
 
         let issuer = common::make_issuer("issuer.example.com").unwrap();
         let cert = ee_params.signed_by(&key_pair, &issuer).unwrap();
