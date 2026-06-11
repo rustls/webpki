@@ -18,7 +18,7 @@ use pki_types::{CertificateDer, ServerName, SignatureVerificationAlgorithm};
 
 use crate::error::Error;
 use crate::subject_name::{verify_dns_names, verify_ip_address_names};
-use crate::{cert, sct, signed_data};
+use crate::{DerTypeId, cert, der, sct, signed_data};
 
 /// An end-entity certificate.
 ///
@@ -109,6 +109,14 @@ impl EndEntityCert<'_> {
         msg: &[u8],
         signature: &[u8],
     ) -> Result<(), Error> {
+        // RFC 5280 section 4.2.1.3 requires the digitalSignature bit to be asserted before the
+        // certificate's public key may be used to verify signatures. Historically the absence of
+        // a KeyUsage extension has been tolerated and treated as if all usages were asserted, so
+        // we only enforce digitalSignature when a KeyUsage extension is present.
+        if let Some(key_usage) = self.inner.key_usage {
+            check_key_usage_digital_signature(key_usage)?;
+        }
+
         signed_data::verify_signature(
             signature_alg,
             self.inner.spki,
@@ -128,6 +136,22 @@ impl EndEntityCert<'_> {
     ) -> Result<impl Iterator<Item = Result<sct::LogIdAndTimestamp, sct::Error>> + 'a, sct::Error>
     {
         Ok(sct::SctParser::new(self.scts)?.map(|sct| sct.map(|sct| sct.log_id_and_timestamp())))
+    }
+}
+
+/// Check that an end-entity certificate asserts the digitalSignature bit in its KeyUsage extension.
+///
+/// <https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.3>
+fn check_key_usage_digital_signature(key_usage: untrusted::Input<'_>) -> Result<(), Error> {
+    let bit_string = key_usage.read_all(Error::TrailingData(DerTypeId::BitString), |reader| {
+        der::expect_tag(reader, der::Tag::BitString)
+    })?;
+
+    // The KeyUsage extension is a BIT STRING; digitalSignature is bit 0.
+    const DIGITAL_SIGNATURE: usize = 0;
+    match der::bit_string_flags(bit_string)?.bit_set(DIGITAL_SIGNATURE) {
+        true => Ok(()),
+        false => Err(Error::KeyUsageMissingDigitalSignature),
     }
 }
 

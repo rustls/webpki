@@ -126,6 +126,16 @@ pub enum Error {
     /// the cRLSign key usage bit.
     IssuerNotCrlSigner,
 
+    /// An end-entity certificate's KeyUsage extension does not assert the digitalSignature bit.
+    ///
+    /// This bit is required to use the certificate's public key to verify a signature with
+    /// [`EndEntityCert::verify_signature()`]. See [RFC 5280 section 4.2.1.3]. Note that this is
+    /// only enforced when a KeyUsage extension is present.
+    ///
+    /// [`EndEntityCert::verify_signature()`]: crate::EndEntityCert::verify_signature
+    /// [RFC 5280 section 4.2.1.3]: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
+    KeyUsageMissingDigitalSignature,
+
     /// A presented or reference DNS identifier was malformed, potentially
     /// containing invalid characters or invalid labels.
     MalformedDnsIdentifier,
@@ -265,6 +275,7 @@ impl Error {
             Self::IssuerNotCertSigner => 215,
             Self::CaUsedAsEndEntity | Self::EndEntityUsedAsCa => 210,
             Self::EndEntityCertHasCertSignKeyUsage => 205,
+            Self::KeyUsageMissingDigitalSignature => 202,
             Self::IssuerNotCrlSigner => 200,
 
             // Errors related to supported features used in an invalid way.
