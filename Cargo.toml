@@ -45,6 +45,7 @@ include = [
     "src/subject_name/mod.rs",
     "src/subject_name/name.rs",
     "src/subject_name/verify.rs",
+    "src/subject_name/uri.rs",
     "src/name/verify.rs",
     "src/name/name.rs",
     "src/signed_data.rs",

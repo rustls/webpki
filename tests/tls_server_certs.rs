@@ -612,61 +612,156 @@ fn ip46_mixed_address_san_allowed() {
     );
 }
 
-/// Since we don't have real constraint matching implemented for URI names, fail closed.
+// RFC 5280 § 4.2.1.10: URI constraints apply to the host part of the name,
+// matched using the same rules as dNSName constraints. The constraint is a
+// bare host/domain (`allowed.example.com` or `.example.com`), not a full URI.
 #[test]
-fn uri_san_rejected_against_uri_permitted_subtree() {
-    let ca_key = KeyPair::generate().unwrap();
-    let mut ca_params = issuer_params("issuer.example.com").unwrap();
-    ca_params
-        .custom_extensions
-        .push(uri_permitted_name_constraints(
-            b"https://allowed.example.com",
-        ));
-    let issuer = CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA");
-
-    let ee = generate_cert(
-        vec![SanType::URI("https://evil.example.com".try_into().unwrap())],
-        &issuer,
+fn uri_san_matches_uri_permitted_subtree() {
+    // As with dNSName constraints (and Go's matchDomainConstraint, which backs
+    // both), a bare constraint matches the exact host and any subdomain of it.
+    assert_eq!(
+        check_uri_constraint(
+            b"allowed.example.com",
+            PERMITTED,
+            "https://allowed.example.com"
+        ),
+        Ok(()),
     );
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
+        check_uri_constraint(
+            b"allowed.example.com",
+            PERMITTED,
+            "https://sub.allowed.example.com",
+        ),
+        Ok(()),
+    );
+    // A URI that is not below the permitted subtree is rejected.
+    assert_eq!(
+        check_uri_constraint(
+            b"allowed.example.com",
+            PERMITTED,
+            "https://evil.example.com"
+        ),
         Err(webpki::Error::NameConstraintViolation),
     );
 }
 
-/// Since we don't have real constraint matching implemented for URI names, fail closed.
 #[test]
-fn uri_san_rejected_against_uri_excluded_subtree() {
-    let ca_key = KeyPair::generate().unwrap();
-    let mut ca_params = issuer_params("issuer.example.com").unwrap();
-    ca_params
-        .custom_extensions
-        .push(uri_excluded_name_constraints(b"https://evil.example.com"));
-    let issuer = CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA");
-
-    let ee = generate_cert(
-        vec![SanType::URI("https://evil.example.com".try_into().unwrap())],
-        &issuer,
+fn uri_san_matches_leading_dot_permitted_subtree() {
+    // A leading dot matches subdomains, but not the bare domain itself.
+    assert_eq!(
+        check_uri_constraint(
+            b".allowed.example.com",
+            PERMITTED,
+            "https://host.allowed.example.com",
+        ),
+        Ok(()),
     );
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
+        check_uri_constraint(
+            b".allowed.example.com",
+            PERMITTED,
+            "https://allowed.example.com",
+        ),
         Err(webpki::Error::NameConstraintViolation),
     );
 }
 
-// Hand-encode a NameConstraints extension (OID 2.5.29.30) with a single
-// permittedSubtree containing a URI GeneralName. rcgen's GeneralSubtree enum
-// doesn't expose a URI variant, so we emit the DER directly.
-fn uri_permitted_name_constraints(uri: &[u8]) -> CustomExtension {
-    uri_name_constraints(uri, 0xa0) // permittedSubtrees [0] IMPLICIT
+#[test]
+fn uri_san_matches_nested_hostname() {
+    // A leading dot matches subdomains, but not the bare domain itself.
+    assert_eq!(
+        check_uri_constraint(
+            b"allowed.example.com",
+            PERMITTED,
+            "https://allowed.example.com",
+        ),
+        Ok(()),
+    );
+    assert_eq!(
+        check_uri_constraint(
+            b"allowed.example.com",
+            EXCLUDED,
+            "https://host.allowed.example.com",
+        ),
+        Err(webpki::Error::NameConstraintViolation),
+    );
+}
+
+#[test]
+fn uri_san_ignores_userinfo_and_port() {
+    // The host is extracted from the authority, ignoring userinfo and port.
+    assert_eq!(
+        check_uri_constraint(
+            b".allowed.example.com",
+            PERMITTED,
+            "https://user@host.allowed.example.com:8443/path?q#frag",
+        ),
+        Ok(()),
+    );
+}
+
+#[test]
+fn uri_san_matches_uri_excluded_subtree() {
+    // A URI whose host falls in the excluded subtree is rejected.
+    assert_eq!(
+        check_uri_constraint(b"evil.example.com", EXCLUDED, "https://evil.example.com"),
+        Err(webpki::Error::NameConstraintViolation),
+    );
+    // A URI outside the excluded subtree is allowed.
+    assert_eq!(
+        check_uri_constraint(b"evil.example.com", EXCLUDED, "https://good.example.com"),
+        Ok(()),
+    );
+}
+
+#[test]
+fn uri_san_without_fqdn_host_rejected() {
+    // RFC 5280 requires rejecting a URI SAN that has no authority component, or
+    // whose host is an IP address, when a URI constraint applies to it.
+    for san in [
+        "urn:example:animal",      // no authority component
+        "https://127.0.0.1/p",     // IPv4 host
+        "https://[2001:db8::1]/p", // IPv6 host
+    ] {
+        assert_eq!(
+            check_uri_constraint(b"allowed.example.com", PERMITTED, san),
+            Err(webpki::Error::NameConstraintViolation),
+            "expected {san} to be rejected against a permitted subtree",
+        );
+        assert_eq!(
+            check_uri_constraint(b"allowed.example.com", EXCLUDED, san),
+            Err(webpki::Error::NameConstraintViolation),
+            "expected {san} to be rejected against an excluded subtree",
+        );
+    }
+}
+
+// permittedSubtrees [0] IMPLICIT / excludedSubtrees [1] IMPLICIT
+const PERMITTED: u8 = 0xa0;
+const EXCLUDED: u8 = 0xa1;
+
+// Build an issuer carrying a single URI name constraint over `constraint`, issue
+// an EE cert whose only SAN is `san_uri`, and return the path-building result.
+fn check_uri_constraint(
+    constraint: &[u8],
+    subtrees_tag: u8,
+    san_uri: &str,
+) -> Result<(), webpki::Error> {
+    let ca_key = KeyPair::generate().unwrap();
+    let mut ca_params = issuer_params("issuer.example.com").unwrap();
+    ca_params
+        .custom_extensions
+        .push(uri_name_constraints(constraint, subtrees_tag));
+    let issuer = CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA");
+
+    let ee = generate_cert(vec![SanType::URI(san_uri.try_into().unwrap())], &issuer);
+    check_cert(ee.der(), issuer.der(), &[], &[], &[])
 }
 
 // Hand-encode a NameConstraints extension (OID 2.5.29.30) with a single
-// excludedSubtree containing a URI GeneralName.
-fn uri_excluded_name_constraints(uri: &[u8]) -> CustomExtension {
-    uri_name_constraints(uri, 0xa1) // excludedSubtrees [1] IMPLICIT
-}
-
+// permitted or excluded subtree containing a URI GeneralName. rcgen's
+// GeneralSubtree enum doesn't expose a URI variant, so we emit the DER directly.
 fn uri_name_constraints(uri: &[u8], subtrees_tag: u8) -> CustomExtension {
     assert!(uri.len() < 128);
     // URI GeneralName: [6] IMPLICIT IA5String
