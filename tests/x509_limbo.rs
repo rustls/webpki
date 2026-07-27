@@ -8,6 +8,7 @@ use limbo_harness_support::LIMBO_JSON;
 use limbo_harness_support::models::{ExpectedResult, Feature, Limbo, Testcase, ValidationKind};
 use pki_types::pem::PemObject;
 use pki_types::{CertificateDer, CertificateRevocationListDer, ServerName, UnixTime};
+use rustls_post_quantum::{ML_DSA_44, ML_DSA_65, ML_DSA_87};
 use serde::{Deserialize, Serialize};
 use webpki::{
     EndEntityCert, ExpirationPolicy, ExtendedKeyUsage, OwnedCertRevocationList, PathBuilder,
@@ -127,6 +128,9 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         .collect::<Result<Vec<_>, _>>()?;
     let crls = crls.iter().collect::<Vec<_>>();
 
+    let mut algs = rustls_aws_lc_rs::ALL_VERIFICATION_ALGS.to_vec();
+    algs.extend_from_slice(&[ML_DSA_44, ML_DSA_65, ML_DSA_87]);
+
     let builder = PathBuilder::new(
         &intermediates,
         (!crls.is_empty()).then(|| {
@@ -138,7 +142,7 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
                 .build()
         }),
         &ExtendedKeyUsage::SERVER_AUTH,
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+        &algs,
         &trust_anchors,
     );
 
