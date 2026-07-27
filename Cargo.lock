@@ -535,9 +535,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.24.0-dev.0"
+version = "0.24.0-dev.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d99552b8a20dd0e79f6c4af553583fa7e1a77acb86ef40eb3392cc7b30f373db"
+checksum = "aea97a47e031d09563e2b411eca6522d03ca605514b5f06f0fe78923d6652d28"
 dependencies = [
  "once_cell",
  "rustls-pki-types",
@@ -547,9 +547,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-aws-lc-rs"
-version = "0.1.0-dev.0"
+version = "0.1.0-dev.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63d021a4a49229996f6665c578895de0b95b8a20c6360852c5f5ed90644eb81c"
+checksum = "dcde4ba4d57faf984e771ccf5002c8af6fde3d0289ce741cbd8f603940efdc40"
 dependencies = [
  "aws-lc-rs",
  "rustls",
@@ -560,18 +560,29 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.14.1"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30a7197ae7eb376e574fe940d068c30fe0462554a3ddbe4eca7838e049c937a9"
+checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
 dependencies = [
  "zeroize",
 ]
 
 [[package]]
-name = "rustls-ring"
-version = "0.1.0-dev.0"
+name = "rustls-post-quantum"
+version = "0.3.0-dev.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc83ee09d64e1bb2c15a2b02aa78f60cb1ecb360d529876c7d6a598549fb9c9e"
+checksum = "44a0baaec20af0a8013ba19e5e6366865c97e30c4bd41cdd5de92ff7090f31d3"
+dependencies = [
+ "aws-lc-rs",
+ "rustls",
+ "rustls-aws-lc-rs",
+]
+
+[[package]]
+name = "rustls-ring"
+version = "0.1.0-dev.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2fbefa23a4c894a7e6f0ae0d23552535e064a2725f0911b05f9866e9abc658b"
 dependencies = [
  "ring",
  "rustls",
@@ -591,6 +602,7 @@ dependencies = [
  "rcgen",
  "rustls-aws-lc-rs",
  "rustls-pki-types",
+ "rustls-post-quantum",
  "rustls-ring",
  "serde",
  "serde_json",
