@@ -80,7 +80,7 @@ pki-types = { package = "rustls-pki-types", version = "1.13", default-features =
 untrusted = "0.9"
 
 [dev-dependencies]
-base64 = "0.22"
+base64 = "0.23"
 bencher = "0.1.5"
 chrono = "0.4"
 limbo-harness-support = { git = "https://github.com/C2SP/x509-limbo", rev = "1983423436313a6605461056470e21242d066416" }
