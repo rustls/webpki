@@ -144,6 +144,16 @@
     "actual": "SUCCESS",
     "reason": "webpki does not enforce consistency between BasicConstraints.cA and KeyUsage.keyCertSign in trust anchors"
   },
+  "rfc9881::ml-dsa-44-key-agreement": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 9881 requirement that ML-DSA certs not assert keyAgreement key usage"
+  },
+  "rfc9881::ml-dsa-44-key-encipherment": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki does not enforce RFC 9881 requirement that ML-DSA certs not assert keyEncipherment key usage"
+  },
   "webpki::aki::root-with-aki-missing-keyidentifier": {
     "expected": "FAILURE",
     "actual": "SUCCESS",
