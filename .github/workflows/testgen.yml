@@ -1,0 +1,54 @@
+name: testgen
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["main", "ci/*"]
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  testgen:
+    name: Python Testgen
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install Python requirements
+        run: pip install -r requirements.txt
+
+      - name: flake8 Lint
+        uses: py-actions/flake8@v2
+
+      - name: mypy Typecheck
+        run: mypy ./tests
+
+      - name: Black Format
+        uses: psf/black@stable
+        with:
+          src: "./tests"
+
+      - name: Generate CRL test files
+        working-directory: ./tests/crls/
+        run: python3 make_testcrls.py
+
+      - name: Generate CRL distribution point test files
+        working-directory: ./tests/crl_distrib_point/
+        run: python3 make_testcerts.py
+
+      - name: Enforce no diff
+        run: git diff --exit-code
