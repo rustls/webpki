@@ -9,8 +9,12 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID
 import datetime
 
-NOT_BEFORE: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D - 30)
-NOT_AFTER: datetime.datetime = datetime.datetime.utcfromtimestamp(0x1FEDF00D + 30)
+NOT_BEFORE: datetime.datetime = datetime.datetime.fromtimestamp(
+    0x1FEDF00D - 30, datetime.UTC
+)
+NOT_AFTER: datetime.datetime = datetime.datetime.fromtimestamp(
+    0x1FEDF00D + 30, datetime.UTC
+)
 
 PRIVATE_KEY: ec.EllipticCurvePrivateKey = ec.generate_private_key(
     ec.SECP256R1(), default_backend()
