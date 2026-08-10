@@ -125,10 +125,6 @@ jobs:
         with:
           toolchain: ${{ matrix.rust_channel }}
 
-      - name: Install ninja-build tool for aws-lc-fips-sys on Windows
-        if: runner.os == 'Windows'
-        uses: seanmiddleditch/gha-setup-ninja@v6
-
       - name: cargo test (${{ matrix.features }})
         run: cargo test --locked ${{ matrix.features }} -- --include-ignored
         env:
