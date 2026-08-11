@@ -120,7 +120,6 @@ jobs:
           - --no-default-features --features alloc,ring
           # `std` is enabled by default
           - --features aws-lc-rs
-          - --features aws-lc-rs-unstable
           - --features ring
 
         host_os:
@@ -319,4 +318,4 @@ jobs:
           cargo hack check
           --feature-powerset
           --no-dev-deps
-          --mutually-exclusive-features aws-lc-rs,aws-lc-rs-fips,aws-lc-rs-unstable
+          --mutually-exclusive-features aws-lc-rs,aws-lc-rs-fips
