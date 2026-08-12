@@ -6,6 +6,7 @@ use untrusted::{Input, Reader};
 
 pub(crate) struct SctParser<'a> {
     reader: Reader<'a>,
+    done: bool,
 }
 
 impl<'a> SctParser<'a> {
@@ -17,6 +18,7 @@ impl<'a> SctParser<'a> {
                 ),
                 None => Reader::new(Input::from(&[])),
             },
+            done: false,
         })
     }
 }
@@ -25,13 +27,14 @@ impl<'a> Iterator for SctParser<'a> {
     type Item = Result<SignedCertificateTimestamp<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.reader.at_end() {
+        if self.done || self.reader.at_end() {
             return None;
         }
 
         Some(
             read_field(&mut self.reader, non_zero_u16_len)
-                .and_then(|item| SignedCertificateTimestamp::try_from(item.as_slice_less_safe())),
+                .and_then(|item| SignedCertificateTimestamp::try_from(item.as_slice_less_safe()))
+                .inspect_err(|_| self.done = true),
         )
     }
 }
@@ -219,6 +222,28 @@ mod tests {
                 .unwrap()
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn terminate_iterator_after_error_within_sct() {
+        let bytes = [
+            0x0, 0x31, // outer len
+            0x0, 0x30, // item len
+            0x0,  // version
+            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
+            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
+            b'l', b'l', b'l', b'l', // log id
+            b't', b't', b't', b't', b't', b't', b't', b't', // timestamp
+            0x0, 0x0, // extensions
+            b's', b'a', // sig alg
+            0x0, 0x0, // sig
+        ];
+
+        SignedCertificateTimestamp::try_from(&bytes[4..]).unwrap_err();
+
+        let mut iter = SctParser::new(Some(Input::from(&bytes))).unwrap();
+        assert_eq!(iter.next(), Some(Err(Error::MalformedSct)));
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
