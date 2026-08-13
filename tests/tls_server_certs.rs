@@ -787,3 +787,30 @@ fn make_issuer(name_constraints: Option<NameConstraints>) -> CertifiedIssuer<'st
 
 // OID for emailAddress in subject DN (pkcs9-emailAddress)
 const OID_EMAIL_ADDRESS: &[u64] = &[1, 2, 840, 113549, 1, 9, 1];
+
+#[test]
+fn presented_names_escape_control_characters() {
+    // `InvalidNameContext::presented` is public API built by formatting the SAN
+    // entries, and a certificate can carry anything there. Whatever a caller
+    // does with those strings, they should not contain raw control characters.
+    let issuer = make_issuer(None);
+    let ee = generate_cert_with_names(
+        None,
+        None,
+        vec![SanType::DnsName(
+            "a\r\nInjected: header\u{1b}[31m".try_into().unwrap(),
+        )],
+        &issuer,
+    );
+
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[],
+            &["real.example.com"],
+            &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
+        ),
+        Ok(())
+    );
+}

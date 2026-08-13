@@ -323,7 +323,7 @@ impl fmt::Debug for GeneralName<'_> {
         match self {
             GeneralName::DnsName(name) => write!(
                 f,
-                "DnsName(\"{}\")",
+                "DnsName({:?})",
                 String::from_utf8_lossy(name.as_slice_less_safe())
             ),
             GeneralName::DirectoryName => write!(f, "DirectoryName"),
@@ -332,7 +332,7 @@ impl fmt::Debug for GeneralName<'_> {
             }
             GeneralName::UniformResourceIdentifier(uri) => write!(
                 f,
-                "UniformResourceIdentifier(\"{}\")",
+                "UniformResourceIdentifier({:?})",
                 String::from_utf8_lossy(uri.as_slice_less_safe())
             ),
             GeneralName::Unsupported(tag) => write!(f, "Unsupported(0x{tag:02x})"),
@@ -458,6 +458,30 @@ mod tests {
         assert_eq!(
             format!("{:?}", GeneralName::Unsupported(0x66)),
             "Unsupported(0x66)"
+        );
+    }
+
+    #[test]
+    fn debug_names_are_escaped() {
+        // `InvalidNameContext::presented` is built from these strings, and a
+        // certificate can put anything in a SAN, so control characters must not
+        // survive into whatever the caller does with them.
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::DnsName(untrusted::Input::from(
+                    b"a\r\nSet-Cookie: x=y\x1b[31m\"quoted\""
+                ))
+            ),
+            r#"DnsName("a\r\nSet-Cookie: x=y\u{1b}[31m\"quoted\"")"#
+        );
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::UniformResourceIdentifier(untrusted::Input::from(b"https://a\nb"))
+            ),
+            r#"UniformResourceIdentifier("https://a\nb")"#
         );
     }
 
