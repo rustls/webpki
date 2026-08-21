@@ -59,9 +59,16 @@ impl<'a> Cert<'a> {
         Self::from_input(cert_der, UnknownExtensionPolicy::default())
     }
 
+    pub(crate) fn from_der_with_extension_policy(
+        cert_der: untrusted::Input<'a>,
+        ext_policy: UnknownExtensionPolicy<'_>,
+    ) -> Result<Self, Error> {
+        Self::from_input(cert_der, ext_policy)
+    }
+
     fn from_input(
         cert_der: untrusted::Input<'a>,
-        ext_policy: UnknownExtensionPolicy,
+        ext_policy: UnknownExtensionPolicy<'_>,
     ) -> Result<Self, Error> {
         let (tbs, signed_data) =
             cert_der.read_all(Error::TrailingData(DerTypeId::Certificate), |cert_der| {
@@ -308,7 +315,7 @@ pub(crate) fn lenient_certificate_serial_number<'a>(
 fn remember_cert_extension<'a>(
     cert: &mut Cert<'a>,
     extension: &Extension<'a>,
-    ext_policy: UnknownExtensionPolicy,
+    ext_policy: UnknownExtensionPolicy<'_>,
 ) -> Result<(), Error> {
     // We don't do anything with certificate policies so we can safely ignore
     // all policy-related stuff. We assume that the policy-related extensions

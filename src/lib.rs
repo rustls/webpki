@@ -88,6 +88,7 @@ pub use verify_cert::{
     ExtendedKeyUsage, ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId,
     KeyPurposeIdIter, PathBuilder, RequiredEkuNotFoundContext, VerifiedPath,
 };
+pub use x509::ExtensionId;
 
 fn public_values_eq(a: untrusted::Input<'_>, b: untrusted::Input<'_>) -> bool {
     a.as_slice_less_safe() == b.as_slice_less_safe()
