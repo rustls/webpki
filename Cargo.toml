@@ -58,7 +58,8 @@ include = [
 ]
 
 [package.metadata.docs.rs]
-all-features = true
+# Build both crypto backends, but not FIPS (which cannot build on docs.rs).
+features = ["aws-lc-rs", "ring"]
 rustdoc-args = ["--cfg", "webpki_docsrs"]
 
 [package.metadata.cargo_check_external_types]
