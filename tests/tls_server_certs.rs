@@ -26,48 +26,6 @@ use webpki::{ExtendedKeyUsage, InvalidNameContext, PathBuilder, anchor_from_trus
 mod common;
 use common::issuer_params;
 
-#[track_caller]
-fn check_cert(
-    ee: &[u8],
-    ca: &[u8],
-    valid_names: &[&str],
-    invalid_names: &[&str],
-    presented_names: &[&str],
-) -> Result<(), webpki::Error> {
-    let ca_cert_der = CertificateDer::from(ca);
-    let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
-    let builder = PathBuilder::new(
-        &[],
-        None,
-        &ExtendedKeyUsage::SERVER_AUTH,
-        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
-        &anchors,
-    );
-
-    let ee_der = CertificateDer::from(ee);
-    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
-    let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
-    builder.build(&cert, time)?;
-
-    for valid in valid_names {
-        let name = ServerName::try_from(*valid).unwrap();
-        assert_eq!(cert.verify_is_valid_for_subject_name(&name), Ok(()));
-    }
-
-    for invalid in invalid_names {
-        let name = ServerName::try_from(*invalid).unwrap();
-        assert_eq!(
-            cert.verify_is_valid_for_subject_name(&name),
-            Err(webpki::Error::CertNotValidForName(InvalidNameContext {
-                expected: name.to_owned(),
-                presented: presented_names.iter().map(|n| n.to_string()).collect(),
-            }))
-        );
-    }
-
-    Ok(())
-}
-
 #[test]
 fn no_name_constraints() {
     let issuer = make_issuer(None);
@@ -742,6 +700,33 @@ fn invalid_dns_name_matching() {
     );
 }
 
+#[test]
+fn presented_names_escape_control_characters() {
+    // `InvalidNameContext::presented` is public API built by formatting the SAN
+    // entries, and a certificate can carry anything there. Whatever a caller
+    // does with those strings, they should not contain raw control characters.
+    let issuer = make_issuer(None);
+    let ee = generate_cert_with_names(
+        None,
+        None,
+        vec![SanType::DnsName(
+            "a\r\nInjected: header\u{1b}[31m".try_into().unwrap(),
+        )],
+        &issuer,
+    );
+
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[],
+            &["real.example.com"],
+            &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
+        ),
+        Ok(())
+    );
+}
+
 fn generate_cert(sans: Vec<SanType>, issuer: &CertifiedIssuer<'_, KeyPair>) -> Certificate {
     generate_cert_with_names(None, None, sans, issuer)
 }
@@ -785,32 +770,47 @@ fn make_issuer(name_constraints: Option<NameConstraints>) -> CertifiedIssuer<'st
     CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA cert")
 }
 
+#[track_caller]
+fn check_cert(
+    ee: &[u8],
+    ca: &[u8],
+    valid_names: &[&str],
+    invalid_names: &[&str],
+    presented_names: &[&str],
+) -> Result<(), webpki::Error> {
+    let ca_cert_der = CertificateDer::from(ca);
+    let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
+    let builder = PathBuilder::new(
+        &[],
+        None,
+        &ExtendedKeyUsage::SERVER_AUTH,
+        rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
+
+    let ee_der = CertificateDer::from(ee);
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+    let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
+    builder.build(&cert, time)?;
+
+    for valid in valid_names {
+        let name = ServerName::try_from(*valid).unwrap();
+        assert_eq!(cert.verify_is_valid_for_subject_name(&name), Ok(()));
+    }
+
+    for invalid in invalid_names {
+        let name = ServerName::try_from(*invalid).unwrap();
+        assert_eq!(
+            cert.verify_is_valid_for_subject_name(&name),
+            Err(webpki::Error::CertNotValidForName(InvalidNameContext {
+                expected: name.to_owned(),
+                presented: presented_names.iter().map(|n| n.to_string()).collect(),
+            }))
+        );
+    }
+
+    Ok(())
+}
+
 // OID for emailAddress in subject DN (pkcs9-emailAddress)
 const OID_EMAIL_ADDRESS: &[u64] = &[1, 2, 840, 113549, 1, 9, 1];
-
-#[test]
-fn presented_names_escape_control_characters() {
-    // `InvalidNameContext::presented` is public API built by formatting the SAN
-    // entries, and a certificate can carry anything there. Whatever a caller
-    // does with those strings, they should not contain raw control characters.
-    let issuer = make_issuer(None);
-    let ee = generate_cert_with_names(
-        None,
-        None,
-        vec![SanType::DnsName(
-            "a\r\nInjected: header\u{1b}[31m".try_into().unwrap(),
-        )],
-        &issuer,
-    );
-
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &["real.example.com"],
-            &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
-        ),
-        Ok(())
-    );
-}
