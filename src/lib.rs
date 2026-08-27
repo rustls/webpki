@@ -77,7 +77,7 @@ pub use crl::{OwnedCertRevocationList, OwnedRevokedCert};
 pub use der::DerIterator;
 pub use end_entity::EndEntityCert;
 pub use error::{
-    DerTypeId, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
+    DerTypeId, DnsNameError, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
     UnsupportedSignatureAlgorithmForPublicKeyContext,
 };
 pub use rpk_entity::RawPublicKeyEntity;

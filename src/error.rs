@@ -138,7 +138,7 @@ pub enum Error {
 
     /// A presented or reference DNS identifier was malformed, potentially
     /// containing invalid characters or invalid labels.
-    MalformedDnsIdentifier,
+    MalformedDnsIdentifier(DnsNameError),
 
     /// The certificate extensions are malformed.
     ///
@@ -149,7 +149,7 @@ pub enum Error {
 
     /// A name constraint was malformed, potentially containing invalid characters or
     /// invalid labels.
-    MalformedNameConstraint,
+    MalformedNameConstraint(DnsNameError),
 
     /// The maximum number of name constraint comparisons has been reached.
     MaximumNameConstraintComparisonsExceeded,
@@ -302,8 +302,8 @@ impl Error {
             Self::MaximumPathDepthExceeded => 61,
 
             // Errors related to malformed data.
-            Self::MalformedDnsIdentifier => 60,
-            Self::MalformedNameConstraint => 50,
+            Self::MalformedDnsIdentifier(_) => 60,
+            Self::MalformedNameConstraint(_) => 50,
             Self::MalformedExtensions | Self::TrailingData(_) => 40,
             Self::ExtensionValueInvalid => 30,
 
