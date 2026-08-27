@@ -22,7 +22,7 @@ use pki_types::{DnsName, InvalidDnsNameError};
 
 use super::{GeneralName, NameIterator};
 use crate::cert::Cert;
-use crate::error::{Error, InvalidNameContext};
+use crate::error::{DnsNameError, Error, InvalidNameContext};
 use crate::subject_name::Subtrees;
 
 pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Result<(), Error> {
@@ -85,7 +85,7 @@ impl<'a> WildcardDnsNameRef<'a> {
     /// Constructs a `WildcardDnsNameRef` from the given input if the input is a
     /// syntactically-valid DNS name.
     pub(crate) fn try_from_ascii(dns_name: &'a [u8]) -> Result<Self, InvalidDnsNameError> {
-        if !is_valid_dns_id(
+        if let Err(_) = is_valid_dns_id(
             untrusted::Input::from(dns_name),
             IdRole::Reference,
             Wildcards::Allow,
@@ -240,11 +240,11 @@ pub(super) fn presented_id_matches_reference_id(
     reference_dns_id_role: IdRole,
     reference_dns_id: untrusted::Input<'_>,
 ) -> Result<bool, Error> {
-    if !is_valid_dns_id(presented_dns_id, IdRole::Presented, Wildcards::Allow) {
+    if let Err(_) = is_valid_dns_id(presented_dns_id, IdRole::Presented, Wildcards::Allow) {
         return Err(Error::MalformedDnsIdentifier);
     }
 
-    if !is_valid_dns_id(reference_dns_id, reference_dns_id_role, Wildcards::Deny) {
+    if let Err(_) = is_valid_dns_id(reference_dns_id, reference_dns_id_role, Wildcards::Deny) {
         return Err(match reference_dns_id_role {
             IdRole::NameConstraint(_) => Error::MalformedNameConstraint,
             _ => Error::MalformedDnsIdentifier,
@@ -401,16 +401,16 @@ fn is_valid_dns_id(
     hostname: untrusted::Input<'_>,
     id_role: IdRole,
     allow_wildcards: Wildcards,
-) -> bool {
+) -> Result<(), DnsNameError> {
     // https://blogs.msdn.microsoft.com/oldnewthing/20120412-00/?p=7873/
     if hostname.len() > 253 {
-        return false;
+        return Err(DnsNameError::NameTooLong);
     }
 
     let mut input = untrusted::Reader::new(hostname);
 
     if matches!(id_role, IdRole::NameConstraint(_)) && input.at_end() {
-        return true;
+        return Ok(());
     }
 
     let mut dot_count = 0;
@@ -425,7 +425,7 @@ fn is_valid_dns_id(
     let mut is_first_byte = !is_wildcard;
     if is_wildcard {
         if input.read_byte() != Ok(b'*') || input.read_byte() != Ok(b'.') {
-            return false;
+            return Err(DnsNameError::WildcardAsteriskMustBeAloneInLabel);
         }
         dot_count += 1;
     }
@@ -436,13 +436,13 @@ fn is_valid_dns_id(
         match input.read_byte() {
             Ok(b'-') => {
                 if label_length == 0 {
-                    return false; // Labels must not start with a hyphen.
+                    return Err(DnsNameError::LabelMustNotStartWithHyphen);
                 }
                 label_is_all_numeric = false;
                 label_ends_with_hyphen = true;
                 label_length += 1;
                 if label_length > MAX_LABEL_LENGTH {
-                    return false;
+                    return Err(DnsNameError::LabelTooLong);
                 }
             }
 
@@ -453,7 +453,7 @@ fn is_valid_dns_id(
                 label_ends_with_hyphen = false;
                 label_length += 1;
                 if label_length > MAX_LABEL_LENGTH {
-                    return false;
+                    return Err(DnsNameError::LabelTooLong);
                 }
             }
 
@@ -462,7 +462,7 @@ fn is_valid_dns_id(
                 label_ends_with_hyphen = false;
                 label_length += 1;
                 if label_length > MAX_LABEL_LENGTH {
-                    return false;
+                    return Err(DnsNameError::LabelTooLong);
                 }
             }
 
@@ -470,17 +470,17 @@ fn is_valid_dns_id(
                 dot_count += 1;
                 let name_constrained = matches!(id_role, IdRole::NameConstraint(_));
                 if label_length == 0 && (!name_constrained || !is_first_byte) {
-                    return false;
+                    return Err(DnsNameError::LabelMustNotBeEmpty);
                 }
                 if label_ends_with_hyphen {
-                    return false; // Labels must not end with a hyphen.
+                    return Err(DnsNameError::LabelMustNotEndWithHyphen);
                 }
                 label_length = 0;
             }
 
-            _ => {
-                return false;
-            }
+            Ok(x) => return Err(DnsNameError::IllegalCharacter(x)),
+
+            Err(_) => return Err(DnsNameError::Truncated),
         }
         is_first_byte = false;
 
@@ -492,15 +492,15 @@ fn is_valid_dns_id(
     // Only reference IDs, not presented IDs or name constraints, may be
     // absolute.
     if label_length == 0 && id_role != IdRole::Reference {
-        return false;
+        return Err(DnsNameError::NameMustBeRelative);
     }
 
     if label_ends_with_hyphen {
-        return false; // Labels must not end with a hyphen.
+        return Err(DnsNameError::LabelMustNotEndWithHyphen);
     }
 
     if label_is_all_numeric {
-        return false; // Last label must not be all numeric.
+        return Err(DnsNameError::LastLabelMustNotBeAllNumeric);
     }
 
     if is_wildcard {
@@ -516,11 +516,11 @@ fn is_valid_dns_id(
         // similar to Chromium. Even then, it might be better to still enforce
         // that there are at least two labels after the wildcard.
         if label_count < 3 {
-            return false;
+            return Err(DnsNameError::WildcardMustPrecedeTwoLabels);
         }
     }
 
-    true
+    Ok(())
 }
 
 #[cfg(test)]

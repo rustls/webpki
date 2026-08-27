@@ -430,3 +430,23 @@ pub enum DerTypeId {
     SubjectUniqueId,
     KeyUsageExtension,
 }
+
+/// Errors possible when parsing a DNS name.
+///
+/// This applies when parsing presented names, asserted names, or name constraints.
+#[expect(missing_docs)]
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DnsNameError {
+    IllegalCharacter(u8),
+    LabelMustNotBeEmpty,
+    LabelMustNotEndWithHyphen,
+    LabelMustNotStartWithHyphen,
+    LabelTooLong,
+    LastLabelMustNotBeAllNumeric,
+    NameMustBeRelative,
+    NameTooLong,
+    Truncated,
+    WildcardAsteriskMustBeAloneInLabel,
+    WildcardMustPrecedeTwoLabels,
+}
