@@ -27,33 +27,37 @@ use crate::subject_name::Subtrees;
 
 pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Result<(), Error> {
     let dns_name = untrusted::Input::from(reference.as_ref().as_bytes());
-    let result = NameIterator::new(cert.subject_alt_name).find_map(|result| {
-        let name = match result {
-            Ok(name) => name,
-            Err(err) => return Some(Err(err)),
+    let mut specific_error = None;
+    let mut iter = NameIterator::new(cert.subject_alt_name);
+    let result = loop {
+        let name = match iter.next() {
+            Some(Ok(name)) => name,
+            Some(Err(err)) => return Err(err),
+            None => break None,
         };
 
         let GeneralName::DnsName(presented_id) = name else {
-            return None;
+            continue;
         };
 
         match presented_id_matches_reference_id(presented_id, IdRole::Reference, dns_name) {
-            Ok(true) => Some(Ok(())),
-            Ok(false) | Err(Error::MalformedDnsIdentifier(_)) => None,
-            Err(e) => Some(Err(e)),
+            Ok(true) => break Some(Ok(())),
+            Ok(false) => {}
+            Err(err @ Error::MalformedDnsIdentifier(_)) => specific_error = Some(err),
+            Err(e) => return Err(e),
         }
-    });
+    };
 
-    match result {
-        #[cfg_attr(not(feature = "alloc"), expect(clippy::needless_return))]
-        Some(result) => return result,
-        #[cfg(feature = "alloc")]
-        None => {}
-        #[cfg(not(feature = "alloc"))]
-        None => Err(Error::CertNotValidForName(InvalidNameContext {})),
-    }
+    if let Some(result) = result {
+        return result;
+    };
 
-    // Try to yield a more useful error. To avoid allocating on the happy path,
+    // If we have a more specific error, we yield that.
+    if let Some(specific) = specific_error {
+        return Err(specific);
+    };
+
+    // Otherwise, construct a useful error. To avoid allocating on the happy path,
     // we reconstruct the same `NameIterator` and replay it.
     #[cfg(feature = "alloc")]
     {
@@ -63,6 +67,10 @@ pub(crate) fn verify_dns_names(reference: &DnsName<'_>, cert: &Cert<'_>) -> Resu
                 .filter_map(|result| Some(format!("{:?}", result.ok()?)))
                 .collect(),
         }))
+    }
+    #[cfg(not(feature = "alloc"))]
+    {
+        Err(Error::CertNotValidForName(InvalidNameContext {}))
     }
 }
 

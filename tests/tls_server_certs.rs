@@ -22,7 +22,7 @@ use rcgen::{
     date_time_ymd,
 };
 use webpki::{
-    EndEntityCert, Error, ExtendedKeyUsage, InvalidNameContext, PathBuilder,
+    DnsNameError, EndEntityCert, Error, ExtendedKeyUsage, InvalidNameContext, PathBuilder,
     anchor_from_trusted_cert,
 };
 
@@ -614,13 +614,50 @@ fn presented_names_escape_control_characters() {
         &issuer,
     );
 
-    check_cert(
-        ee.der(),
-        issuer.der(),
-        &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
-    )
-    .unwrap()
-    .assert_invalid_name("real.example.com");
+    assert_eq!(
+        check_cert(
+            ee.der(),
+            issuer.der(),
+            &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
+        )
+        .unwrap()
+        .check_name("real.example.com"),
+        Err(Error::MalformedDnsIdentifier(
+            DnsNameError::IllegalCharacter(b'\r')
+        ))
+    );
+}
+
+/// See <https://github.com/rustls/webpki/issues/532>
+#[test]
+fn good_error_with_invalid_wildcard() {
+    let issuer = make_issuer(None);
+    let ee = generate_cert_with_names(
+        None,
+        None,
+        vec![
+            SanType::DnsName("localhost".try_into().unwrap()),
+            SanType::DnsName("*.localhost".try_into().unwrap()),
+        ],
+        &issuer,
+    );
+
+    let ee_der = CertificateDer::from(ee);
+    let cert = EndEntityCert::try_from(&ee_der).unwrap();
+
+    // normal behaviour for matching name
+    assert_eq!(
+        cert.verify_is_valid_for_subject_name(&"localhost".try_into().unwrap()),
+        Ok(())
+    );
+
+    // unmatching name gets a more specific error
+    assert_eq!(
+        cert.verify_is_valid_for_subject_name(&"test.localhost".try_into().unwrap()),
+        Err(Error::MalformedDnsIdentifier(
+            DnsNameError::WildcardMustPrecedeTwoLabels
+        ))
+    );
 }
 
 fn generate_cert(sans: Vec<SanType>, issuer: &CertifiedIssuer<'_, KeyPair>) -> Certificate {
@@ -698,22 +735,25 @@ struct NameChecker {
 impl NameChecker {
     #[track_caller]
     fn assert_valid_name(&self, name: &str) -> &Self {
-        let name = ServerName::try_from(name).unwrap();
-        assert_eq!(self.cert().verify_is_valid_for_subject_name(&name), Ok(()));
+        self.check_name(name).unwrap();
         self
     }
 
     #[track_caller]
     fn assert_invalid_name(&self, name: &str) -> &Self {
-        let name = ServerName::try_from(name).unwrap();
         assert_eq!(
-            self.cert().verify_is_valid_for_subject_name(&name),
+            self.check_name(name),
             Err(Error::CertNotValidForName(InvalidNameContext {
-                expected: name.to_owned(),
+                expected: ServerName::try_from(name).unwrap().to_owned(),
                 presented: self.expected_presented_names.clone(),
             }))
         );
         self
+    }
+
+    fn check_name(&self, name: &str) -> Result<(), Error> {
+        self.cert()
+            .verify_is_valid_for_subject_name(&ServerName::try_from(name).unwrap())
     }
 
     fn cert(&self) -> EndEntityCert<'_> {
