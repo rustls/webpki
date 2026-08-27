@@ -621,6 +621,7 @@ fn presented_names_escape_control_characters() {
             &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
         )
         .unwrap()
+        .assert_dns_names(&[])
         .check_name("real.example.com"),
         Err(Error::MalformedDnsIdentifier(
             DnsNameError::IllegalCharacter(b'\r')
@@ -748,6 +749,12 @@ impl NameChecker {
                 presented: self.expected_presented_names.clone(),
             }))
         );
+        self
+    }
+
+    #[track_caller]
+    fn assert_dns_names(&self, names: &[&str]) -> &Self {
+        assert_eq!(self.cert().valid_dns_names().collect::<Vec<_>>(), names);
         self
     }
 
