@@ -21,7 +21,10 @@ use rcgen::{
     DistinguishedName, DnType, GeneralSubtree, IsCa, KeyPair, NameConstraints, SanType,
     date_time_ymd,
 };
-use webpki::{ExtendedKeyUsage, InvalidNameContext, PathBuilder, anchor_from_trusted_cert};
+use webpki::{
+    EndEntityCert, Error, ExtendedKeyUsage, InvalidNameContext, PathBuilder,
+    anchor_from_trusted_cert,
+};
 
 mod common;
 use common::issuer_params;
@@ -35,16 +38,10 @@ fn no_name_constraints() {
         vec![SanType::DnsName("dns.example.com".try_into().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["dns.example.com"],
-            &["subject.example.com"],
-            &["DnsName(\"dns.example.com\")"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["DnsName(\"dns.example.com\")"])
+        .unwrap()
+        .assert_valid_name("dns.example.com")
+        .assert_invalid_name("subject.example.com");
 }
 
 #[test]
@@ -62,19 +59,18 @@ fn additional_dns_labels() {
         ],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["host1.example.com", "host2.example.com"],
-            &["subject.example.com"],
-            &[
-                "DnsName(\"host1.example.com\")",
-                "DnsName(\"host2.example.com\")"
-            ]
-        ),
-        Ok(())
-    );
+    check_cert(
+        ee.der(),
+        issuer.der(),
+        &[
+            "DnsName(\"host1.example.com\")",
+            "DnsName(\"host2.example.com\")",
+        ],
+    )
+    .unwrap()
+    .assert_valid_name("host1.example.com")
+    .assert_valid_name("host2.example.com")
+    .assert_invalid_name("subject.example.com");
 }
 
 #[test]
@@ -95,11 +91,9 @@ fn disallow_dns_san() {
         check_cert(
             ee.der(),
             issuer.der(),
-            &[],
-            &[],
             &["DnsName(\"disallowed.example.com\")"]
         ),
-        Err(webpki::Error::NameConstraintViolation)
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -110,10 +104,9 @@ fn allow_subject_common_name() {
         excluded_subtrees: vec![],
     }));
     let ee = generate_cert_with_names(Some("allowed.example.com"), None, vec![], &issuer);
-    assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &["allowed.example.com"], &[]),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &[])
+        .unwrap()
+        .assert_invalid_name("allowed.example.com");
 }
 
 #[test]
@@ -126,16 +119,13 @@ fn allow_dns_san() {
         vec![SanType::DnsName("allowed.example.com".try_into().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["allowed.example.com"],
-            &[],
-            &["DnsName(\"allowed.example.com\")"]
-        ),
-        Ok(())
-    );
+    check_cert(
+        ee.der(),
+        issuer.der(),
+        &["DnsName(\"allowed.example.com\")"],
+    )
+    .unwrap()
+    .assert_valid_name("allowed.example.com");
 }
 
 #[test]
@@ -155,16 +145,14 @@ fn allow_dns_san_and_subject_common_name() {
         )],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["allowed-san.example.com"],
-            &["allowed-cn.example.com"],
-            &["DnsName(\"allowed-san.example.com\")"]
-        ),
-        Ok(())
-    );
+    check_cert(
+        ee.der(),
+        issuer.der(),
+        &["DnsName(\"allowed-san.example.com\")"],
+    )
+    .unwrap()
+    .assert_valid_name("allowed-san.example.com")
+    .assert_invalid_name("allowed-cn.example.com");
 }
 
 #[test]
@@ -191,14 +179,12 @@ fn disallow_dns_san_and_allow_subject_common_name() {
         check_cert(
             ee.der(),
             issuer.der(),
-            &[],
-            &[],
             &[
                 "DnsName(\"allowed-san.example.com\")",
                 "DnsName(\"disallowed-san.example.com\")"
             ]
         ),
-        Err(webpki::Error::NameConstraintViolation)
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -211,7 +197,7 @@ fn we_incorrectly_ignore_name_constraints_on_name_in_subject() {
     let ee = generate_cert_with_names(None, Some("test@example.com"), vec![], &issuer);
     // webpki incorrectly ignores name constraints on email addresses in the subject DN
     // The email in subject should be checked against constraints, but it isn't
-    assert_eq!(check_cert(ee.der(), issuer.der(), &[], &[], &[]), Ok(()));
+    check_cert(ee.der(), issuer.der(), &[]).unwrap();
 }
 
 #[test]
@@ -225,8 +211,8 @@ fn reject_constraints_on_unimplemented_names() {
         &issuer,
     );
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &[]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -240,16 +226,10 @@ fn we_ignore_constraints_on_names_that_do_not_appear_in_cert() {
         vec![SanType::DnsName("notexample.com".try_into().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["notexample.com"],
-            &["example.com"],
-            &["DnsName(\"notexample.com\")"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["DnsName(\"notexample.com\")"])
+        .unwrap()
+        .assert_valid_name("notexample.com")
+        .assert_invalid_name("example.com");
 }
 
 #[test]
@@ -262,16 +242,12 @@ fn wildcard_san_accepted_if_in_subtree() {
         vec![SanType::DnsName("*.example.com".try_into().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["bob.example.com", "jane.example.com"],
-            &["example.com", "uh.oh.example.com"],
-            &["DnsName(\"*.example.com\")"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["DnsName(\"*.example.com\")"])
+        .unwrap()
+        .assert_valid_name("bob.example.com")
+        .assert_valid_name("jane.example.com")
+        .assert_invalid_name("example.com")
+        .assert_invalid_name("uh.oh.example.com");
 }
 
 #[test]
@@ -285,14 +261,8 @@ fn wildcard_san_rejected_if_in_excluded_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &[],
-            &["DnsName(\"*.example.com\")"]
-        ),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &["DnsName(\"*.example.com\")"]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -311,14 +281,8 @@ fn wildcard_san_rejected_if_could_match_excluded_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &[],
-            &["DnsName(\"*.example.com\")"]
-        ),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &["DnsName(\"*.example.com\")"]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -337,14 +301,8 @@ fn wildcard_san_rejected_if_could_match_name_outside_permitted_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &[],
-            &["DnsName(\"*.example.com\")"]
-        ),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &["DnsName(\"*.example.com\")"]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -362,14 +320,8 @@ fn ip4_address_san_rejected_if_in_excluded_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &[],
-            &["IpAddress(12.34.56.78)"]
-        ),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &["IpAddress(12.34.56.78)"]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -386,16 +338,9 @@ fn ip4_address_san_allowed_if_outside_excluded_subtree() {
         vec![SanType::IpAddress("12.34.56.78".parse().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["12.34.56.78"],
-            &[],
-            &["IpAddress(12.34.56.78)"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["IpAddress(12.34.56.78)"])
+        .unwrap()
+        .assert_valid_name("12.34.56.78");
 }
 
 #[test]
@@ -412,14 +357,8 @@ fn ip4_address_san_rejected_if_excluded_is_sparse_cidr_mask() {
         &issuer,
     );
     assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &[],
-            &["IpAddress(12.34.56.79)"]
-        ),
-        Err(webpki::Error::InvalidNetworkMaskConstraint)
+        check_cert(ee.der(), issuer.der(), &["IpAddress(12.34.56.79)"]),
+        Err(Error::InvalidNetworkMaskConstraint)
     );
 }
 
@@ -436,20 +375,12 @@ fn ip4_address_san_allowed() {
         vec![SanType::IpAddress("12.34.56.78".parse().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["12.34.56.78"],
-            &[
-                "12.34.56.77",
-                "12.34.56.79",
-                "0000:0000:0000:0000:0000:ffff:0c22:384e"
-            ],
-            &["IpAddress(12.34.56.78)"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["IpAddress(12.34.56.78)"])
+        .unwrap()
+        .assert_valid_name("12.34.56.78")
+        .assert_invalid_name("12.34.56.77")
+        .assert_invalid_name("12.34.56.79")
+        .assert_invalid_name("0000:0000:0000:0000:0000:ffff:0c22:384e");
 }
 
 #[test]
@@ -468,14 +399,8 @@ fn ip6_address_san_rejected_if_in_excluded_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &[],
-            &["IpAddress(2001:db8::1)"]
-        ),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &["IpAddress(2001:db8::1)"]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -494,16 +419,9 @@ fn ip6_address_san_allowed_if_outside_excluded_subtree() {
         vec![SanType::IpAddress("2001:db9::1".parse().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["2001:0db9:0000:0000:0000:0000:0000:0001"],
-            &[],
-            &["IpAddress(2001:db9::1)"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["IpAddress(2001:db9::1)"])
+        .unwrap()
+        .assert_valid_name("2001:0db9:0000:0000:0000:0000:0000:0001");
 }
 
 #[test]
@@ -521,16 +439,10 @@ fn ip6_address_san_allowed() {
         vec![SanType::IpAddress("2001:db9::1".parse().unwrap())],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["2001:0db9:0000:0000:0000:0000:0000:0001"],
-            &["12.34.56.78"],
-            &["IpAddress(2001:db9::1)"]
-        ),
-        Ok(())
-    );
+    check_cert(ee.der(), issuer.der(), &["IpAddress(2001:db9::1)"])
+        .unwrap()
+        .assert_valid_name("2001:0db9:0000:0000:0000:0000:0000:0001")
+        .assert_invalid_name("12.34.56.78");
 }
 
 #[test]
@@ -554,20 +466,17 @@ fn ip46_mixed_address_san_allowed() {
         ],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["12.34.56.78", "2001:0db9:0000:0000:0000:0000:0000:0001"],
-            &[
-                "12.34.56.77",
-                "12.34.56.79",
-                "0000:0000:0000:0000:0000:ffff:0c22:384e"
-            ],
-            &["IpAddress(12.34.56.78)", "IpAddress(2001:db9::1)"]
-        ),
-        Ok(())
-    );
+    check_cert(
+        ee.der(),
+        issuer.der(),
+        &["IpAddress(12.34.56.78)", "IpAddress(2001:db9::1)"],
+    )
+    .unwrap()
+    .assert_valid_name("12.34.56.78")
+    .assert_valid_name("2001:0db9:0000:0000:0000:0000:0000:0001")
+    .assert_invalid_name("12.34.56.77")
+    .assert_invalid_name("12.34.56.79")
+    .assert_invalid_name("0000:0000:0000:0000:0000:ffff:0c22:384e");
 }
 
 /// Since we don't have real constraint matching implemented for URI names, fail closed.
@@ -586,8 +495,8 @@ fn uri_san_rejected_against_uri_permitted_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
-        Err(webpki::Error::NameConstraintViolation),
+        check_cert(ee.der(), issuer.der(), &[]),
+        Err(Error::NameConstraintViolation),
     );
 }
 
@@ -607,8 +516,8 @@ fn uri_san_rejected_against_uri_excluded_subtree() {
         &issuer,
     );
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
-        Err(webpki::Error::NameConstraintViolation),
+        check_cert(ee.der(), issuer.der(), &[]),
+        Err(Error::NameConstraintViolation),
     );
 }
 
@@ -648,8 +557,8 @@ fn permit_directory_name_not_implemented() {
     }));
     let ee = generate_cert(vec![], &issuer);
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &[]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -663,8 +572,8 @@ fn exclude_directory_name_not_implemented() {
     }));
     let ee = generate_cert(vec![], &issuer);
     assert_eq!(
-        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
-        Err(webpki::Error::NameConstraintViolation)
+        check_cert(ee.der(), issuer.der(), &[]),
+        Err(Error::NameConstraintViolation)
     );
 }
 
@@ -678,19 +587,16 @@ fn invalid_dns_name_matching() {
         ],
         &issuer,
     );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["dns.example.com"],
-            &[],
-            &[
-                "DnsName(\"{invalid}.example.com\")",
-                "DnsName(\"dns.example.com\")"
-            ]
-        ),
-        Ok(())
-    );
+    check_cert(
+        ee.der(),
+        issuer.der(),
+        &[
+            "DnsName(\"{invalid}.example.com\")",
+            "DnsName(\"dns.example.com\")",
+        ],
+    )
+    .unwrap()
+    .assert_valid_name("dns.example.com");
 }
 
 #[test]
@@ -708,16 +614,13 @@ fn presented_names_escape_control_characters() {
         &issuer,
     );
 
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &[],
-            &["real.example.com"],
-            &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
-        ),
-        Ok(())
-    );
+    check_cert(
+        ee.der(),
+        issuer.der(),
+        &[r#"DnsName("a\r\nInjected: header\u{1b}[31m")"#],
+    )
+    .unwrap()
+    .assert_invalid_name("real.example.com");
 }
 
 fn generate_cert(sans: Vec<SanType>, issuer: &CertifiedIssuer<'_, KeyPair>) -> Certificate {
@@ -764,13 +667,7 @@ fn make_issuer(name_constraints: Option<NameConstraints>) -> CertifiedIssuer<'st
 }
 
 #[track_caller]
-fn check_cert(
-    ee: &[u8],
-    ca: &[u8],
-    valid_names: &[&str],
-    invalid_names: &[&str],
-    presented_names: &[&str],
-) -> Result<(), webpki::Error> {
+fn check_cert(ee: &[u8], ca: &[u8], presented_names: &[&str]) -> Result<NameChecker, Error> {
     let ca_cert_der = CertificateDer::from(ca);
     let anchors = [anchor_from_trusted_cert(&ca_cert_der).unwrap()];
     let builder = PathBuilder::new(
@@ -783,26 +680,45 @@ fn check_cert(
 
     let ee_der = CertificateDer::from(ee);
     let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
-    let cert = webpki::EndEntityCert::try_from(&ee_der).unwrap();
+    let cert = EndEntityCert::try_from(&ee_der).unwrap();
     builder.build(&cert, time)?;
 
-    for valid in valid_names {
-        let name = ServerName::try_from(*valid).unwrap();
-        assert_eq!(cert.verify_is_valid_for_subject_name(&name), Ok(()));
+    Ok(NameChecker {
+        cert_der: ee_der.into_owned(),
+        expected_presented_names: presented_names.iter().map(|n| n.to_string()).collect(),
+    })
+}
+
+#[derive(Debug, PartialEq)]
+struct NameChecker {
+    cert_der: CertificateDer<'static>,
+    expected_presented_names: Vec<String>,
+}
+
+impl NameChecker {
+    #[track_caller]
+    fn assert_valid_name(&self, name: &str) -> &Self {
+        let name = ServerName::try_from(name).unwrap();
+        assert_eq!(self.cert().verify_is_valid_for_subject_name(&name), Ok(()));
+        self
     }
 
-    for invalid in invalid_names {
-        let name = ServerName::try_from(*invalid).unwrap();
+    #[track_caller]
+    fn assert_invalid_name(&self, name: &str) -> &Self {
+        let name = ServerName::try_from(name).unwrap();
         assert_eq!(
-            cert.verify_is_valid_for_subject_name(&name),
-            Err(webpki::Error::CertNotValidForName(InvalidNameContext {
+            self.cert().verify_is_valid_for_subject_name(&name),
+            Err(Error::CertNotValidForName(InvalidNameContext {
                 expected: name.to_owned(),
-                presented: presented_names.iter().map(|n| n.to_string()).collect(),
+                presented: self.expected_presented_names.clone(),
             }))
         );
+        self
     }
 
-    Ok(())
+    fn cert(&self) -> EndEntityCert<'_> {
+        EndEntityCert::try_from(&self.cert_der).unwrap()
+    }
 }
 
 // OID for emailAddress in subject DN (pkcs9-emailAddress)
