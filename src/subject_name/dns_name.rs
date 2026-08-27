@@ -1008,6 +1008,66 @@ mod tests {
         }
     }
 
+    #[test]
+    fn dns_name_cases() {
+        WildcardDnsNameRef::try_from_ascii(b"abc").unwrap();
+
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(b"-abc"),
+            Err(LabelMustNotStartWithHyphen)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(b"abc-"),
+            Err(LabelMustNotEndWithHyphen)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(b"abc-."),
+            Err(LabelMustNotEndWithHyphen)
+        );
+
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(b"123"),
+            Err(LastLabelMustNotBeAllNumeric)
+        );
+
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(&[b'a'; 254]),
+            Err(NameTooLong)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(&[b'a'; 253]),
+            Err(LabelTooLong)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+            ),
+            Err(LabelTooLong)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-"
+            ),
+            Err(LabelTooLong)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaZ"
+            ),
+            Err(LabelTooLong)
+        );
+
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(b"*.hello"),
+            Err(WildcardMustPrecedeTwoLabels)
+        );
+        assert_eq!(
+            WildcardDnsNameRef::try_from_ascii(b"*.hello."),
+            Err(WildcardMustPrecedeTwoLabels)
+        );
+        WildcardDnsNameRef::try_from_ascii(b"*.hello.world").unwrap();
+    }
+
     // (presented_name, constraint, expected_matches)
     #[expect(clippy::type_complexity)]
     const PRESENTED_MATCHES_CONSTRAINT: &[(&[u8], &[u8], Result<bool, Error>)] = &[
