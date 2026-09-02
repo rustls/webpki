@@ -133,8 +133,8 @@ pub enum Error {
     /// and as recommended by RFC6125.
     MalformedExtensions,
 
-    /// A name constraint was malformed, potentially containing invalid characters or
-    /// invalid labels.
+    /// A name constraint was malformed, potentially containing invalid characters,
+    /// invalid labels, or an empty sequence where at least one item is required.
     MalformedNameConstraint,
 
     /// The maximum number of name constraint comparisons has been reached.

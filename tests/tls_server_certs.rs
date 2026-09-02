@@ -641,38 +641,90 @@ fn uri_san_rejected_against_uri_excluded_subtree() {
     );
 }
 
+#[test]
+fn empty_name_constraint_sequences_rejected() {
+    let permitted = name_constraint_subtrees(b"example.com", DNS_NAME_TAG, PERMITTED_SUBTREES_TAG);
+    let excluded = name_constraint_subtrees(b"example.com", DNS_NAME_TAG, EXCLUDED_SUBTREES_TAG);
+    let empty_permitted = der_tlv(PERMITTED_SUBTREES_TAG, &[]);
+    let empty_excluded = der_tlv(EXCLUDED_SUBTREES_TAG, &[]);
+
+    let cases = [
+        ("neither subtree field present", vec![]),
+        (
+            "empty permittedSubtrees",
+            [empty_permitted.as_slice(), excluded.as_slice()].concat(),
+        ),
+        (
+            "empty excludedSubtrees",
+            [permitted.as_slice(), empty_excluded.as_slice()].concat(),
+        ),
+        (
+            "both subtree fields empty",
+            [empty_permitted.as_slice(), empty_excluded.as_slice()].concat(),
+        ),
+    ];
+
+    for (description, subtrees) in cases {
+        let ca_key = KeyPair::generate().unwrap();
+        let mut ca_params = issuer_params("issuer.example.com").unwrap();
+        ca_params
+            .custom_extensions
+            .push(name_constraints_extension(&subtrees));
+        let issuer =
+            CertifiedIssuer::self_signed(ca_params, ca_key).expect("failed to generate CA");
+        let ee = generate_cert(vec![], &issuer);
+
+        assert_eq!(
+            check_cert(ee.der(), issuer.der(), &[], &[], &[]),
+            Err(webpki::Error::MalformedNameConstraint),
+            "{description}",
+        );
+    }
+}
+
 // Hand-encode a NameConstraints extension (OID 2.5.29.30) with a single
 // permittedSubtree containing a URI GeneralName. rcgen's GeneralSubtree enum
 // doesn't expose a URI variant, so we emit the DER directly.
 fn uri_permitted_name_constraints(uri: &[u8]) -> CustomExtension {
-    uri_name_constraints(uri, 0xa0) // permittedSubtrees [0] IMPLICIT
+    uri_name_constraints(uri, PERMITTED_SUBTREES_TAG)
 }
 
 // Hand-encode a NameConstraints extension (OID 2.5.29.30) with a single
 // excludedSubtree containing a URI GeneralName.
 fn uri_excluded_name_constraints(uri: &[u8]) -> CustomExtension {
-    uri_name_constraints(uri, 0xa1) // excludedSubtrees [1] IMPLICIT
+    uri_name_constraints(uri, EXCLUDED_SUBTREES_TAG)
 }
 
 fn uri_name_constraints(uri: &[u8], subtrees_tag: u8) -> CustomExtension {
-    assert!(uri.len() < 128);
-    // URI GeneralName: [6] IMPLICIT IA5String
-    let mut uri_gn = vec![0x86, uri.len() as u8];
-    uri_gn.extend_from_slice(uri);
-    // GeneralSubtree SEQUENCE { base GeneralName, ... }
-    let mut subtree = vec![0x30, uri_gn.len() as u8];
-    subtree.extend_from_slice(&uri_gn);
-    // permittedSubtrees [0] or excludedSubtrees [1] IMPLICIT GeneralSubtrees
-    let mut subtrees = vec![subtrees_tag, subtree.len() as u8];
-    subtrees.extend_from_slice(&subtree);
-    // NameConstraints SEQUENCE
-    let mut nc = vec![0x30, subtrees.len() as u8];
-    nc.extend_from_slice(&subtrees);
+    let subtrees = name_constraint_subtrees(uri, UNIFORM_RESOURCE_IDENTIFIER_TAG, subtrees_tag);
+    name_constraints_extension(&subtrees)
+}
 
+fn name_constraint_subtrees(name: &[u8], name_tag: u8, subtrees_tag: u8) -> Vec<u8> {
+    let general_name = der_tlv(name_tag, name);
+    let subtree = der_tlv(SEQUENCE_TAG, &general_name);
+    der_tlv(subtrees_tag, &subtree)
+}
+
+fn name_constraints_extension(subtrees: &[u8]) -> CustomExtension {
+    let nc = der_tlv(SEQUENCE_TAG, subtrees);
     let mut ext = CustomExtension::from_oid_content(&[2, 5, 29, 30], nc);
     ext.set_criticality(true);
     ext
 }
+
+fn der_tlv(tag: u8, value: &[u8]) -> Vec<u8> {
+    assert!(value.len() < 128);
+    let mut encoded = vec![tag, value.len() as u8];
+    encoded.extend_from_slice(value);
+    encoded
+}
+
+const SEQUENCE_TAG: u8 = 0x30;
+const DNS_NAME_TAG: u8 = 0x82; // [2] IMPLICIT IA5String
+const UNIFORM_RESOURCE_IDENTIFIER_TAG: u8 = 0x86; // [6] IMPLICIT IA5String
+const PERMITTED_SUBTREES_TAG: u8 = 0xa0; // [0] IMPLICIT GeneralSubtrees
+const EXCLUDED_SUBTREES_TAG: u8 = 0xa1; // [1] IMPLICIT GeneralSubtrees
 
 #[test]
 fn permit_directory_name_not_implemented() {

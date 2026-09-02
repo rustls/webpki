@@ -59,11 +59,6 @@
     "actual": "SUCCESS",
     "reason": "webpki does not enforce RFC 5280 requirement that NameConstraints be critical"
   },
-  "rfc5280::nc::permitted-empty-sequence-excluded-nonempty": {
-    "expected": "FAILURE",
-    "actual": "SUCCESS",
-    "reason": "webpki treats an empty permittedSubtrees sequence as absent"
-  },
   "rfc5280::nc::invalid-dnsname-leading-period": {
     "expected": "FAILURE",
     "actual": "SUCCESS",
@@ -248,16 +243,6 @@
     "expected": "FAILURE",
     "actual": "SUCCESS",
     "reason": "webpki does not enforce CABF prohibition on EKU in root certs"
-  },
-  "webpki::nc::intermediate-permitted-excluded-subtrees-both-null": {
-    "expected": "FAILURE",
-    "actual": "SUCCESS",
-    "reason": "webpki does not enforce CABF NameConstraints encoding requirements"
-  },
-  "webpki::nc::intermediate-permitted-excluded-subtrees-both-empty-sequences": {
-    "expected": "FAILURE",
-    "actual": "SUCCESS",
-    "reason": "webpki does not enforce CABF NameConstraints encoding requirements"
   },
   "webpki::san::san-critical-with-nonempty-subject": {
     "expected": "FAILURE",

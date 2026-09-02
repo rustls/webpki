@@ -31,11 +31,22 @@ pub(crate) fn check_name_constraints(
         if !inner.peek(subtrees_tag.into()) {
             return Ok(None);
         }
-        der::expect_tag(inner, subtrees_tag).map(Some)
+
+        let subtrees = der::expect_tag(inner, subtrees_tag)?;
+        // GeneralSubtrees is defined as a SEQUENCE SIZE (1..MAX).
+        if subtrees.is_empty() {
+            return Err(Error::MalformedNameConstraint);
+        }
+
+        Ok(Some(subtrees))
     }
 
     let permitted_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed0)?;
     let excluded_subtrees = parse_subtrees(constraints, der::Tag::ContextSpecificConstructed1)?;
+    // At least one of permittedSubtrees or excludedSubtrees must be present.
+    if permitted_subtrees.is_none() && excluded_subtrees.is_none() {
+        return Err(Error::MalformedNameConstraint);
+    }
 
     for path in path.iter() {
         let result = NameIterator::new(path.cert.subject_alt_name).find_map(|result| {
