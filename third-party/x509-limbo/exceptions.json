@@ -59,6 +59,11 @@
     "actual": "SUCCESS",
     "reason": "webpki does not enforce RFC 5280 requirement that NameConstraints be critical"
   },
+  "rfc5280::nc::permitted-empty-sequence-excluded-nonempty": {
+    "expected": "FAILURE",
+    "actual": "SUCCESS",
+    "reason": "webpki treats an empty permittedSubtrees sequence as absent"
+  },
   "rfc5280::nc::invalid-dnsname-leading-period": {
     "expected": "FAILURE",
     "actual": "SUCCESS",
