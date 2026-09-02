@@ -310,7 +310,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 // id-ce-cRLNumber 2.5.29.20 - RFC 5280 §5.2.3
                 Standard(20) => {
                     // Duplicate cRLNumber extensions are invalid.
-                    if !self.crl_number.as_slice_less_safe().is_empty() {
+                    if !self.crl_number.is_empty() {
                         return Err(Error::ExtensionValueInvalid);
                     }
 
@@ -322,7 +322,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                     self.crl_number = extension.value.read_all(Error::InvalidCrlNumber, |der| {
                         let crl_number =
                             der::nonnegative_integer(der).map_err(|_| Error::InvalidCrlNumber)?;
-                        if crl_number.as_slice_less_safe().len() <= 20 {
+                        if crl_number.len() <= 20 {
                             Ok(crl_number)
                         } else {
                             Err(Error::InvalidCrlNumber)
@@ -481,7 +481,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             // From RFC 5280, Section 5.2.3:
             //    CRL issuers conforming to this profile MUST include this extension in all
             //    CRLs and MUST mark this extension as non-critical.
-            if crl.crl_number.as_slice_less_safe().is_empty() {
+            if crl.crl_number.is_empty() {
                 return Err(Error::MissingCrlNumber);
             }
 
