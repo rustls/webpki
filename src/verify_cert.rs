@@ -161,8 +161,10 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
             }
 
             let next_sub_ca_count = match role {
-                Role::EndEntity => sub_ca_count,
-                Role::Issuer => sub_ca_count + 1,
+                Role::Issuer if !public_values_eq(path.head().issuer, path.head().subject) => {
+                    sub_ca_count + 1
+                }
+                _ => sub_ca_count,
             };
 
             budget.consume_build_chain_call()?;
@@ -1084,6 +1086,73 @@ mod tests {
             build_and_verify_linear_chain(7),
             Err(ControlFlow::Continue(Error::MaximumPathDepthExceeded))
         ));
+    }
+
+    #[test]
+    fn self_issued_intermediate_does_not_consume_path_len_constraint() {
+        assert!(verify_path_len_chain(0, SelfIssued::Yes).is_ok());
+        assert!(verify_path_len_chain(1, SelfIssued::Yes).is_ok());
+    }
+
+    #[test]
+    fn non_self_issued_intermediate_consumes_path_len_constraint() {
+        assert!(matches!(
+            verify_path_len_chain(0, SelfIssued::No),
+            Err(ControlFlow::Continue(Error::PathLenConstraintViolated))
+        ));
+        assert!(verify_path_len_chain(1, SelfIssued::No).is_ok());
+    }
+
+    fn verify_path_len_chain(
+        parent_path_len: u8,
+        self_issued: SelfIssued,
+    ) -> Result<(), ControlFlow<Error, Error>> {
+        let trust_anchor = make_issuer("Trust Anchor");
+        let trust_anchors = &[anchor_from_trusted_cert(trust_anchor.der()).unwrap()];
+
+        let mut parent_params = issuer_params("Parent");
+        parent_params.is_ca =
+            rcgen::IsCa::Ca(rcgen::BasicConstraints::Constrained(parent_path_len));
+        let parent_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let parent = CertifiedIssuer::signed_by(parent_params, parent_key, &trust_anchor).unwrap();
+
+        let child_subject = match self_issued {
+            SelfIssued::Yes => "Parent",
+            SelfIssued::No => "Child",
+        };
+        let child_params = issuer_params(child_subject);
+        let child_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let child = CertifiedIssuer::signed_by(child_params, child_key, &parent).unwrap();
+
+        let intermediates = &[child.der().clone(), parent.der().clone()];
+        let ee = make_end_entity(&child);
+        let ee_cert = &EndEntityCert::try_from(ee.cert.der()).unwrap();
+
+        let expected_path = |path: &VerifiedPath<'_>| {
+            assert_eq!(
+                path.intermediate_certificates()
+                    .map(Cert::der)
+                    .collect::<Vec<_>>(),
+                intermediates
+            );
+            assert_eq!(path.anchor(), &trust_anchors[0]);
+            Ok(())
+        };
+
+        verify_chain(
+            trust_anchors,
+            intermediates,
+            ee_cert,
+            Some(&expected_path),
+            None,
+        )
+        .map(|_| ())
+    }
+
+    #[derive(Clone, Copy)]
+    enum SelfIssued {
+        No,
+        Yes,
     }
 
     #[test]
