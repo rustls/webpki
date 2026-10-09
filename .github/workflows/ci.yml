@@ -240,10 +240,10 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: "$NOSTD_TARGET"
+          targets: ${{ env.NOSTD_TARGET }}
 
       - name: check no-std mode
-        run: cargo check --locked --target $NOSTD_TARGET ${{ matrix.features  }}
+        run: cargo check --locked --target "$NOSTD_TARGET" ${{ matrix.features  }}
 
   feature-powerset:
     name: Feature Powerset
