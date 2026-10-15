@@ -56,6 +56,7 @@ pub(crate) enum Tag {
     Sequence = CONSTRUCTED | 0x10, // 0x30
     Set = CONSTRUCTED | 0x11,      // 0x31
     PrintableString = 0x13,
+    IA5String = 0x16,
     UTCTime = 0x17,
     GeneralizedTime = 0x18,
 

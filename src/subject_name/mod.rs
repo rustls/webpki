@@ -92,7 +92,7 @@ pub(crate) fn check_name_constraints(
             continue;
         }
         let result = check_presented_id_conforms_to_constraints(
-            GeneralName::DirectoryName(DirectoryName::from_rdn_sequence(path.cert.subject)),
+            GeneralName::DirectoryName(DirectoryName::RdnSequence(path.cert.subject)),
             permitted_subtrees,
             excluded_subtrees,
             budget,
@@ -312,9 +312,7 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
         let (tag, value) = der::read_tag_and_get_value(reader)?;
         Ok(match tag {
             DNS_NAME_TAG => DnsName(value),
-            DIRECTORY_NAME_TAG => {
-                DirectoryName(directory_name::DirectoryName::from_explicit(value)?)
-            }
+            DIRECTORY_NAME_TAG => DirectoryName(directory_name::DirectoryName::Explicit(value)),
             IP_ADDRESS_TAG => IpAddress(value),
             UNIFORM_RESOURCE_IDENTIFIER_TAG => UniformResourceIdentifier(value),
 
@@ -431,9 +429,7 @@ mod tests {
         assert_eq!(
             format!(
                 "{:?}",
-                GeneralName::DirectoryName(DirectoryName::from_rdn_sequence(
-                    untrusted::Input::from(b"")
-                ))
+                GeneralName::DirectoryName(DirectoryName::RdnSequence(untrusted::Input::from(b"")))
             ),
             "DirectoryName"
         );
@@ -510,5 +506,29 @@ mod tests {
         let mut iter = NameIterator::new(Some(input));
         assert_eq!(iter.next().unwrap().unwrap_err(), Error::BadDer);
         assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn many_empty_directory_name_constraints_do_not_scan_the_subject() {
+        // 5,000 CN=X RDNs, followed by an invalid suffix. The suffix makes
+        // repeated validation fail deterministically rather than relying on a
+        // timing threshold to catch excessive work.
+        let mut subject = [
+            0x31, 0x0a, 0x30, 0x08, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x01, b'X',
+        ]
+        .repeat(5_000);
+        subject.push(0xff);
+        let constraints = [0x30, 0x04, 0xa4, 0x02, 0x30, 0x00].repeat(10_000);
+        assert_eq!(
+            check_presented_id_conforms_to_constraints(
+                GeneralName::DirectoryName(DirectoryName::RdnSequence(untrusted::Input::from(
+                    &subject
+                ))),
+                Some(untrusted::Input::from(&constraints)),
+                None,
+                &mut Budget::default(),
+            ),
+            None
+        );
     }
 }

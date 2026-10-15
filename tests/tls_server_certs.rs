@@ -799,30 +799,131 @@ fn permit_directory_name_exact_match() {
 }
 
 #[test]
-fn permit_directory_name_deeper_subtree() {
-    // Constraint is shorter than EE DN; EE has extra RDN(s) at the tail.
-    let mut dn = DistinguishedName::new();
-    dn.push(DnType::CommonName, "subject.example.com");
-    let issuer = make_issuer(Some(NameConstraints {
-        permitted_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
+fn permitted_directory_name_constrains_intermediate_subjects() {
+    let root = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DirectoryName(country_name("US"))],
         excluded_subtrees: vec![],
     }));
-    let ee = generate_cert_with_names(
-        Some("subject.example.com"),
-        None,
-        vec![SanType::DnsName("dns.example.com".try_into().unwrap())],
-        &issuer,
-    );
-    assert_eq!(
-        check_cert(
-            ee.der(),
-            issuer.der(),
-            &["dns.example.com"],
-            &[],
-            &["DnsName(\"dns.example.com\")"]
+    let anchors = [anchor_from_trusted_cert(root.der()).unwrap()];
+    for (country, expected) in [
+        ("US", Ok(())),
+        ("GB", Err(webpki::Error::NameConstraintViolation)),
+    ] {
+        let mut params = issuer_params("intermediate").unwrap();
+        params.distinguished_name = country_name(country);
+        let intermediate =
+            CertifiedIssuer::signed_by(params, KeyPair::generate().unwrap(), &root).unwrap();
+        let mut params = CertificateParams::new([]).unwrap();
+        params.distinguished_name = country_name("US");
+        let ee = params
+            .signed_by(&KeyPair::generate().unwrap(), &intermediate)
+            .unwrap();
+        let cert = webpki::EndEntityCert::try_from(ee.der()).unwrap();
+        let intermediates = [intermediate.der().clone()];
+        let builder = PathBuilder::new(
+            &intermediates,
+            None,
+            &ExtendedKeyUsage::SERVER_AUTH,
+            rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+            &anchors,
+        );
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
+        assert_eq!(builder.build(&cert, time).map(|_| ()), expected);
+    }
+}
+
+#[test]
+fn malformed_directory_name_san_is_only_parsed_when_constrained() {
+    // This directoryName is incorrectly IMPLICIT: its outer Name SEQUENCE is
+    // missing. It precedes valid DNS/IP SANs, which must remain usable when no
+    // directoryName constraints apply.
+    let names = [
+        der_tlv(
+            0xa4,
+            &[
+                0x31, 0x0b, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x06, 0x13, 0x02, b'U', b'S',
+            ],
         ),
-        Ok(())
-    );
+        der_tlv(DNS_NAME_TAG, b"example.com"),
+        der_tlv(0x87, &[192, 0, 2, 1]),
+    ]
+    .concat();
+    for (constraints, expected) in [
+        (None, Ok(())),
+        (
+            Some(NameConstraints {
+                permitted_subtrees: vec![
+                    GeneralSubtree::DnsName("example.com".into()),
+                    GeneralSubtree::IpAddress("192.0.2.0/24".parse().unwrap()),
+                ],
+                excluded_subtrees: vec![],
+            }),
+            Ok(()),
+        ),
+        (
+            Some(NameConstraints {
+                permitted_subtrees: vec![GeneralSubtree::DirectoryName(country_name("US"))],
+                excluded_subtrees: vec![],
+            }),
+            Err(webpki::Error::BadDer),
+        ),
+    ] {
+        let issuer = make_issuer(constraints);
+        let mut params = CertificateParams::new([]).unwrap();
+        params.distinguished_name = country_name("US");
+        params
+            .custom_extensions
+            .push(CustomExtension::from_oid_content(
+                &[2, 5, 29, 17],
+                der_tlv(SEQUENCE_TAG, &names),
+            ));
+        let ee = params
+            .signed_by(&KeyPair::generate().unwrap(), &issuer)
+            .unwrap();
+        assert_eq!(check_cert(ee.der(), issuer.der(), &[], &[], &[]), expected);
+
+        let cert = webpki::EndEntityCert::try_from(ee.der()).unwrap();
+        assert_eq!(cert.valid_dns_names().collect::<Vec<_>>(), ["example.com"]);
+        for name in ["example.com", "192.0.2.1"] {
+            assert_eq!(
+                cert.verify_is_valid_for_subject_name(&ServerName::try_from(name).unwrap()),
+                Ok(())
+            );
+        }
+    }
+}
+
+#[test]
+fn permitted_directory_names_with_ia5_attributes() {
+    for (oid, value) in [
+        (OID_EMAIL_ADDRESS, "user@example.com"),
+        (&[0, 9, 2342, 19200300, 100, 1, 25][..], "example"), // domainComponent
+    ] {
+        let mut subject = country_name("US");
+        subject.push(
+            DnType::from_oid(oid),
+            rcgen::DnValue::Ia5String(value.try_into().unwrap()),
+        );
+        let mut different = country_name("US");
+        different.push(
+            DnType::from_oid(oid),
+            rcgen::DnValue::Ia5String("different".try_into().unwrap()),
+        );
+        for (constraint, expected) in [
+            (country_name("US"), Ok(())), // IA5 attribute is beyond the prefix.
+            (subject.clone(), Ok(())),    // IA5 attribute is compared.
+            (different, Err(webpki::Error::NameConstraintViolation)),
+        ] {
+            let issuer = make_issuer(Some(NameConstraints {
+                permitted_subtrees: vec![GeneralSubtree::DirectoryName(constraint)],
+                excluded_subtrees: vec![],
+            }));
+            assert_eq!(
+                check_directory_name_cert(&issuer, subject.clone(), vec![], None),
+                expected
+            );
+        }
+    }
 }
 
 #[test]

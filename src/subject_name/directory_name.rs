@@ -1,50 +1,52 @@
 use crate::der::{self, Tag};
 use crate::error::Error;
 
-/// RDNSequence contents, without the outer SEQUENCE tag and length.
+/// A subject RDNSequence or an explicitly tagged directoryName GeneralName.
 #[derive(Clone, Copy)]
-pub(crate) struct DirectoryName<'a>(untrusted::Input<'a>);
+pub(crate) enum DirectoryName<'a> {
+    RdnSequence(untrusted::Input<'a>),
+    Explicit(untrusted::Input<'a>),
+}
 
 impl<'a> DirectoryName<'a> {
-    pub(super) fn from_rdn_sequence(value: untrusted::Input<'a>) -> Self {
-        Self(value)
-    }
-
-    pub(super) fn from_explicit(value: untrusted::Input<'a>) -> Result<Self, Error> {
-        // directoryName is an explicitly tagged CHOICE (X.680 section 31.2.7).
-        value.read_all(Error::BadDer, |reader| {
-            der::expect_tag(reader, Tag::Sequence).map(Self)
-        })
+    fn rdn_sequence(self) -> Result<untrusted::Input<'a>, Error> {
+        match self {
+            Self::RdnSequence(value) => Ok(value),
+            // Only unwrap directoryName when matching constraints, so an unused
+            // SAN does not affect DNS/IP verification or name iteration.
+            // directoryName is an explicitly tagged CHOICE (X.680 section 31.2.7).
+            Self::Explicit(value) => value.read_all(Error::BadDer, |reader| {
+                der::expect_tag(reader, Tag::Sequence)
+            }),
+        }
     }
 
     /// Match a permitted subtree at complete RDN boundaries (RFC 5280 section 7.1).
     ///
     /// Like mozilla::pkix, compare attributes in encoded order, with identical
     /// OIDs and value bytes. PrintableString and UTF8String may encode the same
-    /// value. We intentionally omit case folding, whitespace normalization and
-    /// other stringprep processing, and reject other value encodings.
+    /// value. IA5String requires the same tag and bytes on both sides. We omit
+    /// case folding, whitespace normalization and other stringprep processing,
+    /// and reject other value encodings in compared attributes.
     ///
     /// This can reject otherwise equivalent names. It is only safe for permitted
     /// subtrees: excluded directoryName constraints must be rejected separately.
+    /// Stop at the end of the prefix or the first mismatch: validating unused
+    /// suffixes would multiply their cost by the number of constraints.
     pub(super) fn matches_permitted(self, constraint: Self) -> Result<bool, Error> {
-        let mut presented = untrusted::Reader::new(self.0);
-        let mut constraint = untrusted::Reader::new(constraint.0);
-        let mut matches = true;
+        let mut presented = untrusted::Reader::new(self.rdn_sequence()?);
+        let mut constraint = untrusted::Reader::new(constraint.rdn_sequence()?);
         while !constraint.at_end() {
-            let base = RelativeDistinguishedName::from_der(&mut constraint)?;
             if presented.at_end() {
-                base.validate()?;
-                matches = false;
-            } else {
-                let name = RelativeDistinguishedName::from_der(&mut presented)?;
-                matches &= name.matches(base)?;
+                return Ok(false);
+            }
+            let base = RelativeDistinguishedName::from_der(&mut constraint)?;
+            let name = RelativeDistinguishedName::from_der(&mut presented)?;
+            if !name.matches(base)? {
+                return Ok(false);
             }
         }
-        // Validate the entire name, including RDNs beyond the constraint prefix.
-        while !presented.at_end() {
-            RelativeDistinguishedName::from_der(&mut presented)?.validate()?;
-        }
-        Ok(matches)
+        Ok(true)
     }
 }
 
@@ -66,29 +68,15 @@ impl<'a> RelativeDistinguishedName<'a> {
     }
 
     fn matches(mut self, mut other: Self) -> Result<bool, Error> {
-        let mut matches = true;
-        // Keep validating both RDNs after a mismatch or unequal attribute counts.
-        loop {
-            match (self.read_attribute()?, other.read_attribute()?) {
-                (Some(a), Some(b)) => {
-                    matches &= a.oid.as_slice_less_safe() == b.oid.as_slice_less_safe()
-                        && a.value.as_slice_less_safe() == b.value.as_slice_less_safe();
-                }
-                (None, None) => return Ok(matches),
-                _ => matches = false,
+        while !self.attributes.at_end() && !other.attributes.at_end() {
+            if !self.read_attribute()?.matches(other.read_attribute()?)? {
+                return Ok(false);
             }
         }
+        Ok(self.attributes.at_end() && other.attributes.at_end())
     }
 
-    fn validate(mut self) -> Result<(), Error> {
-        while self.read_attribute()?.is_some() {}
-        Ok(())
-    }
-
-    fn read_attribute(&mut self) -> Result<Option<AttributeTypeAndValue<'a>>, Error> {
-        if self.attributes.at_end() {
-            return Ok(None);
-        }
+    fn read_attribute(&mut self) -> Result<AttributeTypeAndValue<'a>, Error> {
         let (encoded, attribute) = self
             .attributes
             .read_partial(AttributeTypeAndValue::from_der)?;
@@ -101,12 +89,13 @@ impl<'a> RelativeDistinguishedName<'a> {
             return Err(Error::BadDer);
         }
         self.previous = Some(encoded);
-        Ok(Some(attribute))
+        Ok(attribute)
     }
 }
 
 struct AttributeTypeAndValue<'a> {
     oid: untrusted::Input<'a>,
+    tag: u8,
     value: untrusted::Input<'a>,
 }
 
@@ -115,35 +104,65 @@ impl<'a> AttributeTypeAndValue<'a> {
         let contents = der::expect_tag(reader, Tag::Sequence)?;
         contents.read_all(Error::BadDer, |reader| {
             let oid = der::expect_tag(reader, Tag::OID)?;
-            // Each OID subidentifier must have a minimal, complete base-128 encoding.
-            let mut start = true;
-            for byte in oid.as_slice_less_safe() {
-                if start && *byte == 0x80 {
-                    return Err(Error::BadDer);
-                }
-                start = byte & 0x80 == 0;
-            }
-            if oid.is_empty() || !start {
-                return Err(Error::BadDer);
-            }
-
             let (tag, value) = der::read_tag_and_get_value(reader)?;
-            let bytes = value.as_slice_less_safe();
-            if tag == u8::from(Tag::UTF8String) {
-                core::str::from_utf8(bytes).map_err(|_| Error::BadDer)?;
-            } else if tag == u8::from(Tag::PrintableString) {
-                if !bytes
-                    .iter()
-                    .all(|b| b.is_ascii_alphanumeric() || b" '()+,-./:=?".contains(b))
-                {
-                    return Err(Error::BadDer);
-                }
-            } else {
+            if tag != u8::from(Tag::UTF8String)
+                && tag != u8::from(Tag::PrintableString)
+                && tag != u8::from(Tag::IA5String)
+            {
                 // Unsupported encodings can be valid DER; this is a policy restriction.
                 return Err(Error::NameConstraintViolation);
             }
-            Ok(Self { oid, value })
+            Ok(Self { oid, tag, value })
         })
+    }
+
+    fn matches(self, other: Self) -> Result<bool, Error> {
+        let tags_match = self.tag == other.tag
+            || (self.tag == u8::from(Tag::UTF8String)
+                && other.tag == u8::from(Tag::PrintableString))
+            || (self.tag == u8::from(Tag::PrintableString)
+                && other.tag == u8::from(Tag::UTF8String));
+        if !tags_match
+            || self.oid.as_slice_less_safe() != other.oid.as_slice_less_safe()
+            || self.value.as_slice_less_safe() != other.value.as_slice_less_safe()
+        {
+            return Ok(false);
+        }
+
+        // Validate only after comparing lengths and bytes. Otherwise many short
+        // constraints could repeatedly scan a large, mismatching OID or value.
+        self.validate()?;
+        other.validate()?;
+        Ok(true)
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        // Each OID subidentifier must have a minimal, complete base-128 encoding.
+        let mut start = true;
+        for byte in self.oid.as_slice_less_safe() {
+            if start && *byte == 0x80 {
+                return Err(Error::BadDer);
+            }
+            start = byte & 0x80 == 0;
+        }
+        if self.oid.is_empty() || !start {
+            return Err(Error::BadDer);
+        }
+
+        let bytes = self.value.as_slice_less_safe();
+        if self.tag == u8::from(Tag::UTF8String) {
+            core::str::from_utf8(bytes).map_err(|_| Error::BadDer)?;
+        } else if self.tag == u8::from(Tag::PrintableString) {
+            if !bytes
+                .iter()
+                .all(|b| b.is_ascii_alphanumeric() || b" '()+,-./:=?".contains(b))
+            {
+                return Err(Error::BadDer);
+            }
+        } else if !bytes.is_ascii() {
+            return Err(Error::BadDer);
+        }
+        Ok(())
     }
 }
 
@@ -158,6 +177,7 @@ mod tests {
     const OID_O: &[u8] = &[0x55, 0x04, 0x0a];
     const UTF8: u8 = 0x0c;
     const PRINTABLE: u8 = 0x13;
+    const IA5: u8 = 0x16;
 
     fn attribute(oid: &[u8], tag: u8, value: &[u8]) -> Vec<u8> {
         let mut contents = der::asn1_wrap(Tag::OID, oid);
@@ -180,8 +200,8 @@ mod tests {
     }
 
     fn matches(presented: &[u8], constraint: &[u8]) -> Result<bool, Error> {
-        DirectoryName::from_rdn_sequence(untrusted::Input::from(presented)).matches_permitted(
-            DirectoryName::from_rdn_sequence(untrusted::Input::from(constraint)),
+        DirectoryName::RdnSequence(untrusted::Input::from(presented)).matches_permitted(
+            DirectoryName::RdnSequence(untrusted::Input::from(constraint)),
         )
     }
 
@@ -214,6 +234,55 @@ mod tests {
         assert_eq!(matches(&b, &a), Ok(true));
         let unicode = organization(UTF8, "Société".as_bytes());
         assert_eq!(matches(&unicode, &unicode), Ok(true));
+    }
+
+    #[test]
+    fn ia5_requires_identical_tags_and_bytes() {
+        let oid_dc = &[0x09, 0x92, 0x26, 0x89, 0x93, 0xf2, 0x2c, 0x64, 0x01, 0x19];
+        let name = rdn(&[attribute(oid_dc, IA5, b"example")]);
+        assert_eq!(matches(&name, &name), Ok(true));
+        let different = rdn(&[attribute(oid_dc, IA5, b"EXAMPLE")]);
+        assert_eq!(matches(&name, &different), Ok(false));
+        for tag in [UTF8, PRINTABLE] {
+            let other = rdn(&[attribute(oid_dc, tag, b"example")]);
+            assert_eq!(matches(&name, &other), Ok(false));
+            assert_eq!(matches(&other, &name), Ok(false));
+        }
+    }
+
+    #[test]
+    fn matching_stops_at_prefix_end_or_first_mismatch() {
+        // Invalid trailing DER makes any attempt to parse the suffix observable
+        // without relying on timing measurements.
+        let name = [country(b"US"), vec![0xff]].concat();
+        assert_eq!(matches(&name, &country(b"US")), Ok(true));
+        assert_eq!(matches(&name, &country(b"GB")), Ok(false));
+        assert_eq!(matches(&country(b"US"), &name), Ok(false));
+        assert_eq!(matches(&country(b"GB"), &name), Ok(false));
+        assert_eq!(matches(&name, &[]), Ok(true));
+        assert_eq!(matches(&[], &name), Ok(false));
+
+        // The same early exits apply inside a multi-valued RDN, but every
+        // attribute must match for the RDN as a whole to match.
+        let name = rdn(&[attribute(OID_C, PRINTABLE, b"US"), vec![0xff]]);
+        for other in [country(b"US"), country(b"GB")] {
+            assert_eq!(matches(&name, &other), Ok(false));
+            assert_eq!(matches(&other, &name), Ok(false));
+        }
+    }
+
+    #[test]
+    fn large_mismatching_attributes_are_not_validated() {
+        let other = organization(UTF8, b"Example");
+        // A long invalid value or OID would fail validation if scanned. Length
+        // comparison is enough to reject it, even against many short constraints.
+        for name in [
+            organization(UTF8, &vec![0xff; 60_000]),
+            rdn(&[attribute(&vec![0x80; 60_000], UTF8, b"Example")]),
+        ] {
+            assert_eq!(matches(&name, &other), Ok(false));
+            assert_eq!(matches(&other, &name), Ok(false));
+        }
     }
 
     #[test]
@@ -273,13 +342,9 @@ mod tests {
         assert_eq!(matches(&canonical, &canonical), Ok(true));
         attributes.reverse();
         let noncanonical = rdn(&attributes);
-        assert_eq!(matches(&noncanonical, &canonical), Err(Error::BadDer));
-        assert_eq!(matches(&canonical, &noncanonical), Err(Error::BadDer));
+        assert_eq!(matches(&noncanonical, &canonical), Ok(false));
+        assert_eq!(matches(&canonical, &noncanonical), Ok(false));
         assert_eq!(matches(&noncanonical, &noncanonical), Err(Error::BadDer));
-        for other in [country(b"US"), country(b"GB"), vec![]] {
-            assert_eq!(matches(&noncanonical, &other), Err(Error::BadDer));
-            assert_eq!(matches(&other, &noncanonical), Err(Error::BadDer));
-        }
     }
 
     #[test]
@@ -296,7 +361,6 @@ mod tests {
     fn unsupported_encodings_are_rejected() {
         for (tag, value) in [
             (0x14, b"Example".as_slice()), // TeletexString
-            (0x16, b"Example".as_slice()), // IA5String
             (0x1c, b"\0\0\0E".as_slice()), // UniversalString
             (0x1e, b"\0E".as_slice()),     // BMPString
             (0x04, b"Example".as_slice()), // OCTET STRING
@@ -313,7 +377,7 @@ mod tests {
             );
             assert_eq!(
                 matches(&[country(b"US"), name].concat(), &country(b"US")),
-                Err(Error::NameConstraintViolation)
+                Ok(true)
             );
         }
     }
@@ -326,20 +390,10 @@ mod tests {
             (PRINTABLE, b"\xc3\xa9".as_slice()),
             (UTF8, b"\xc3\x28".as_slice()),
             (UTF8, b"\xed\xa0\x80".as_slice()),
+            (IA5, b"\x80".as_slice()),
         ] {
             let name = organization(tag, value);
             assert_eq!(matches(&name, &name), Err(Error::BadDer));
-
-            // The first attribute can match or differ; the invalid second
-            // attribute must still be rejected, even with no counterpart.
-            let name = rdn(&[
-                attribute(OID_C, PRINTABLE, b"US"),
-                attribute(OID_O, tag, value),
-            ]);
-            for other in [country(b"US"), country(b"GB"), vec![]] {
-                assert_eq!(matches(&name, &other), Err(Error::BadDer));
-                assert_eq!(matches(&other, &name), Err(Error::BadDer));
-            }
         }
     }
 
@@ -352,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn malformed_structure_and_trailing_data_are_rejected() {
+    fn malformed_compared_structure_is_rejected() {
         let mut extra_field = der::asn1_wrap(Tag::OID, OID_C);
         extra_field.extend(der::asn1_wrap(Tag::PrintableString, b"US"));
         extra_field.extend([0x05, 0x00]);
@@ -364,10 +418,6 @@ mod tests {
             rdn(&[der::asn1_wrap(Tag::OID, OID_C)]), // missing attribute SEQUENCE
         ] {
             assert_eq!(matches(&malformed, &malformed), Err(Error::BadDer));
-            let trailing = [country(b"US"), malformed].concat();
-            assert_eq!(matches(&trailing, &country(b"US")), Err(Error::BadDer));
-            assert_eq!(matches(&trailing, &country(b"GB")), Err(Error::BadDer));
-            assert_eq!(matches(&country(b"GB"), &trailing), Err(Error::BadDer));
         }
     }
 
@@ -375,18 +425,14 @@ mod tests {
     fn explicit_wrapper_is_required_and_fully_consumed() {
         let name = country(b"US");
         let explicit = der::asn1_wrap(Tag::Sequence, &name);
-        let parsed = DirectoryName::from_explicit(untrusted::Input::from(&explicit)).unwrap();
-        assert_eq!(
-            parsed.matches_permitted(DirectoryName::from_rdn_sequence(untrusted::Input::from(
-                &name
-            ))),
-            Ok(true)
-        );
+        let parsed = DirectoryName::Explicit(untrusted::Input::from(&explicit));
+        let subject = DirectoryName::RdnSequence(untrusted::Input::from(&name));
+        assert_eq!(parsed.matches_permitted(subject), Ok(true));
+        assert_eq!(subject.matches_permitted(parsed), Ok(true));
         for malformed in [&name[..], &[0x30, 0x01], &[0x30, 0x00, 0x00]] {
-            assert_eq!(
-                DirectoryName::from_explicit(untrusted::Input::from(malformed)).err(),
-                Some(Error::BadDer)
-            );
+            let malformed = DirectoryName::Explicit(untrusted::Input::from(malformed));
+            assert_eq!(malformed.matches_permitted(subject), Err(Error::BadDer));
+            assert_eq!(subject.matches_permitted(malformed), Err(Error::BadDer));
         }
     }
 }
