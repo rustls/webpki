@@ -7,6 +7,9 @@ use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::{Budget, PathNode};
 
+mod directory_name;
+use directory_name::DirectoryName;
+
 mod dns_name;
 use dns_name::IdRole;
 pub(crate) use dns_name::{WildcardDnsNameRef, verify_dns_names};
@@ -48,6 +51,22 @@ pub(crate) fn check_name_constraints(
         return Err(Error::MalformedNameConstraint);
     }
 
+    // Our directoryName matcher deliberately omits normalization. A missed
+    // match is safe for permittedSubtrees, but could bypass an exclusion.
+    // Reject excluded directoryNames even when no presented DN is present.
+    if let Some(excluded) = excluded_subtrees {
+        let mut excluded = untrusted::Reader::new(excluded);
+        while !excluded.at_end() {
+            budget.consume_name_constraint_comparison()?;
+            if matches!(
+                general_subtree(&mut excluded)?,
+                GeneralName::DirectoryName(_)
+            ) {
+                return Err(Error::NameConstraintViolation);
+            }
+        }
+    }
+
     for path in path.iter() {
         let result = NameIterator::new(path.cert.subject_alt_name).find_map(|result| {
             let name = match result {
@@ -67,8 +86,13 @@ pub(crate) fn check_name_constraints(
             return Err(err);
         }
 
+        // RFC 5280 section 4.2.1.10 only constrains a non-empty subject.
+        // directoryName SANs have already been checked above.
+        if path.cert.subject.is_empty() {
+            continue;
+        }
         let result = check_presented_id_conforms_to_constraints(
-            GeneralName::DirectoryName,
+            GeneralName::DirectoryName(DirectoryName::RdnSequence(path.cert.subject)),
             permitted_subtrees,
             excluded_subtrees,
             budget,
@@ -92,10 +116,6 @@ fn check_presented_id_conforms_to_constraints(
         (Subtrees::Permitted, permitted_subtrees),
         (Subtrees::Excluded, excluded_subtrees),
     ];
-
-    fn general_subtree<'b>(input: &mut untrusted::Reader<'b>) -> Result<GeneralName<'b>, Error> {
-        der::read_all(der::expect_tag(input, der::Tag::Sequence)?)
-    }
 
     for (subtrees, constraints) in subtrees {
         let mut constraints = match constraints {
@@ -133,26 +153,14 @@ fn check_presented_id_conforms_to_constraints(
                 }
                 (GeneralName::DnsName(_), _) => continue,
 
-                (GeneralName::DirectoryName, GeneralName::DirectoryName) => Ok(
-                    // Reject any uses of directory name constraints; we don't implement this.
-                    //
-                    // Rejecting everything technically confirms to RFC5280:
-                    //
-                    //   "If a name constraints extension that is marked as critical imposes constraints
-                    //    on a particular name form, and an instance of that name form appears in the
-                    //    subject field or subjectAltName extension of a subsequent certificate, then
-                    //    the application MUST either process the constraint or _reject the certificate_."
-                    //
-                    // TODO: rustls/webpki#19
-                    //
-                    // Rejection is achieved by not matching any PermittedSubtrees, and matching all
-                    // ExcludedSubtrees.
+                (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => {
+                    // Excluded directoryName constraints are rejected before checking names.
                     match subtrees {
-                        Subtrees::Permitted => false,
-                        Subtrees::Excluded => true,
-                    },
-                ),
-                (GeneralName::DirectoryName, _) => continue,
+                        Subtrees::Permitted => name.matches_permitted(base),
+                        Subtrees::Excluded => Err(Error::NameConstraintViolation),
+                    }
+                }
+                (GeneralName::DirectoryName(_), _) => continue,
 
                 (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
                     ip_address::presented_id_matches_constraint(name, base)
@@ -217,6 +225,10 @@ fn check_presented_id_conforms_to_constraints(
     None
 }
 
+fn general_subtree<'a>(input: &mut untrusted::Reader<'a>) -> Result<GeneralName<'a>, Error> {
+    der::read_all(der::expect_tag(input, der::Tag::Sequence)?)
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Subtrees {
     Permitted,
@@ -271,7 +283,7 @@ impl<'a> Iterator for NameIterator<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum GeneralName<'a> {
     DnsName(untrusted::Input<'a>),
-    DirectoryName,
+    DirectoryName(DirectoryName<'a>),
     IpAddress(untrusted::Input<'a>),
     UniformResourceIdentifier(untrusted::Input<'a>),
 
@@ -300,7 +312,7 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
         let (tag, value) = der::read_tag_and_get_value(reader)?;
         Ok(match tag {
             DNS_NAME_TAG => DnsName(value),
-            DIRECTORY_NAME_TAG => DirectoryName,
+            DIRECTORY_NAME_TAG => DirectoryName(directory_name::DirectoryName::Explicit(value)),
             IP_ADDRESS_TAG => IpAddress(value),
             UNIFORM_RESOURCE_IDENTIFIER_TAG => UniformResourceIdentifier(value),
 
@@ -323,7 +335,7 @@ impl fmt::Debug for GeneralName<'_> {
                 "DnsName({:?})",
                 String::from_utf8_lossy(name.as_slice_less_safe())
             ),
-            GeneralName::DirectoryName => write!(f, "DirectoryName"),
+            GeneralName::DirectoryName(_) => write!(f, "DirectoryName"),
             GeneralName::IpAddress(ip) => {
                 write!(f, "IpAddress({:?})", IpAddrSlice(ip.as_slice_less_safe()))
             }
@@ -414,7 +426,13 @@ mod tests {
             "DnsName(\"example.com\")"
         );
 
-        assert_eq!(format!("{:?}", GeneralName::DirectoryName), "DirectoryName");
+        assert_eq!(
+            format!(
+                "{:?}",
+                GeneralName::DirectoryName(DirectoryName::RdnSequence(untrusted::Input::from(b"")))
+            ),
+            "DirectoryName"
+        );
 
         assert_eq!(
             format!(
@@ -488,5 +506,29 @@ mod tests {
         let mut iter = NameIterator::new(Some(input));
         assert_eq!(iter.next().unwrap().unwrap_err(), Error::BadDer);
         assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn many_empty_directory_name_constraints_do_not_scan_the_subject() {
+        // 5,000 CN=X RDNs, followed by an invalid suffix. The suffix makes
+        // repeated validation fail deterministically rather than relying on a
+        // timing threshold to catch excessive work.
+        let mut subject = [
+            0x31, 0x0a, 0x30, 0x08, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x01, b'X',
+        ]
+        .repeat(5_000);
+        subject.push(0xff);
+        let constraints = [0x30, 0x04, 0xa4, 0x02, 0x30, 0x00].repeat(10_000);
+        assert_eq!(
+            check_presented_id_conforms_to_constraints(
+                GeneralName::DirectoryName(DirectoryName::RdnSequence(untrusted::Input::from(
+                    &subject
+                ))),
+                Some(untrusted::Input::from(&constraints)),
+                None,
+                &mut Budget::default(),
+            ),
+            None
+        );
     }
 }

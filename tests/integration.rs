@@ -56,6 +56,30 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
     assert!(builder.build(&cert, time).is_ok());
 }
 
+/// Real directoryName constraints reported in rustls/webpki#19.
+#[test]
+fn agid_directory_name_constraints() {
+    let ee = CertificateDer::from(&include_bytes!("agid/ee.der")[..]);
+    let inter = CertificateDer::from(&include_bytes!("agid/inter.der")[..]);
+    let ca = CertificateDer::from(&include_bytes!("agid/ca.der")[..]);
+    let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let intermediates = [inter];
+    let builder = PathBuilder::new(
+        &intermediates,
+        None,
+        &ExtendedKeyUsage::SERVER_AUTH,
+        ALL_VERIFICATION_ALGS,
+        &anchors,
+    );
+    let cert = webpki::EndEntityCert::try_from(&ee).unwrap();
+    let time = UnixTime::since_unix_epoch(Duration::from_secs(1_782_864_000)); // 2026-07-01
+    builder.build(&cert, time).unwrap();
+    cert.verify_is_valid_for_subject_name(
+        &pki_types::ServerName::try_from("peppol-smp.agid.gov.it").unwrap(),
+    )
+    .unwrap();
+}
+
 /* This is notable because it is a popular use of IP address subjectAltNames. */
 #[cfg(feature = "alloc")]
 #[test]
