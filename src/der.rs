@@ -56,11 +56,8 @@ pub(crate) enum Tag {
     Sequence = CONSTRUCTED | 0x10, // 0x30
     Set = CONSTRUCTED | 0x11,      // 0x31
     PrintableString = 0x13,
-    IA5String = 0x16,
     UTCTime = 0x17,
     GeneralizedTime = 0x18,
-    UniversalString = 0x1C,
-    BMPString = 0x1E,
 
     #[expect(clippy::identity_op)]
     ContextSpecificConstructed0 = CONTEXT_SPECIFIC | CONSTRUCTED | 0,
@@ -85,15 +82,6 @@ impl From<Tag> for u8 {
     #[expect(clippy::as_conversions)]
     fn from(tag: Tag) -> Self {
         tag as Self
-    }
-}
-
-impl Tag {
-    /// Equivalent to `u8::from(self)` but usable in `const` context, since
-    /// `From` is not const.
-    #[expect(clippy::as_conversions)]
-    pub(crate) const fn as_u8(self) -> u8 {
-        self as u8
     }
 }
 

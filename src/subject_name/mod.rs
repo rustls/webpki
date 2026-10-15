@@ -8,6 +8,7 @@ use crate::error::{DerTypeId, Error};
 use crate::verify_cert::{Budget, PathNode};
 
 mod directory_name;
+use directory_name::DirectoryName;
 
 mod dns_name;
 use dns_name::IdRole;
@@ -50,6 +51,22 @@ pub(crate) fn check_name_constraints(
         return Err(Error::MalformedNameConstraint);
     }
 
+    // Our directoryName matcher deliberately omits normalization. A missed
+    // match is safe for permittedSubtrees, but could bypass an exclusion.
+    // Reject excluded directoryNames even when no presented DN is present.
+    if let Some(excluded) = excluded_subtrees {
+        let mut excluded = untrusted::Reader::new(excluded);
+        while !excluded.at_end() {
+            budget.consume_name_constraint_comparison()?;
+            if matches!(
+                general_subtree(&mut excluded)?,
+                GeneralName::DirectoryName(_)
+            ) {
+                return Err(Error::NameConstraintViolation);
+            }
+        }
+    }
+
     for path in path.iter() {
         let result = NameIterator::new(path.cert.subject_alt_name).find_map(|result| {
             let name = match result {
@@ -69,8 +86,13 @@ pub(crate) fn check_name_constraints(
             return Err(err);
         }
 
-        let result = check_subject_dn_against_constraints(
-            path.cert.subject,
+        // RFC 5280 section 4.2.1.10 only constrains a non-empty subject.
+        // directoryName SANs have already been checked above.
+        if path.cert.subject.is_empty() {
+            continue;
+        }
+        let result = check_presented_id_conforms_to_constraints(
+            GeneralName::DirectoryName(DirectoryName::from_rdn_sequence(path.cert.subject)),
             permitted_subtrees,
             excluded_subtrees,
             budget,
@@ -90,130 +112,12 @@ fn check_presented_id_conforms_to_constraints(
     excluded_subtrees: Option<untrusted::Input<'_>>,
     budget: &mut Budget,
 ) -> Option<Result<(), Error>> {
-    walk_constraints(
-        permitted_subtrees,
-        excluded_subtrees,
-        budget,
-        |base, kind| {
-            // Avoid having a catch-all branch here which might fail open on new variants
-            match (name, base) {
-                (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
-                    Some(dns_name::presented_id_matches_reference_id(
-                        name,
-                        IdRole::NameConstraint(kind),
-                        base,
-                    ))
-                }
-                (GeneralName::DnsName(_), _) => None,
-
-                (GeneralName::DirectoryName(presented), GeneralName::DirectoryName(base)) => {
-                    Some(directory_name_match(presented, base))
-                }
-                (GeneralName::DirectoryName(_), _) => None,
-
-                (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
-                    Some(ip_address::presented_id_matches_constraint(name, base))
-                }
-                (GeneralName::IpAddress(_), _) => None,
-
-                // We currently don't support URI constraints -- fail closed for now.
-                //
-                // Rejection is achieved by not matching any PermittedSubtrees, and matching all
-                // ExcludedSubtrees.
-                (
-                    GeneralName::UniformResourceIdentifier(_),
-                    GeneralName::UniformResourceIdentifier(_),
-                ) => Some(Ok(match kind {
-                    Subtrees::Permitted => false,
-                    Subtrees::Excluded => true,
-                })),
-                (GeneralName::UniformResourceIdentifier(_), _) => None,
-
-                // RFC 5280 says "If a name constraints extension that is marked as
-                // critical imposes constraints on a particular name form, and an
-                // instance of that name form appears in the subject field or
-                // subjectAltName extension of a subsequent certificate, then the
-                // application MUST either process the constraint or reject the
-                // certificate." Later, the CABForum agreed to support non-critical
-                // constraints, so it is important to reject the cert without
-                // considering whether the name constraint it critical.
-                (GeneralName::Unsupported(name_tag), GeneralName::Unsupported(base_tag))
-                    if name_tag == base_tag =>
-                {
-                    Some(Err(Error::NameConstraintViolation))
-                }
-                (GeneralName::Unsupported(_), _) => None,
-            }
-        },
-    )
-}
-
-// Both inputs are `[4]` directoryName GeneralName values (EXPLICIT-form bytes,
-// SEQUENCE-wrapped); strip the wrapper before handing the RDNSequence content
-// to the matcher.
-fn directory_name_match(
-    presented: untrusted::Input<'_>,
-    base: untrusted::Input<'_>,
-) -> Result<bool, Error> {
-    let presented = directory_name::strip_explicit_sequence(presented)?;
-    let base = directory_name::strip_explicit_sequence(base)?;
-    directory_name::presented_directory_name_matches_constraint(presented, base)
-}
-
-// Subject DN matching against name constraints. Distinct from
-// `check_presented_id_conforms_to_constraints` because the cert's subject DN
-// is naturally stored as RDNSequence content (no SEQUENCE wrapper) and only
-// needs to be checked against directoryName constraints.
-fn check_subject_dn_against_constraints(
-    subject_rdn_sequence: untrusted::Input<'_>,
-    permitted_subtrees: Option<untrusted::Input<'_>>,
-    excluded_subtrees: Option<untrusted::Input<'_>>,
-    budget: &mut Budget,
-) -> Option<Result<(), Error>> {
-    walk_constraints(
-        permitted_subtrees,
-        excluded_subtrees,
-        budget,
-        |base, _kind| {
-            let GeneralName::DirectoryName(base_value) = base else {
-                return None;
-            };
-            Some(
-                directory_name::strip_explicit_sequence(base_value).and_then(|base_rdn| {
-                    directory_name::presented_directory_name_matches_constraint(
-                        subject_rdn_sequence,
-                        base_rdn,
-                    )
-                }),
-            )
-        },
-    )
-}
-
-// Iterates over the `permittedSubtrees` and `excludedSubtrees` GeneralSubtrees
-// of a NameConstraints extension, enforcing the per-subtree match-state rules
-// from RFC 5280 §4.2.1.10. The `match_constraint` callback decides, for each
-// constraint, whether it is applicable to the presented name (returns `Some`)
-// and if so whether it is satisfied (`Ok(true)`).
-fn walk_constraints<F>(
-    permitted_subtrees: Option<untrusted::Input<'_>>,
-    excluded_subtrees: Option<untrusted::Input<'_>>,
-    budget: &mut Budget,
-    mut match_constraint: F,
-) -> Option<Result<(), Error>>
-where
-    F: FnMut(GeneralName<'_>, Subtrees) -> Option<Result<bool, Error>>,
-{
-    fn general_subtree<'b>(input: &mut untrusted::Reader<'b>) -> Result<GeneralName<'b>, Error> {
-        der::read_all(der::expect_tag(input, der::Tag::Sequence)?)
-    }
-
     let subtrees = [
         (Subtrees::Permitted, permitted_subtrees),
         (Subtrees::Excluded, excluded_subtrees),
     ];
 
-    for (kind, constraints) in subtrees {
+    for (subtrees, constraints) in subtrees {
         let mut constraints = match constraints {
             Some(constraints) => untrusted::Reader::new(constraints),
             None => continue,
@@ -238,11 +142,61 @@ where
                 Err(err) => return Some(Err(err)),
             };
 
-            let Some(matches) = match_constraint(base, kind) else {
-                continue;
+            // Avoid having a catch-all branch here which might fail open on new variants
+            let matches = match (name, base) {
+                (GeneralName::DnsName(name), GeneralName::DnsName(base)) => {
+                    dns_name::presented_id_matches_reference_id(
+                        name,
+                        IdRole::NameConstraint(subtrees),
+                        base,
+                    )
+                }
+                (GeneralName::DnsName(_), _) => continue,
+
+                (GeneralName::DirectoryName(name), GeneralName::DirectoryName(base)) => {
+                    // Excluded directoryName constraints are rejected before checking names.
+                    match subtrees {
+                        Subtrees::Permitted => name.matches_permitted(base),
+                        Subtrees::Excluded => Err(Error::NameConstraintViolation),
+                    }
+                }
+                (GeneralName::DirectoryName(_), _) => continue,
+
+                (GeneralName::IpAddress(name), GeneralName::IpAddress(base)) => {
+                    ip_address::presented_id_matches_constraint(name, base)
+                }
+                (GeneralName::IpAddress(_), _) => continue,
+
+                // We currently don't support URI constraints -- fail closed for now.
+                //
+                // Rejection is achieved by not matching any PermittedSubtrees, and matching all
+                // ExcludedSubtrees.
+                (
+                    GeneralName::UniformResourceIdentifier(_),
+                    GeneralName::UniformResourceIdentifier(_),
+                ) => Ok(match subtrees {
+                    Subtrees::Permitted => false,
+                    Subtrees::Excluded => true,
+                }),
+                (GeneralName::UniformResourceIdentifier(_), _) => continue,
+
+                // RFC 5280 says "If a name constraints extension that is marked as
+                // critical imposes constraints on a particular name form, and an
+                // instance of that name form appears in the subject field or
+                // subjectAltName extension of a subsequent certificate, then the
+                // application MUST either process the constraint or reject the
+                // certificate." Later, the CABForum agreed to support non-critical
+                // constraints, so it is important to reject the cert without
+                // considering whether the name constraint it critical.
+                (GeneralName::Unsupported(name_tag), GeneralName::Unsupported(base_tag))
+                    if name_tag == base_tag =>
+                {
+                    Err(Error::NameConstraintViolation)
+                }
+                (GeneralName::Unsupported(_), _) => continue,
             };
 
-            match (kind, matches) {
+            match (subtrees, matches) {
                 (Subtrees::Permitted, Ok(true)) => {
                     has_permitted_subtrees_match = true;
                 }
@@ -269,6 +223,10 @@ where
     }
 
     None
+}
+
+fn general_subtree<'a>(input: &mut untrusted::Reader<'a>) -> Result<GeneralName<'a>, Error> {
+    der::read_all(der::expect_tag(input, der::Tag::Sequence)?)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -325,11 +283,7 @@ impl<'a> Iterator for NameIterator<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum GeneralName<'a> {
     DnsName(untrusted::Input<'a>),
-    /// `[4]` directoryName GeneralName content. Per X.680 §31.2.7 this is
-    /// EXPLICIT-tagged, so the bytes are a SEQUENCE TLV wrapping the
-    /// RDNSequence. Use [`directory_name::strip_explicit_sequence`] to obtain
-    /// the inner RDNSequence content.
-    DirectoryName(untrusted::Input<'a>),
+    DirectoryName(DirectoryName<'a>),
     IpAddress(untrusted::Input<'a>),
     UniformResourceIdentifier(untrusted::Input<'a>),
 
@@ -358,7 +312,9 @@ impl<'a> FromDer<'a> for GeneralName<'a> {
         let (tag, value) = der::read_tag_and_get_value(reader)?;
         Ok(match tag {
             DNS_NAME_TAG => DnsName(value),
-            DIRECTORY_NAME_TAG => DirectoryName(value),
+            DIRECTORY_NAME_TAG => {
+                DirectoryName(directory_name::DirectoryName::from_explicit(value)?)
+            }
             IP_ADDRESS_TAG => IpAddress(value),
             UNIFORM_RESOURCE_IDENTIFIER_TAG => UniformResourceIdentifier(value),
 
@@ -475,7 +431,9 @@ mod tests {
         assert_eq!(
             format!(
                 "{:?}",
-                GeneralName::DirectoryName(untrusted::Input::from(b""))
+                GeneralName::DirectoryName(DirectoryName::from_rdn_sequence(
+                    untrusted::Input::from(b"")
+                ))
             ),
             "DirectoryName"
         );

@@ -770,7 +770,7 @@ fn exclude_directory_name_match() {
 }
 
 #[test]
-fn exclude_directory_name_no_match() {
+fn exclude_directory_name_no_match_is_still_rejected() {
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, "different value");
     let issuer = make_issuer(Some(NameConstraints {
@@ -778,7 +778,10 @@ fn exclude_directory_name_no_match() {
         excluded_subtrees: vec![GeneralSubtree::DirectoryName(dn)],
     }));
     let ee = generate_cert_with_names(Some("subject.example.com"), None, vec![], &issuer);
-    assert_eq!(check_cert(ee.der(), issuer.der(), &[], &[], &[]), Ok(()));
+    assert_eq!(
+        check_cert(ee.der(), issuer.der(), &[], &[], &[]),
+        Err(webpki::Error::NameConstraintViolation)
+    );
 }
 
 #[test]
@@ -820,6 +823,247 @@ fn permit_directory_name_deeper_subtree() {
         ),
         Ok(())
     );
+}
+
+#[test]
+fn permitted_directory_name_skips_empty_subject_but_checks_dns_sans() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![
+            GeneralSubtree::DirectoryName(country_name("US")),
+            GeneralSubtree::DnsName("example.com".into()),
+        ],
+        excluded_subtrees: vec![],
+    }));
+    for (dns, expected) in [
+        ("www.example.com", Ok(())),
+        (
+            "elsewhere.test",
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+    ] {
+        assert_eq!(
+            check_directory_name_cert(
+                &issuer,
+                DistinguishedName::new(),
+                vec![SanType::DnsName(dns.try_into().unwrap())],
+                None,
+            ),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn permitted_directory_name_checks_every_san_and_subject() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DirectoryName(country_name("US"))],
+        excluded_subtrees: vec![],
+    }));
+    // A matching subject cannot hide a mismatching SAN, and a matching SAN
+    // cannot hide a mismatching subject. Empty subjects still constrain SANs.
+    for (subject, countries, expected) in [
+        (DistinguishedName::new(), vec![b"US"], Ok(())),
+        (
+            DistinguishedName::new(),
+            vec![b"GB"],
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (
+            DistinguishedName::new(),
+            vec![b"US", b"GB"],
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (
+            country_name("US"),
+            vec![b"GB"],
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (
+            country_name("GB"),
+            vec![b"US"],
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (country_name("US"), vec![b"US"], Ok(())),
+    ] {
+        assert_eq!(
+            check_directory_name_cert(
+                &issuer,
+                subject,
+                vec![],
+                Some(directory_name_sans(&countries))
+            ),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn permitted_directory_name_accepts_any_matching_subtree() {
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![
+            GeneralSubtree::DirectoryName(country_name("GB")),
+            GeneralSubtree::DirectoryName(country_name("US")),
+        ],
+        excluded_subtrees: vec![],
+    }));
+    assert_eq!(
+        check_directory_name_cert(&issuer, country_name("US"), vec![], None),
+        Ok(())
+    );
+}
+
+#[test]
+fn excluded_directory_name_rejects_even_without_presented_directory_names() {
+    for constraint in [DistinguishedName::new(), country_name("US")] {
+        let issuer = make_issuer(Some(NameConstraints {
+            permitted_subtrees: vec![GeneralSubtree::DnsName("example.com".into())],
+            excluded_subtrees: vec![GeneralSubtree::DirectoryName(constraint)],
+        }));
+        for subject in [
+            DistinguishedName::new(),
+            country_name("GB"),
+            country_name("US"),
+        ] {
+            assert_eq!(
+                check_directory_name_cert(
+                    &issuer,
+                    subject,
+                    vec![SanType::DnsName("www.example.com".try_into().unwrap())],
+                    None,
+                ),
+                Err(webpki::Error::NameConstraintViolation),
+            );
+        }
+    }
+}
+
+#[test]
+fn excluded_directory_name_cannot_be_bypassed_by_missing_normalization() {
+    let mut excluded = DistinguishedName::new();
+    excluded.push(DnType::OrganizationName, "Straße");
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![],
+        excluded_subtrees: vec![GeneralSubtree::DirectoryName(excluded)],
+    }));
+    let mut subject = DistinguishedName::new();
+    subject.push(DnType::OrganizationName, "Strasse");
+    assert_eq!(
+        check_directory_name_cert(&issuer, subject, vec![], None),
+        Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
+#[test]
+fn unsupported_directory_name_encoding_is_only_rejected_when_constrained() {
+    let mut subject = DistinguishedName::new();
+    subject.push(
+        DnType::CountryName,
+        rcgen::DnValue::BmpString("US".try_into().unwrap()),
+    );
+    let unconstrained = make_issuer(None);
+    assert_eq!(
+        check_directory_name_cert(&unconstrained, subject.clone(), vec![], None),
+        Ok(())
+    );
+    let constrained = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![GeneralSubtree::DirectoryName(country_name("US"))],
+        excluded_subtrees: vec![],
+    }));
+    assert_eq!(
+        check_directory_name_cert(&constrained, subject, vec![], None),
+        Err(webpki::Error::NameConstraintViolation)
+    );
+}
+
+#[test]
+fn tuntrust_style_directory_dns_and_ip_constraints() {
+    // The combination reported in rustls/webpki#19: permitted C=TN and DNS:tn,
+    // with every IPv4 and IPv6 address excluded.
+    let issuer = make_issuer(Some(NameConstraints {
+        permitted_subtrees: vec![
+            GeneralSubtree::DirectoryName(country_name("TN")),
+            GeneralSubtree::DnsName("tn".into()),
+        ],
+        excluded_subtrees: vec![
+            GeneralSubtree::IpAddress("0.0.0.0/0".parse().unwrap()),
+            GeneralSubtree::IpAddress("::/0".parse().unwrap()),
+        ],
+    }));
+    for (country, san, expected) in [
+        (
+            "TN",
+            SanType::DnsName("validovssl.tuntrust.tn".try_into().unwrap()),
+            Ok(()),
+        ),
+        (
+            "GB",
+            SanType::DnsName("validovssl.tuntrust.tn".try_into().unwrap()),
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (
+            "TN",
+            SanType::DnsName("example.com".try_into().unwrap()),
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (
+            "TN",
+            SanType::IpAddress("192.0.2.1".parse().unwrap()),
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+        (
+            "TN",
+            SanType::IpAddress("2001:db8::1".parse().unwrap()),
+            Err(webpki::Error::NameConstraintViolation),
+        ),
+    ] {
+        assert_eq!(
+            check_directory_name_cert(&issuer, country_name(country), vec![san], None),
+            expected
+        );
+    }
+}
+
+fn country_name(country: &str) -> DistinguishedName {
+    let mut dn = DistinguishedName::new();
+    dn.push(DnType::CountryName, country);
+    dn
+}
+
+fn check_directory_name_cert(
+    issuer: &CertifiedIssuer<'_, KeyPair>,
+    subject: DistinguishedName,
+    sans: Vec<SanType>,
+    custom_san: Option<CustomExtension>,
+) -> Result<(), webpki::Error> {
+    let mut params = CertificateParams::new([]).unwrap();
+    params.distinguished_name = subject;
+    params.subject_alt_names = sans;
+    params.custom_extensions.extend(custom_san);
+    params.not_before = date_time_ymd(1970, 1, 1);
+    params.not_after = date_time_ymd(2050, 1, 1);
+    let ee = params
+        .signed_by(&KeyPair::generate().unwrap(), issuer)
+        .unwrap();
+    check_cert(ee.der(), issuer.der(), &[], &[], &[])
+}
+
+fn directory_name_sans(countries: &[&[u8; 2]]) -> CustomExtension {
+    // rcgen has no directoryName SAN variant. Each entry is an explicitly
+    // tagged Name containing a single PrintableString countryName attribute.
+    let mut names = Vec::new();
+    for country in countries {
+        names.extend_from_slice(&[
+            0xa4, 0x0f, 0x30, 0x0d, 0x31, 0x0b, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x06, 0x13,
+            0x02,
+        ]);
+        names.extend_from_slice(*country);
+    }
+    assert!(names.len() < 128);
+    let mut value = vec![0x30, u8::try_from(names.len()).unwrap()];
+    value.extend(names);
+    let mut extension = CustomExtension::from_oid_content(&[2, 5, 29, 17], value);
+    extension.set_criticality(true);
+    extension
 }
 
 #[test]
