@@ -116,6 +116,7 @@ impl EndEntityCert<'_> {
             trust_anchors,
             intermediate_certs,
             revocation,
+            distrusted_spkis: verify_cert::DISTRUSTED_SPKIS,
         }
         .build_chain(self, time, verify_path)
     }
