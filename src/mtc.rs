@@ -11,12 +11,31 @@ use alloc::string::String;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 #[cfg(feature = "alloc")]
+use alloc::{format, vec};
+#[cfg(feature = "alloc")]
 use core::fmt::Write;
+#[cfg(feature = "alloc")]
+use core::ops::RangeInclusive;
 
+#[cfg(feature = "alloc")]
+use pki_types::{
+    AlgorithmIdentifier, CertificateDer, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer,
+    TrustAnchor,
+};
 use untrusted::{Input, Reader};
 
+#[cfg(feature = "alloc")]
+use crate::cert::Cert;
+#[cfg(feature = "alloc")]
+use crate::der::FromDer;
 use crate::der::{self, Tag};
 use crate::error::Error;
+#[cfg(feature = "alloc")]
+use crate::signed_data::SignedData;
+#[cfg(feature = "alloc")]
+use crate::verify_cert::Budget;
+#[cfg(feature = "alloc")]
+use crate::x509::{Extension, set_extension_once};
 
 /// A SHA-256 implementation, supplied by the caller.
 ///
@@ -185,6 +204,314 @@ pub fn find_subtrees(start: u64, end: u64) -> Option<[(u64, u64); 2]> {
 
 fn bit_length(n: u64) -> u32 {
     u64::BITS - n.leading_zeros()
+}
+
+/// A trusted Merkle Tree Certificate CA, with the relying party's state for it (MTC section 7.1).
+///
+/// Use with [`PathBuilder::with_mtc()`](crate::PathBuilder::with_mtc).
+#[cfg(feature = "alloc")]
+#[derive(Clone, Debug)]
+pub struct MtcCa {
+    pub(crate) anchor: TrustAnchor<'static>,
+    ca_id: Vec<u8>,
+    /// The text form of this CA's log IDs, up to the log number.
+    log_origin_prefix: String,
+    /// The CA cosigner, then the other cosigners.
+    cosigners: Vec<MtcCosigner>,
+    witness_quorum: usize,
+    trusted_subtrees: Vec<MtcSubtree>,
+    requested_trust_anchor_id: Vec<u8>,
+    revoked: Vec<RangeInclusive<u64>>,
+}
+
+#[cfg(feature = "alloc")]
+impl MtcCa {
+    /// Builds an `MtcCa` from its CA certificate (MTC section 5.5).
+    ///
+    /// The certificate's subject is the CA ID, its key is the CA cosigner's key, and it must
+    /// carry the critical `id-pe-mtcCertificationAuthority-SHA256` extension. Serial numbers
+    /// outside the extension's range are revoked.
+    ///
+    /// `witnesses` are the cosigners other than the CA cosigner, and `witness_quorum` is how
+    /// many of them must also have signed a subtree. The CA cosigner's signature is always
+    /// required. A quorum of 0 trusts the CA without transparency (MTC section 7.3).
+    pub fn from_ca_cert(
+        cert: &CertificateDer<'_>,
+        witnesses: Vec<MtcCosigner>,
+        witness_quorum: usize,
+    ) -> Result<Self, Error> {
+        let cert = Cert::for_trust_anchor(Input::from(cert.as_ref()))?;
+        let ca_id = ca_id_from_name(cert.subject).ok_or(Error::BadDer)?;
+        let (sig_alg, min_serial, max_serial) = mtc_ca_extension(cert.signed_data.data)?;
+        let ca = MtcCosigner::from_parts(ca_id, cert.spki.as_slice_less_safe(), sig_alg)?;
+
+        let log_origin_prefix = format!("{}.0.", ca.name);
+        let mut revoked = Vec::with_capacity(2);
+        // `min_serial` is at least 2^48.
+        revoked.push(0..=min_serial - 1);
+        if let Some(above) = max_serial.checked_add(1) {
+            revoked.push(above..=u64::MAX);
+        }
+
+        let mut cosigners = vec![ca];
+        cosigners.extend(witnesses);
+        Ok(Self {
+            ca_id: ca_id.to_vec(),
+            requested_trust_anchor_id: ca_id.to_vec(),
+            anchor: TrustAnchor::from(cert).to_owned(),
+            log_origin_prefix,
+            cosigners,
+            witness_quorum,
+            trusted_subtrees: Vec::new(),
+            revoked,
+        })
+    }
+
+    /// Sets the trusted subtrees, replacing any set before (MTC section 7.4).
+    ///
+    /// A trusted subtree is as powerful as the CA: a certificate with an inclusion proof into
+    /// it needs no cosignatures. Only pass subtrees checked to be consistent with checkpoints
+    /// cosigned by this CA's cosigners.
+    pub fn set_trusted_subtrees(&mut self, subtrees: Vec<MtcSubtree>) {
+        self.trusted_subtrees = subtrees;
+    }
+
+    /// Sets the latest trusted landmark of this CA, as `(log_number, landmark)`.
+    ///
+    /// This only affects [`Self::requested_trust_anchor_id()`]. Pass `None` when no landmark
+    /// data is current.
+    pub fn set_latest_landmark(&mut self, latest: Option<(u16, u64)>) -> Result<(), Error> {
+        self.requested_trust_anchor_id = match latest {
+            Some((log_number, landmark)) => {
+                derive_trust_anchor_id(&self.ca_id, LANDMARK_GROUPS, log_number, landmark)?
+            }
+            None => self.ca_id.clone(),
+        };
+        Ok(())
+    }
+
+    /// Revokes every certificate whose serial number is in `serials` (MTC section 7.5).
+    pub fn add_revoked_range(&mut self, serials: RangeInclusive<u64>) {
+        self.revoked.push(serials);
+    }
+
+    /// The trust anchor ID a relying party requests this CA's certificates with.
+    ///
+    /// This is the landmark group ID of the latest landmark if one is set, otherwise the
+    /// CA ID (MTC section 8.2.1). It is in binary form.
+    pub fn requested_trust_anchor_id(&self) -> &[u8] {
+        &self.requested_trust_anchor_id
+    }
+
+    /// Verifies the `id-alg-mtcProof` signature of `cert`, which names this CA as its issuer
+    /// (MTC section 7.2).
+    pub(crate) fn verify(
+        &self,
+        cert: &Cert<'_>,
+        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
+        hash: &dyn MtcHash,
+        budget: &mut Budget,
+    ) -> Result<(), Error> {
+        let proof = MtcProof::from_bytes(cert.signed_data.signature.as_slice_less_safe())?;
+        let serial = der_u64(cert.serial.as_slice_less_safe()).ok_or(Error::MalformedMtcProof)?;
+        if self.revoked.iter().any(|range| range.contains(&serial)) {
+            return Err(Error::CertRevoked);
+        }
+
+        let index = serial & ((1 << 48) - 1);
+        let log_number = match u16::try_from(serial >> 48) {
+            Ok(0) | Err(_) => return Err(Error::MalformedMtcProof),
+            Ok(log_number) => log_number,
+        };
+
+        let entry_hash = leaf_hash(hash, cert.signed_data.data, proof.extensions)?;
+        let subtree_hash = evaluate_inclusion_proof(
+            hash,
+            index,
+            &entry_hash,
+            proof.start,
+            proof.end,
+            proof.inclusion_proof,
+        )?;
+
+        // A trusted subtree decides alone, without falling back to cosignatures.
+        let subtree = (log_number, proof.start, proof.end);
+        if let Some(trusted) = self
+            .trusted_subtrees
+            .iter()
+            .find(|t| (t.log_number, t.start, t.end) == subtree)
+        {
+            return match trusted.hash == subtree_hash {
+                true => Ok(()),
+                false => Err(Error::InvalidMtcProof),
+            };
+        }
+
+        let log_origin = format!("{}{log_number}", self.log_origin_prefix);
+        let mut buf = [0; MAX_COSIGNED_SUBTREE_LEN];
+        let (mut ca_signed, mut witnesses) = (false, 0);
+        for (id, signature) in proof.cosignatures() {
+            if ca_signed && witnesses >= self.witness_quorum {
+                break;
+            }
+
+            // Unknown cosigners, including GREASE, are ignored.
+            let Some(position) = self.cosigners.iter().position(|c| c.id == id) else {
+                continue;
+            };
+
+            let cosigner = &self.cosigners[position];
+            let message = cosigned_subtree(
+                &mut buf,
+                cosigner.name.as_bytes(),
+                0,
+                log_origin.as_bytes(),
+                proof.start,
+                proof.end,
+                &subtree_hash,
+            )?;
+            let signed_data = SignedData {
+                data: Input::from(message),
+                algorithm: Input::from(&cosigner.sig_alg),
+                signature,
+            };
+            match signed_data.verify(supported_sig_algs, Input::from(&cosigner.spki), budget) {
+                Ok(()) if position == 0 => ca_signed = true,
+                Ok(()) => witnesses += 1,
+                Err(err) if err.is_fatal() => return Err(err),
+                Err(_) => {}
+            }
+        }
+
+        match ca_signed && witnesses >= self.witness_quorum {
+            true => Ok(()),
+            false => Err(Error::InvalidMtcProof),
+        }
+    }
+}
+
+/// Reads the `MTCCertificationAuthority` extension of a CA certificate (MTC section 5.5).
+///
+/// `tbs` is the DER `TBSCertificate`. Returns the CA cosigner's signature algorithm and the
+/// minimum and maximum serial numbers.
+#[cfg(feature = "alloc")]
+fn mtc_ca_extension(tbs: Input<'_>) -> Result<(&[u8], u64, u64), Error> {
+    tbs.read_all(Error::BadDer, |rd| {
+        der::nested(rd, Tag::Sequence, Error::BadDer, |tbs| {
+            // version, serialNumber, signature, issuer, validity, subject, subjectPublicKeyInfo
+            for _ in 0..7 {
+                der::read_tag_and_get_value(tbs)?;
+            }
+
+            let mut found = None;
+            while !tbs.at_end() {
+                // Skip issuerUniqueID and subjectUniqueID.
+                let (tag, extensions) = der::read_tag_and_get_value(tbs)?;
+                if tag != u8::from(Tag::ContextSpecificConstructed3) {
+                    continue;
+                }
+
+                extensions.read_all(Error::BadDer, |rd| {
+                    der::nested_of_mut(
+                        rd,
+                        Tag::Sequence,
+                        Tag::Sequence,
+                        Error::BadDer,
+                        true,
+                        |rd| {
+                            let extension = Extension::from_der(rd)?;
+                            if extension.id.as_slice_less_safe() != MTC_CA_EXTENSION {
+                                return Ok(());
+                            }
+
+                            set_extension_once(&mut found, || match extension.critical {
+                                true => mtc_ca_extension_value(extension.value),
+                                false => Err(Error::ExtensionValueInvalid),
+                            })
+                        },
+                    )
+                })?;
+            }
+
+            found.ok_or(Error::ExtensionValueInvalid)
+        })
+    })
+}
+
+#[cfg(feature = "alloc")]
+fn mtc_ca_extension_value(value: Input<'_>) -> Result<(&[u8], u64, u64), Error> {
+    value.read_all(Error::ExtensionValueInvalid, |rd| {
+        der::nested(rd, Tag::Sequence, Error::ExtensionValueInvalid, |rd| {
+            let sig_alg = der::expect_tag(rd, Tag::Sequence)?.as_slice_less_safe();
+            let mut serial = || {
+                let serial = der::expect_tag(rd, Tag::Integer)?.as_slice_less_safe();
+                match der_u64(serial) {
+                    Some(serial) if serial >= MIN_SERIAL => Ok(serial),
+                    _ => Err(Error::ExtensionValueInvalid),
+                }
+            };
+
+            match (serial()?, serial()?) {
+                (min, max) if min <= max => Ok((sig_alg, min, max)),
+                _ => Err(Error::ExtensionValueInvalid),
+            }
+        })
+    })
+}
+
+/// A cosigner of an [`MtcCa`]'s subtrees (MTC section 5.3).
+#[cfg(feature = "alloc")]
+#[derive(Clone, Debug)]
+pub struct MtcCosigner {
+    id: Vec<u8>,
+    /// The `SubjectPublicKeyInfo` contents, without the outer SEQUENCE.
+    spki: Vec<u8>,
+    /// The `AlgorithmIdentifier` contents.
+    sig_alg: Vec<u8>,
+    /// The `cosigner_name` of a `CosignedSubtree`.
+    name: String,
+}
+
+#[cfg(feature = "alloc")]
+impl MtcCosigner {
+    /// Builds a cosigner from its cosigner ID, a trust anchor ID in binary form, its key
+    /// and its signature algorithm.
+    ///
+    /// A cosignature is verified with the supported algorithm whose `signature_alg_id()` is
+    /// `sig_alg`.
+    pub fn new(
+        id: &[u8],
+        spki: &SubjectPublicKeyInfoDer<'_>,
+        sig_alg: AlgorithmIdentifier,
+    ) -> Result<Self, Error> {
+        let spki = Input::from(spki.as_ref())
+            .read_all(Error::BadDer, |rd| der::expect_tag(rd, Tag::Sequence))?;
+        Self::from_parts(id, spki.as_slice_less_safe(), sig_alg.as_ref())
+    }
+
+    fn from_parts(id: &[u8], spki: &[u8], sig_alg: &[u8]) -> Result<Self, Error> {
+        let mut name = String::from(TEXT_OID_PREFIX);
+        write_trust_anchor_id(&mut name, id)?;
+        Ok(Self {
+            id: id.to_vec(),
+            spki: spki.to_vec(),
+            sig_alg: sig_alg.to_vec(),
+            name,
+        })
+    }
+}
+
+/// A subtree the relying party already trusts, normally a landmark subtree (MTC section 7.4).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MtcSubtree {
+    /// The issuance log number.
+    pub log_number: u16,
+    /// The index of the subtree's first entry.
+    pub start: u64,
+    /// One past the index of the subtree's last entry.
+    pub end: u64,
+    /// The subtree hash.
+    pub hash: [u8; 32],
 }
 
 /// A decoded `MTCProof` (MTC section 6.2).
@@ -468,6 +795,29 @@ pub(crate) fn derive_trust_anchor_id(
         false => Ok(id),
     }
 }
+
+/// `id-alg-mtcProof` as an `AlgorithmIdentifier` value, with absent parameters.
+///
+/// 1.3.6.1.5.5.7.6.67, MTC section 6.2.
+#[cfg(feature = "alloc")]
+pub(crate) const MTC_PROOF_ALG_ID: &[u8] =
+    &[0x06, 0x08, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x06, 0x43];
+
+/// `id-pe-mtcCertificationAuthority-SHA256`, MTC section 5.5.
+#[cfg(feature = "alloc")]
+const MTC_CA_EXTENSION: &[u8] = &oid!(1, 3, 6, 1, 5, 5, 7, 1, 38);
+
+/// `mtcMinSerial`, MTC section 5.5.
+#[cfg(feature = "alloc")]
+const MIN_SERIAL: u64 = 1 << 48;
+
+/// The `landmarkGroups(2)` arc under a CA ID, MTC section 5.1.
+#[cfg(feature = "alloc")]
+const LANDMARK_GROUPS: u64 = 2;
+
+/// Prefix of the text form of a trust anchor ID, MTC section 5.3.1.
+#[cfg(feature = "alloc")]
+const TEXT_OID_PREFIX: &str = "oid/1.3.6.1.4.1.";
 
 /// `id-rdna-trustAnchorID`, MTC section 5.1.
 const TRUST_ANCHOR_ID: &[u8] = &oid!(1, 3, 6, 1, 5, 5, 7, 25, 3);
