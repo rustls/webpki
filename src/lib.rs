@@ -35,6 +35,9 @@ mod aws_lc_rs_algs;
 mod cert;
 mod end_entity;
 mod error;
+// The proof decoder is only reachable through `MtcCa`, which needs alloc.
+#[cfg_attr(not(feature = "alloc"), allow(dead_code))]
+pub mod mtc;
 #[cfg(test)]
 mod ring_algs;
 mod rpk_entity;
@@ -66,6 +69,9 @@ pub use error::{
     DerTypeId, Error, InvalidNameContext, UnsupportedSignatureAlgorithmContext,
     UnsupportedSignatureAlgorithmForPublicKeyContext,
 };
+#[cfg(feature = "alloc")]
+pub use mtc::{MtcCa, MtcCosigner};
+pub use mtc::{MtcHash, MtcSubtree};
 pub use rpk_entity::RawPublicKeyEntity;
 pub use trust_anchor::anchor_from_trusted_cert;
 #[cfg(feature = "alloc")]
