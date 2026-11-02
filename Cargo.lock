@@ -538,11 +538,10 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.24.0-dev.1"
+version = "0.24.0-dev.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aea97a47e031d09563e2b411eca6522d03ca605514b5f06f0fe78923d6652d28"
+checksum = "e7d0e095ff3f79172e5985922dbde4cb5bd98eb72518551589688502eab011de"
 dependencies = [
- "once_cell",
  "rustls-pki-types",
  "subtle",
  "zeroize",
@@ -553,6 +552,19 @@ name = "rustls-aws-lc-rs"
 version = "0.1.0-dev.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcde4ba4d57faf984e771ccf5002c8af6fde3d0289ce741cbd8f603940efdc40"
+dependencies = [
+ "aws-lc-rs",
+ "rustls",
+ "rustls-pki-types",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "rustls-aws-lc-rs"
+version = "0.24.0-dev.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbaf2c8aa7c430a99e84875dd184bb924de386dd8b32d3fa85dab4b5190432d4"
 dependencies = [
  "aws-lc-rs",
  "rustls",
@@ -578,19 +590,20 @@ checksum = "44a0baaec20af0a8013ba19e5e6366865c97e30c4bd41cdd5de92ff7090f31d3"
 dependencies = [
  "aws-lc-rs",
  "rustls",
- "rustls-aws-lc-rs",
+ "rustls-aws-lc-rs 0.1.0-dev.1",
 ]
 
 [[package]]
 name = "rustls-ring"
-version = "0.1.0-dev.1"
+version = "0.24.0-dev.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2fbefa23a4c894a7e6f0ae0d23552535e064a2725f0911b05f9866e9abc658b"
+checksum = "58502d620686c88f6c362ae41346c6013ea547bedfdc1e5ceca4d0e70aa956e9"
 dependencies = [
  "ring",
  "rustls",
  "rustls-pki-types",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -603,7 +616,7 @@ dependencies = [
  "limbo-harness-support",
  "once_cell",
  "rcgen",
- "rustls-aws-lc-rs",
+ "rustls-aws-lc-rs 0.24.0-dev.2",
  "rustls-pki-types",
  "rustls-post-quantum",
  "rustls-ring",
@@ -696,9 +709,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.152"
+version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1741ab7a6cc54a03a89b5d563ed60075c277d9e3cfa73ad0c1f23f23974703c6"
+checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
 dependencies = [
  "itoa",
  "memchr",
