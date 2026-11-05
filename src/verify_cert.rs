@@ -13,8 +13,10 @@ use crate::der::{self, FromDer};
 use crate::end_entity::EndEntityCert;
 use crate::error::Error;
 #[cfg(feature = "alloc")]
+use crate::mtc::{MTC_PROOF_ALG_ID, MtcCa, MtcHash};
+#[cfg(feature = "alloc")]
 use crate::spki_for_anchor;
-use crate::{DerTypeId, public_values_eq, subject_name};
+use crate::{DerTypeId, mtc, public_values_eq, subject_name};
 
 /// Build a [`VerifiedPath`] for an end-entity certificate from the given trust anchors.
 // Use `'a` for lifetimes that we don't care about, `'p` for lifetimes that become a part of
@@ -28,6 +30,8 @@ pub struct PathBuilder<'a, 'p> {
     #[expect(clippy::type_complexity)]
     pub(crate) verify_path: Option<&'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
     distrusted_spkis: &'a [&'a [u8]],
+    #[cfg(feature = "alloc")]
+    mtc: Option<(&'p [MtcCa], &'a dyn MtcHash)>,
 }
 
 impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
@@ -60,6 +64,8 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
             revocation,
             verify_path: None,
             distrusted_spkis: DISTRUSTED_SPKIS,
+            #[cfg(feature = "alloc")]
+            mtc: None,
         }
     }
 
@@ -77,6 +83,17 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
         verify: &'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>,
     ) -> Self {
         self.verify_path = Some(verify);
+        self
+    }
+
+    /// Accept Merkle Tree Certificates issued by `cas`, using `hash` for SHA-256.
+    ///
+    /// An MTC certificate is only accepted as the end-entity certificate, issued directly by
+    /// one of `cas`. The trust anchors are never used for it. Without this, MTC certificates
+    /// are rejected.
+    #[cfg(feature = "alloc")]
+    pub fn with_mtc(mut self, cas: &'p [MtcCa], hash: &'a dyn MtcHash) -> Self {
+        self.mtc = Some((cas, hash));
         self
     }
 
@@ -116,10 +133,22 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
 
         // TODO: HPKP checks.
 
+        #[cfg(feature = "alloc")]
+        if let Some((cas, hash)) = self.mtc {
+            if path.head().signed_data.algorithm.as_slice_less_safe() == MTC_PROOF_ALG_ID {
+                return self.build_mtc_chain(path, cas, hash, time, budget);
+            }
+        }
+
         let result =
             loop_while_non_fatal_error(Error::UnknownIssuer, self.trust_anchors, |trust_anchor| {
                 let trust_anchor_subject = untrusted::Input::from(trust_anchor.subject.as_ref());
                 if !public_values_eq(path.head().issuer, trust_anchor_subject) {
+                    return Err(Error::UnknownIssuer.into());
+                }
+
+                // An MTC CA's key must never directly sign a TBSCertificate (MTC section 5.4).
+                if mtc::ca_id_from_name(trust_anchor_subject).is_some() {
                     return Err(Error::UnknownIssuer.into());
                 }
 
@@ -133,21 +162,7 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
                 let node = path.node();
                 self.check_signed_chain(&node, time, trust_anchor, budget)?;
                 check_signed_chain_name_constraints(&node, trust_anchor, budget)?;
-
-                let Some(verify) = self.verify_path else {
-                    return Ok(trust_anchor);
-                };
-
-                let candidate = VerifiedPath {
-                    end_entity: path.end_entity,
-                    intermediates: Intermediates::Borrowed(&path.intermediates[..path.used]),
-                    anchor: trust_anchor,
-                };
-
-                match verify(&candidate) {
-                    Ok(()) => Ok(trust_anchor),
-                    Err(err) => Err(ControlFlow::Continue(err)),
-                }
+                self.check_path(path, trust_anchor)
             });
 
         let err = match result {
@@ -188,6 +203,69 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
 
             result
         })
+    }
+
+    #[cfg(feature = "alloc")]
+    fn build_mtc_chain(
+        &self,
+        path: &PartialPath<'p>,
+        cas: &'p [MtcCa],
+        hash: &dyn MtcHash,
+        time: UnixTime,
+        budget: &mut Budget,
+    ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
+        // MTC certificates are only accepted as end-entity certificates (MTC section 12.9).
+        let node = path.node();
+        if node.role() != Role::EndEntity {
+            return Err(Error::InvalidMtcProof.into());
+        }
+
+        let Some(ca) = cas.iter().find(|ca| {
+            public_values_eq(
+                node.cert.issuer,
+                untrusted::Input::from(ca.anchor.subject.as_ref()),
+            )
+        }) else {
+            return Err(Error::UnknownIssuer.into());
+        };
+
+        ca.verify(node.cert, self.supported_sig_algs, hash, budget)?;
+        if let Some(revocation_opts) = &self.revocation {
+            revocation_opts.check(
+                &node,
+                untrusted::Input::from(ca.anchor.subject.as_ref()),
+                untrusted::Input::from(ca.anchor.subject_public_key_info.as_ref()),
+                None,
+                self.supported_sig_algs,
+                budget,
+                time,
+            )?;
+        }
+
+        check_signed_chain_name_constraints(&node, &ca.anchor, budget)?;
+        self.check_path(path, &ca.anchor)
+    }
+
+    /// Run the `verify_path` callback, if any, on a path that otherwise verified.
+    fn check_path(
+        &self,
+        path: &PartialPath<'p>,
+        anchor: &'p TrustAnchor<'p>,
+    ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
+        let Some(verify) = self.verify_path else {
+            return Ok(anchor);
+        };
+
+        let candidate = VerifiedPath {
+            end_entity: path.end_entity,
+            intermediates: Intermediates::Borrowed(&path.intermediates[..path.used]),
+            anchor,
+        };
+
+        match verify(&candidate) {
+            Ok(()) => Ok(anchor),
+            Err(err) => Err(ControlFlow::Continue(err)),
+        }
     }
 
     fn check_signed_chain(
