@@ -154,6 +154,8 @@ impl StdError for Error {}
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
+
     use super::*;
 
     #[test]
@@ -195,18 +197,7 @@ mod tests {
 
     #[test]
     fn sample_sct() {
-        let bytes = [
-            0x0, 0x32, // outer len
-            0x0, 0x30, // item len
-            0x0,  // version
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', // log id
-            b't', b't', b't', b't', b't', b't', b't', b't', // timestamp
-            0x0, 0x0, // extensions
-            b's', b'a', // sig alg
-            0x0, 0x1, b's', // sig
-        ];
+        let bytes = encode_sct_list([TestSct::default().encode()]);
 
         SignedCertificateTimestamp::try_from(&bytes[4..]).unwrap();
 
@@ -226,18 +217,11 @@ mod tests {
 
     #[test]
     fn terminate_iterator_after_error_within_sct() {
-        let bytes = [
-            0x0, 0x31, // outer len
-            0x0, 0x30, // item len
-            0x0,  // version
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', // log id
-            b't', b't', b't', b't', b't', b't', b't', b't', // timestamp
-            0x0, 0x0, // extensions
-            b's', b'a', // sig alg
-            0x0, 0x0, // sig
-        ];
+        let bytes = encode_sct_list([TestSct {
+            signature: Vec::new(),
+            ..Default::default()
+        }
+        .encode()]);
 
         SignedCertificateTimestamp::try_from(&bytes[4..]).unwrap_err();
 
@@ -248,16 +232,11 @@ mod tests {
 
     #[test]
     fn illegal_empty_signature() {
-        let bytes = [
-            0x0, // version
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', // log id
-            b't', b't', b't', b't', b't', b't', b't', b't', // timestamp
-            0x0, 0x0, // extensions
-            b's', b'a', // sig alg
-            0x0, 0x0, // sig
-        ];
+        let bytes = TestSct {
+            signature: Vec::new(),
+            ..Default::default()
+        }
+        .encode();
 
         assert_eq!(
             Some(Error::MalformedSct),
@@ -267,16 +246,11 @@ mod tests {
 
     #[test]
     fn illegal_unknown_version() {
-        let bytes = [
-            0x1, // version
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l', b'l',
-            b'l', b'l', b'l', b'l', // log id
-            b't', b't', b't', b't', b't', b't', b't', b't', // timestamp
-            0x0, 0x0, // extensions
-            b's', b'a', // sig alg
-            0x0, 0x1, b's', // sig
-        ];
+        let bytes = TestSct {
+            version: 1,
+            ..Default::default()
+        }
+        .encode();
 
         assert_eq!(
             Some(Error::UnsupportedSctVersion),
@@ -296,5 +270,55 @@ mod tests {
             Some(Error::MalformedSct),
             SctParser::new(Some(Input::from(&bytes))).err()
         );
+    }
+
+    struct TestSct {
+        version: u8,
+        log_id: [u8; 32],
+        timestamp_ms: u64,
+        extensions: Vec<u8>,
+        signature_algorithm: [u8; 2],
+        signature: Vec<u8>,
+    }
+
+    impl TestSct {
+        fn encode(self) -> Vec<u8> {
+            let mut encoded = vec![self.version];
+            encoded.extend_from_slice(&self.log_id);
+            encoded.extend_from_slice(&self.timestamp_ms.to_be_bytes());
+            encoded.extend(u16_length_prefixed(self.extensions));
+            encoded.extend_from_slice(&self.signature_algorithm);
+            encoded.extend(u16_length_prefixed(self.signature));
+            encoded
+        }
+    }
+
+    impl Default for TestSct {
+        fn default() -> Self {
+            Self {
+                version: 0,
+                log_id: [b'l'; 32],
+                timestamp_ms: u64::from_be_bytes([b't'; 8]),
+                extensions: Vec::new(),
+                signature_algorithm: *b"sa",
+                signature: vec![b's'],
+            }
+        }
+    }
+
+    fn encode_sct_list(scts: impl IntoIterator<Item = Vec<u8>>) -> Vec<u8> {
+        let mut encoded = Vec::new();
+        for sct in scts {
+            encoded.extend(u16_length_prefixed(sct));
+        }
+        u16_length_prefixed(encoded)
+    }
+
+    fn u16_length_prefixed(body: Vec<u8>) -> Vec<u8> {
+        let length = u16::try_from(body.len()).unwrap();
+        let mut encoded = Vec::with_capacity(2 + body.len());
+        encoded.extend_from_slice(&length.to_be_bytes());
+        encoded.extend(body);
+        encoded
     }
 }
