@@ -30,14 +30,13 @@ impl<'a> Iterator for SctParser<'a> {
             return None;
         }
 
-        Some(
-            read_field(&mut self.reader, non_zero_u16_len)
-                .and_then(|item| SignedCertificateTimestamp::try_from(item.as_slice_less_safe()))
-                .map_err(|error| {
-                    self.done = true;
-                    error
-                }),
-        )
+        let result = read_field(&mut self.reader, non_zero_u16_len)
+            .and_then(|item| SignedCertificateTimestamp::try_from(item.as_slice_less_safe()));
+        match result {
+            Err(Error::UnsupportedSctVersion) | Ok(_) => {}
+            Err(_) => self.done = true,
+        }
+        Some(result)
     }
 }
 
@@ -230,6 +229,41 @@ mod tests {
 
         let mut iter = SctParser::new(Some(Input::from(&bytes))).unwrap();
         assert_eq!(iter.next(), Some(Err(Error::MalformedSct)));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn continue_iterator_after_unsupported_version() {
+        let bytes = encode_sct_list([
+            TestSct::default().encode(),
+            vec![
+                0x1, // unsupported SCT version
+                0x7, 0x0, 0x0, 0x1, b'?', // version-specific contents
+            ],
+            TestSct {
+                log_id: [b'm'; 32],
+                timestamp_ms: u64::from_be_bytes([b'u'; 8]),
+                ..Default::default()
+            }
+            .encode(),
+        ]);
+
+        let mut iter = SctParser::new(Some(Input::from(&bytes))).unwrap();
+        assert_eq!(
+            iter.next().unwrap().unwrap().log_id_and_timestamp(),
+            LogIdAndTimestamp {
+                log_id: [b'l'; 32],
+                timestamp_ms: 0x74747474_74747474,
+            }
+        );
+        assert_eq!(iter.next(), Some(Err(Error::UnsupportedSctVersion)));
+        assert_eq!(
+            iter.next().unwrap().unwrap().log_id_and_timestamp(),
+            LogIdAndTimestamp {
+                log_id: [b'm'; 32],
+                timestamp_ms: 0x75757575_75757575,
+            }
+        );
         assert_eq!(iter.next(), None);
     }
 
