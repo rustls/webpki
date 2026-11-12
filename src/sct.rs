@@ -1,7 +1,14 @@
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::error::Error as StdError;
 use core::fmt;
 
+#[cfg(feature = "alloc")]
+use pki_types::{SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer, alg_id};
 use untrusted::{Input, Reader};
+
+#[cfg(feature = "alloc")]
+use crate::{der, signed_data};
 
 pub(crate) struct SctParser<'a> {
     reader: Reader<'a>,
@@ -47,11 +54,99 @@ impl<'a> Iterator for SctParser<'a> {
 pub(crate) struct SignedCertificateTimestamp<'a> {
     log_id: [u8; 32],
     timestamp_ms: u64,
+    extensions: &'a [u8],
     signature_algorithm: u16,
     signature: &'a [u8],
 }
 
 impl SignedCertificateTimestamp<'_> {
+    /// Verify this SCT's signature, as issued by a log for a precertificate.
+    ///
+    /// `log_spki` is the log's DER-encoded `SubjectPublicKeyInfo`, as published in log lists.
+    #[cfg_attr(not(test), expect(dead_code))]
+    #[cfg(feature = "alloc")]
+    pub(crate) fn verify_precert_signature(
+        &self,
+        log_spki: &SubjectPublicKeyInfoDer<'_>,
+        tbs_precert: &[u8],
+        issuer_key_hash: &[u8; 32],
+        signature_algorithm: &dyn SignatureVerificationAlgorithm,
+    ) -> Result<(), Error> {
+        // opaque TBSCertificate<1..2^24-1>;
+        //
+        // struct {
+        //   opaque issuer_key_hash[32];
+        //   TBSCertificate tbs_certificate;
+        // } PreCert;
+        //
+        // digitally-signed struct {
+        //     Version sct_version = v1;
+        //     SignatureType signature_type = certificate_timestamp;
+        //     uint64 timestamp;
+        //     LogEntryType entry_type = precert_entry;
+        //     precert_entry PreCert;
+        //     CtExtensions extensions;
+        // };
+
+        // A `TBSCertificate` outside `<1..2^24-1>` cannot be encoded, so
+        // cannot have been signed by the log.
+        let Ok(tbs_len @ 1..0x100_0000) = u32::try_from(tbs_precert.len()) else {
+            return Err(Error::InvalidSctSignature);
+        };
+
+        let Ok(extensions_len) = u16::try_from(self.extensions.len()) else {
+            // `extensions` was read from a field with a u16 length prefix.
+            unreachable!();
+        };
+
+        let mut signed = Vec::with_capacity(
+            1 + 1 + 8 + 2 + 32 + 3 + tbs_precert.len() + 2 + self.extensions.len(),
+        );
+        signed.extend_from_slice(&[0x0, 0x0]);
+        signed.extend_from_slice(&self.timestamp_ms.to_be_bytes());
+        signed.extend_from_slice(&[0x0, 0x1]);
+        signed.extend_from_slice(issuer_key_hash);
+        signed.extend_from_slice(&tbs_len.to_be_bytes()[1..]);
+        signed.extend_from_slice(tbs_precert);
+        signed.extend_from_slice(&extensions_len.to_be_bytes());
+        signed.extend_from_slice(self.extensions);
+
+        // `signed_data::verify_signature` takes the contents of the SPKI `SEQUENCE`.
+        let log_spki = Input::from(log_spki)
+            .read_all(crate::Error::BadDer, |rd| {
+                der::expect_tag(rd, der::Tag::Sequence)
+            })
+            .map_err(|_| Error::InvalidSctSignature)?;
+
+        signed_data::verify_signature(
+            signature_algorithm,
+            log_spki,
+            Input::from(&signed),
+            Input::from(self.signature),
+        )
+        .map_err(|_| Error::InvalidSctSignature)
+    }
+
+    #[cfg_attr(not(test), expect(dead_code))]
+    #[cfg(feature = "alloc")]
+    pub(crate) fn choose_signature_algorithm<'a>(
+        &self,
+        supported_algorithms: &[&'a dyn SignatureVerificationAlgorithm],
+    ) -> Option<&'a dyn SignatureVerificationAlgorithm> {
+        let (signature_alg_id, public_key_alg_id) = match self.signature_algorithm {
+            0x0403 => (alg_id::ECDSA_SHA256, alg_id::ECDSA_P256),
+            _ => return None,
+        };
+
+        supported_algorithms
+            .iter()
+            .find(|a| {
+                a.signature_alg_id() == signature_alg_id
+                    && a.public_key_alg_id() == public_key_alg_id
+            })
+            .copied()
+    }
+
     pub(crate) fn log_id_and_timestamp(&self) -> LogIdAndTimestamp {
         LogIdAndTimestamp {
             log_id: self.log_id,
@@ -73,13 +168,14 @@ impl<'a> TryFrom<&'a [u8]> for SignedCertificateTimestamp<'a> {
 
             let log_id = read_array(rd)?;
             let timestamp_ms = u64::from_be_bytes(read_array(rd)?);
-            let _extensions = read_field(rd, any_u16_len)?;
+            let extensions = read_field(rd, any_u16_len)?.as_slice_less_safe();
             let signature_algorithm = u16::from_be_bytes(read_array(rd)?);
             let signature = read_field(rd, non_zero_u16_len)?.as_slice_less_safe();
 
             Ok(SignedCertificateTimestamp {
                 log_id,
                 timestamp_ms,
+                extensions,
                 signature_algorithm,
                 signature,
             })
@@ -142,6 +238,9 @@ pub enum Error {
     ///
     /// This library only supports `v1(0)`.
     UnsupportedSctVersion,
+
+    /// A signature on an SCT was invalid.
+    InvalidSctSignature,
 }
 
 impl fmt::Display for Error {
@@ -149,6 +248,7 @@ impl fmt::Display for Error {
         match self {
             Self::MalformedSct => write!(f, "malformed SCT"),
             Self::UnsupportedSctVersion => write!(f, "unsupported SCT version"),
+            Self::InvalidSctSignature => write!(f, "invalid SCT signature"),
         }
     }
 }
@@ -160,6 +260,8 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::*;
+    #[cfg(feature = "alloc")]
+    use alloc::vec;
 
     #[test]
     fn absent_sct_sequence() {
@@ -208,6 +310,7 @@ mod tests {
             SignedCertificateTimestamp {
                 log_id: [b'l'; 32],
                 timestamp_ms: 0x74747474_74747474,
+                extensions: b"",
                 signature_algorithm: 0x7361,
                 signature: b"s",
             },
@@ -309,6 +412,177 @@ mod tests {
             Some(Error::MalformedSct),
             SctParser::new(Some(Input::from(&bytes))).err()
         );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn precert_signed_data_layout() {
+        let sct = test_sct(b"\x11\x22\x33\x44");
+        let issuer_key_hash = [b'h'; 32];
+
+        let mut expected = vec![
+            0x0, // sct_version
+            0x0, // signature_type
+        ];
+        expected.extend_from_slice(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]); // timestamp
+        expected.extend_from_slice(&[0x0, 0x1]); // entry_type
+        expected.extend_from_slice(&issuer_key_hash);
+        expected.extend_from_slice(&[0x0, 0x0, 0x3]); // tbs length
+        expected.extend_from_slice(b"tbs");
+        expected.extend_from_slice(&[0x0, 0x4]); // extensions length
+        expected.extend_from_slice(b"\x11\x22\x33\x44");
+
+        assert_eq!(
+            sct.verify_precert_signature(
+                &test_spki(),
+                b"tbs",
+                &issuer_key_hash,
+                &ExpectMessage(expected)
+            ),
+            Ok(())
+        );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn precert_tbs_length_bounds() {
+        let sct = test_sct(b"");
+
+        assert_eq!(
+            sct.verify_precert_signature(&test_spki(), b"", &[0; 32], &AcceptAll),
+            Err(Error::InvalidSctSignature)
+        );
+        assert_eq!(
+            sct.verify_precert_signature(&test_spki(), &vec![0; 0xff_ffff], &[0; 32], &AcceptAll),
+            Ok(())
+        );
+        assert_eq!(
+            sct.verify_precert_signature(&test_spki(), &vec![0; 0x100_0000], &[0; 32], &AcceptAll),
+            Err(Error::InvalidSctSignature)
+        );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn precert_log_key_must_be_spki() {
+        let sct = test_sct(b"");
+        let spki = test_spki();
+
+        // The `SEQUENCE` contents, or the bare key, are not accepted.
+        for key in [&spki[2..], b"key"] {
+            assert_eq!(
+                sct.verify_precert_signature(
+                    &SubjectPublicKeyInfoDer::from(key),
+                    b"tbs",
+                    &[0; 32],
+                    &AcceptAll
+                ),
+                Err(Error::InvalidSctSignature)
+            );
+        }
+
+        // Nor is an SPKI for the wrong key type.
+        let rsa_spki = SubjectPublicKeyInfoDer::from(der::asn1_wrap(
+            der::Tag::Sequence,
+            &[
+                der::asn1_wrap(der::Tag::Sequence, alg_id::RSA_ENCRYPTION.as_ref()),
+                vec![0x03, 0x04, 0x00, b'k', b'e', b'y'],
+            ]
+            .concat(),
+        ));
+        assert_eq!(
+            sct.verify_precert_signature(&rsa_spki, b"tbs", &[0; 32], &AcceptAll),
+            Err(Error::InvalidSctSignature)
+        );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn choose_signature_algorithm() {
+        let mut sct = test_sct(b"");
+        assert!(sct.choose_signature_algorithm(&[&AcceptAll]).is_some());
+        assert!(sct.choose_signature_algorithm(&[]).is_none());
+
+        // RSA-PKCS1-SHA256 is allowed by RFC 6962 but not supported.
+        sct.signature_algorithm = 0x0401;
+        assert!(sct.choose_signature_algorithm(&[&AcceptAll]).is_none());
+    }
+
+    /// A P-256 `SubjectPublicKeyInfo` whose key is `b"key"`.
+    #[cfg(feature = "alloc")]
+    fn test_spki() -> SubjectPublicKeyInfoDer<'static> {
+        SubjectPublicKeyInfoDer::from(der::asn1_wrap(
+            der::Tag::Sequence,
+            &[
+                der::asn1_wrap(der::Tag::Sequence, alg_id::ECDSA_P256.as_ref()),
+                vec![0x03, 0x04, 0x00, b'k', b'e', b'y'], // BIT STRING
+            ]
+            .concat(),
+        ))
+    }
+
+    #[cfg(feature = "alloc")]
+    fn test_sct(extensions: &[u8]) -> SignedCertificateTimestamp<'_> {
+        SignedCertificateTimestamp {
+            log_id: [b'l'; 32],
+            timestamp_ms: 0x01020304_05060708,
+            extensions,
+            signature_algorithm: 0x0403,
+            signature: b"sig",
+        }
+    }
+
+    /// An ECDSA-P256-SHA256 stand-in that accepts only `self.0` as the message.
+    #[cfg(feature = "alloc")]
+    #[derive(Debug)]
+    struct ExpectMessage(Vec<u8>);
+
+    #[cfg(feature = "alloc")]
+    impl SignatureVerificationAlgorithm for ExpectMessage {
+        fn verify_signature(
+            &self,
+            public_key: &[u8],
+            message: &[u8],
+            signature: &[u8],
+        ) -> Result<(), pki_types::InvalidSignature> {
+            assert_eq!(public_key, b"key");
+            assert_eq!(signature, b"sig");
+            assert_eq!(message, self.0);
+            Ok(())
+        }
+
+        fn public_key_alg_id(&self) -> pki_types::AlgorithmIdentifier {
+            alg_id::ECDSA_P256
+        }
+
+        fn signature_alg_id(&self) -> pki_types::AlgorithmIdentifier {
+            alg_id::ECDSA_SHA256
+        }
+    }
+
+    /// An ECDSA-P256-SHA256 stand-in that accepts any message.
+    #[cfg(feature = "alloc")]
+    #[derive(Debug)]
+    struct AcceptAll;
+
+    #[cfg(feature = "alloc")]
+    impl SignatureVerificationAlgorithm for AcceptAll {
+        fn verify_signature(
+            &self,
+            _public_key: &[u8],
+            _message: &[u8],
+            _signature: &[u8],
+        ) -> Result<(), pki_types::InvalidSignature> {
+            Ok(())
+        }
+
+        fn public_key_alg_id(&self) -> pki_types::AlgorithmIdentifier {
+            alg_id::ECDSA_P256
+        }
+
+        fn signature_alg_id(&self) -> pki_types::AlgorithmIdentifier {
+            alg_id::ECDSA_SHA256
+        }
     }
 
     struct TestSct {
