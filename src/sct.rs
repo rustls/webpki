@@ -1,6 +1,5 @@
 use core::error::Error as StdError;
 use core::fmt;
-use core::marker::PhantomData;
 
 use untrusted::{Input, Reader};
 
@@ -48,7 +47,8 @@ impl<'a> Iterator for SctParser<'a> {
 pub(crate) struct SignedCertificateTimestamp<'a> {
     log_id: [u8; 32],
     timestamp_ms: u64,
-    _future_lifetime_for_signature: PhantomData<&'a ()>,
+    signature_algorithm: u16,
+    signature: &'a [u8],
 }
 
 impl SignedCertificateTimestamp<'_> {
@@ -74,13 +74,14 @@ impl<'a> TryFrom<&'a [u8]> for SignedCertificateTimestamp<'a> {
             let log_id = read_array(rd)?;
             let timestamp_ms = u64::from_be_bytes(read_array(rd)?);
             let _extensions = read_field(rd, any_u16_len)?;
-            let _signature_algorithm = u16::from_be_bytes(read_array(rd)?);
-            let _signature = read_field(rd, non_zero_u16_len)?;
+            let signature_algorithm = u16::from_be_bytes(read_array(rd)?);
+            let signature = read_field(rd, non_zero_u16_len)?.as_slice_less_safe();
 
             Ok(SignedCertificateTimestamp {
                 log_id,
                 timestamp_ms,
-                _future_lifetime_for_signature: PhantomData,
+                signature_algorithm,
+                signature,
             })
         })
     }
@@ -207,7 +208,8 @@ mod tests {
             SignedCertificateTimestamp {
                 log_id: [b'l'; 32],
                 timestamp_ms: 0x74747474_74747474,
-                _future_lifetime_for_signature: PhantomData
+                signature_algorithm: 0x7361,
+                signature: b"s",
             },
             SctParser::new(Some(Input::from(&bytes)))
                 .unwrap()
