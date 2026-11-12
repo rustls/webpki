@@ -255,6 +255,28 @@ impl<'a> Cert<'a> {
     pub fn der(&self) -> CertificateDer<'a> {
         self.der.clone() // This is cheap, just cloning a reference.
     }
+
+    /// Copy this parsed certificate.
+    ///
+    /// The copy borrows the same DER bytes. It does not parse the certificate again.
+    pub(crate) fn copied(&self) -> Self {
+        Self {
+            serial: self.serial,
+            signed_data: self.signed_data.clone(),
+            issuer: self.issuer,
+            validity: self.validity,
+            subject: self.subject,
+            spki: self.spki,
+            basic_constraints: self.basic_constraints,
+            key_usage: self.key_usage,
+            eku: self.eku,
+            name_constraints: self.name_constraints,
+            subject_alt_name: self.subject_alt_name,
+            crl_distribution_points: self.crl_distribution_points,
+            scts: self.scts,
+            der: self.der.clone(),
+        }
+    }
 }
 
 // mozilla::pkix supports v1, v2, v3, and v4, including both the implicit
