@@ -1,4 +1,7 @@
 #[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
+#[cfg(feature = "alloc")]
 use pki_types::SubjectPublicKeyInfoDer;
 use pki_types::{CertificateDer, DnsName};
 
@@ -244,6 +247,59 @@ impl<'a> Cert<'a> {
         ))
     }
 
+    /// Reconstruct the `TBSCertificate` of the precertificate this certificate was issued from.
+    ///
+    /// This is the `tbs_certificate` over which a log signed an SCT embedded in this
+    /// certificate ([RFC 6962 section 3.2]): this certificate's `TBSCertificate` with the
+    /// `signedCertificateTimestampList` extension removed. All other fields, and the
+    /// order of the remaining extensions, are preserved byte-for-byte.
+    ///
+    /// Returns `Ok(None)` if this certificate has no `signedCertificateTimestampList`
+    /// extension.
+    ///
+    /// If that is the only extension, the result has an `extensions` field containing an empty
+    /// `SEQUENCE`.  This is a less common case, as the WebPKI generally requires other extensions
+    /// in certificates that actually assert any name.
+    ///
+    /// [RFC 6962 section 3.2]: https://www.rfc-editor.org/rfc/rfc6962.html#section-3.2
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn precert_tbs(&self) -> Result<Option<Vec<u8>>, Error> {
+        if self.scts.is_none() {
+            return Ok(None);
+        }
+
+        // `self` was successfully parsed from this same input, so the structure
+        // has already been validated; we only need enough parsing here to find
+        // each field's encoding.
+        let tbs_contents = self.signed_data.data.read_all(
+            Error::TrailingData(DerTypeId::CertificateTbsCertificate),
+            |rd| der::expect_tag(rd, Tag::Sequence),
+        )?;
+
+        let mut tbs = Vec::with_capacity(tbs_contents.len());
+        tbs_contents.read_all(
+            Error::TrailingData(DerTypeId::CertificateTbsCertificate),
+            |rd| {
+                while !rd.at_end() {
+                    let (field, (tag, value)) = rd.read_partial(der::read_tag_and_get_value)?;
+                    if tag != u8::from(Tag::ContextSpecificConstructed3) {
+                        tbs.extend_from_slice(field.as_slice_less_safe());
+                        continue;
+                    }
+
+                    tbs.extend_from_slice(&der::asn1_wrap(
+                        Tag::ContextSpecificConstructed3,
+                        &der::asn1_wrap(Tag::Sequence, &extensions_without_sct_list(value)?),
+                    ));
+                }
+                Ok(())
+            },
+        )?;
+
+        Ok(Some(der::asn1_wrap(Tag::Sequence, &tbs)))
+    }
+
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
     pub(crate) fn crl_distribution_points(
         &self,
@@ -255,6 +311,43 @@ impl<'a> Cert<'a> {
     pub fn der(&self) -> CertificateDer<'a> {
         self.der.clone() // This is cheap, just cloning a reference.
     }
+}
+
+/// Given the contents of the `[3] EXPLICIT Extensions` field of a `TBSCertificate`,
+/// return the concatenated encodings of every extension except
+/// `signedCertificateTimestampList`.
+#[cfg(feature = "alloc")]
+fn extensions_without_sct_list(explicit: untrusted::Input<'_>) -> Result<Vec<u8>, Error> {
+    let extensions = explicit.read_all(
+        Error::TrailingData(DerTypeId::CertificateExtensions),
+        |rd| der::expect_tag(rd, Tag::Sequence),
+    )?;
+
+    let mut kept = Vec::with_capacity(extensions.len());
+    extensions.read_all(
+        Error::TrailingData(DerTypeId::CertificateExtensions),
+        |rd| {
+            while !rd.at_end() {
+                let (encoded, extension) = rd.read_partial(|rd| {
+                    der::nested(
+                        rd,
+                        Tag::Sequence,
+                        Error::TrailingData(DerTypeId::Extension),
+                        Extension::from_der,
+                    )
+                })?;
+
+                if ExtensionOid::lookup(extension.id)
+                    != Some(ExtensionOid::SignedCertificateTimestampList)
+                {
+                    kept.extend_from_slice(encoded.as_slice_less_safe());
+                }
+            }
+            Ok(())
+        },
+    )?;
+
+    Ok(kept)
 }
 
 // mozilla::pkix supports v1, v2, v3, and v4, including both the implicit
@@ -438,6 +531,8 @@ mod tests {
     use super::*;
     #[cfg(feature = "alloc")]
     use crate::crl::RevocationReason;
+    #[cfg(feature = "alloc")]
+    use crate::test_utils;
 
     #[test]
     // Note: cert::parse_cert is crate-local visibility, and EndEntityCert doesn't expose the
@@ -769,5 +864,146 @@ mod tests {
             all_names.iter().map(uri_bytes).collect::<Vec<_>>(),
             expected_names
         );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn precert_tbs_removes_sct_list_in_any_position() {
+        let issuer = test_utils::make_issuer("Test");
+        let key = rcgen::KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let before = test_extension(&[1, 2, 3, 4, 1], b"before");
+        let after = test_extension(&[1, 2, 3, 4, 2], b"after");
+
+        let expected = signed_tbs(&[before.clone(), after.clone()], &key, &issuer);
+
+        let mut inputs = Vec::new();
+        for extensions in [
+            [sct_list_extension(), before.clone(), after.clone()],
+            [before.clone(), sct_list_extension(), after.clone()],
+            [before.clone(), after.clone(), sct_list_extension()],
+        ] {
+            let der = sign(&extensions, &key, &issuer);
+            let cert = Cert::from_der(untrusted::Input::from(&der)).unwrap();
+            assert!(cert.scts.is_some());
+            assert_eq!(cert.precert_tbs().unwrap().as_deref(), Some(&expected[..]));
+            inputs.push(cert.signed_data.data.as_slice_less_safe().to_vec());
+        }
+
+        // Check rcgen really emitted three distinct extension orders.
+        assert_ne!(inputs[0], inputs[1]);
+        assert_ne!(inputs[1], inputs[2]);
+        assert_ne!(inputs[0], inputs[2]);
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn precert_tbs_without_sct_list() {
+        let issuer = test_utils::make_issuer("Test");
+        let key = rcgen::KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let der = sign(
+            &[test_extension(&[1, 2, 3, 4, 1], b"before")],
+            &key,
+            &issuer,
+        );
+        let cert = Cert::from_der(untrusted::Input::from(&der)).unwrap();
+        assert_eq!(cert.precert_tbs(), Ok(None));
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn precert_tbs_sct_list_is_only_extension() {
+        let issuer = test_utils::make_issuer("Test");
+        let key = rcgen::KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+        let sign = |extensions| {
+            let mut params = rcgen::CertificateParams::new(Vec::new()).unwrap();
+            params.serial_number = Some(rcgen::SerialNumber::from(1234));
+            params.custom_extensions = extensions;
+            params.signed_by(&key, &issuer).unwrap().der().to_vec()
+        };
+
+        let only_sct_list = sign(vec![sct_list_extension()]);
+        let only_sct_list = Cert::from_der(untrusted::Input::from(&only_sct_list)).unwrap();
+        let no_extensions = sign(Vec::new());
+        let no_extensions = Cert::from_der(untrusted::Input::from(&no_extensions)).unwrap();
+
+        // Confirm the premises: the SCT list really is the only extension, and rcgen omits the
+        // `extensions` field entirely when there are none.
+        assert_eq!(
+            extensions_without_sct_list(tbs_extensions(&only_sct_list).unwrap()).unwrap(),
+            Vec::<u8>::new()
+        );
+        assert!(tbs_extensions(&no_extensions).is_none());
+
+        // The precertificate's TBS has an `extensions` field holding an empty `SEQUENCE`.
+        let mut expected = no_extensions
+            .signed_data
+            .data
+            .read_all(Error::BadDer, |rd| der::expect_tag(rd, Tag::Sequence))
+            .unwrap()
+            .as_slice_less_safe()
+            .to_vec();
+        expected.extend_from_slice(&[0xa3, 0x02, 0x30, 0x00]);
+        assert_eq!(
+            only_sct_list.precert_tbs(),
+            Ok(Some(der::asn1_wrap(Tag::Sequence, &expected)))
+        );
+    }
+
+    #[cfg(feature = "alloc")]
+    fn sign(
+        extensions: &[rcgen::CustomExtension],
+        key: &rcgen::KeyPair,
+        issuer: &rcgen::Issuer<'_, impl rcgen::SigningKey>,
+    ) -> Vec<u8> {
+        let mut params = test_utils::end_entity_params(vec!["example.com".into()]);
+        params.serial_number = Some(rcgen::SerialNumber::from(1234));
+        params.custom_extensions = extensions.to_vec();
+        params.signed_by(key, issuer).unwrap().der().to_vec()
+    }
+
+    #[cfg(feature = "alloc")]
+    fn signed_tbs(
+        extensions: &[rcgen::CustomExtension],
+        key: &rcgen::KeyPair,
+        issuer: &rcgen::Issuer<'_, impl rcgen::SigningKey>,
+    ) -> Vec<u8> {
+        let der = sign(extensions, key, issuer);
+        let cert = Cert::from_der(untrusted::Input::from(&der)).unwrap();
+        cert.signed_data.data.as_slice_less_safe().to_vec()
+    }
+
+    /// The contents of the `[3]` field of `cert`'s `TBSCertificate`, if present.
+    #[cfg(feature = "alloc")]
+    fn tbs_extensions<'a>(cert: &Cert<'a>) -> Option<untrusted::Input<'a>> {
+        let mut explicit = None;
+        cert.signed_data
+            .data
+            .read_all(Error::BadDer, |rd| der::expect_tag(rd, Tag::Sequence))
+            .unwrap()
+            .read_all(Error::BadDer, |rd| {
+                while !rd.at_end() {
+                    let (tag, value) = der::read_tag_and_get_value(rd)?;
+                    if tag == u8::from(Tag::ContextSpecificConstructed3) {
+                        explicit = Some(value);
+                    }
+                }
+                Ok(())
+            })
+            .unwrap();
+        explicit
+    }
+
+    #[cfg(feature = "alloc")]
+    fn sct_list_extension() -> rcgen::CustomExtension {
+        // An OCTET STRING containing an (invalid, but unparsed) empty SCT list.
+        rcgen::CustomExtension::from_oid_content(
+            &[1, 3, 6, 1, 4, 1, 11129, 2, 4, 2],
+            vec![0x04, 0x02, 0x00, 0x00],
+        )
+    }
+
+    #[cfg(feature = "alloc")]
+    fn test_extension(oid: &[u64], value: &[u8]) -> rcgen::CustomExtension {
+        rcgen::CustomExtension::from_oid_content(oid, der::asn1_wrap(Tag::OctetString, value))
     }
 }
