@@ -538,9 +538,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.24.0-dev.2"
+version = "0.24.0-dev.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7d0e095ff3f79172e5985922dbde4cb5bd98eb72518551589688502eab011de"
+checksum = "e7378b5d914866a2f4314e852d1d54293aea3f5781f1191841821c63f7ef6af7"
 dependencies = [
  "rustls-pki-types",
  "subtle",
@@ -549,9 +549,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-aws-lc-rs"
-version = "0.24.0-dev.2"
+version = "0.24.0-dev.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbaf2c8aa7c430a99e84875dd184bb924de386dd8b32d3fa85dab4b5190432d4"
+checksum = "147adff5d8dbf7ff0a6de8a72e6a7d9a558694b71a2a8c5d8ad63e08ba70dfc1"
 dependencies = [
  "aws-lc-rs",
  "rustls",
@@ -562,18 +562,18 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.15.1"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
+checksum = "102f35f7de7b06d8c61f1cff6592f5253e0dea431c74867aad5dfd70f44663fb"
 dependencies = [
  "zeroize",
 ]
 
 [[package]]
 name = "rustls-ring"
-version = "0.24.0-dev.2"
+version = "0.24.0-dev.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58502d620686c88f6c362ae41346c6013ea547bedfdc1e5ceca4d0e70aa956e9"
+checksum = "2bb59cc88a65a3dae4a1b4cbad89a5a83e5bf8f78b0a6c624c51b7cdcaa501e1"
 dependencies = [
  "ring",
  "rustls",
