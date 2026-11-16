@@ -13,6 +13,8 @@ use crate::der::{self, FromDer};
 use crate::end_entity::EndEntityCert;
 use crate::error::Error;
 #[cfg(feature = "alloc")]
+use crate::sct::{AuthenticSctIterator, LogLookup, SctParser, ValidSct};
+#[cfg(feature = "alloc")]
 use crate::spki_for_anchor;
 use crate::{DerTypeId, public_values_eq, subject_name};
 
@@ -247,6 +249,47 @@ impl<'p> VerifiedPath<'p> {
             },
             anchor,
         }
+    }
+
+    /// Iterate over authentic SCTs embedded in the end-entity certificate.
+    ///
+    /// - `issuer_spki_sha256` must be the SHA256 hash of the value returned by [`Self::issuer_spki()`].
+    /// - `logs` exposes the set of known CT logs.
+    /// - `signature_algorithms` is a selection of supported signature verification algorithms.
+    ///
+    /// This function returns an empty iterator if the certificate has no SCTs.
+    ///
+    /// Otherwise, the iterator will return -- possibly zero -- [`ValidSct`]s for each validated
+    /// SCT.
+    ///
+    /// A candidate SCT is skipped if its log is unknown by `logs` or signature algorithm is not
+    /// supported by `signature_algorithms`.
+    ///
+    /// Each element produced by the iterator corresponds to one SCT. The element may be an error
+    /// (if, for example, the SCT's signature was wrong).  Nothing in this function prevents
+    /// multiple SCTs being signed by one log, or the same SCT being included many times.  So the
+    /// caller will likely want to collate and de-duplicate the elements produced and (perhaps)
+    /// count the number of unique contributing logs, rather than the number of SCTs.
+    #[cfg(feature = "alloc")]
+    pub fn verify_scts<'i>(
+        &self,
+        issuer_spki_sha256: [u8; 32],
+        logs: &'i dyn LogLookup,
+        signature_algorithms: &'i [&'static dyn SignatureVerificationAlgorithm],
+    ) -> Result<impl Iterator<Item = Result<ValidSct, Error>> + 'i, Error>
+    where
+        'p: 'i,
+    {
+        // no scts => no precert required
+        let precert = self.end_entity.precert_tbs()?.unwrap_or_default();
+
+        Ok(AuthenticSctIterator::new(
+            precert,
+            SctParser::new(self.end_entity.scts)?,
+            issuer_spki_sha256,
+            logs,
+            signature_algorithms,
+        ))
     }
 
     /// Yields a (double-ended) iterator over the intermediate certificates in this path.
