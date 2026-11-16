@@ -63,7 +63,6 @@ impl SignedCertificateTimestamp<'_> {
     /// Verify this SCT's signature, as issued by a log for a precertificate.
     ///
     /// `log_spki` is the log's DER-encoded `SubjectPublicKeyInfo`, as published in log lists.
-    #[cfg_attr(not(test), expect(dead_code))]
     #[cfg(feature = "alloc")]
     pub(crate) fn verify_precert_signature(
         &self,
@@ -127,7 +126,6 @@ impl SignedCertificateTimestamp<'_> {
         .map_err(|_| Error::InvalidSctSignature)
     }
 
-    #[cfg_attr(not(test), expect(dead_code))]
     #[cfg(feature = "alloc")]
     pub(crate) fn choose_signature_algorithm<'a>(
         &self,
@@ -145,6 +143,17 @@ impl SignedCertificateTimestamp<'_> {
                     && a.public_key_alg_id() == public_key_alg_id
             })
             .copied()
+    }
+
+    #[cfg(feature = "alloc")]
+    pub(crate) fn valid_sct(&self) -> ValidSct {
+        ValidSct {
+            inclusion: LogIdAndTimestamp {
+                log_id: self.log_id,
+                timestamp_ms: self.timestamp_ms,
+            },
+            leaf_index: None,
+        }
     }
 
     pub(crate) fn log_id_and_timestamp(&self) -> LogIdAndTimestamp {
@@ -181,6 +190,91 @@ impl<'a> TryFrom<&'a [u8]> for SignedCertificateTimestamp<'a> {
             })
         })
     }
+}
+
+#[cfg(feature = "alloc")]
+pub(crate) struct AuthenticSctIterator<'a> {
+    precert: Vec<u8>,
+    scts: SctParser<'a>,
+    issuer_spki_sha256: [u8; 32],
+    logs: &'a dyn LogLookup,
+    signature_algorithms: &'a [&'static dyn SignatureVerificationAlgorithm],
+}
+
+#[cfg(feature = "alloc")]
+impl<'a> AuthenticSctIterator<'a> {
+    pub(crate) fn new(
+        precert: Vec<u8>,
+        scts: SctParser<'a>,
+        issuer_spki_sha256: [u8; 32],
+        logs: &'a dyn LogLookup,
+        signature_algorithms: &'a [&'static dyn SignatureVerificationAlgorithm],
+    ) -> Self {
+        Self {
+            precert,
+            scts,
+            issuer_spki_sha256,
+            logs,
+            signature_algorithms,
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl Iterator for AuthenticSctIterator<'_> {
+    type Item = Result<ValidSct, crate::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let sct = match self.scts.next()? {
+                Ok(sct) => sct,
+                Err(err) => return Some(Err(err.into())),
+            };
+
+            let Some(public_key) = self.logs.lookup(&sct.log_id) else {
+                // Skip SCTs from unknown logs.
+                continue;
+            };
+
+            let Some(signature_algorithm) =
+                sct.choose_signature_algorithm(self.signature_algorithms)
+            else {
+                continue;
+            };
+
+            return Some(
+                match sct.verify_precert_signature(
+                    &public_key,
+                    &self.precert,
+                    &self.issuer_spki_sha256,
+                    signature_algorithm,
+                ) {
+                    Ok(()) => Ok(sct.valid_sct()),
+                    Err(e) => Err(e.into()),
+                },
+            );
+        }
+    }
+}
+
+/// How SCT verification learns the set of known logs.
+#[cfg(feature = "alloc")]
+pub trait LogLookup {
+    /// Return the public key for the given CT log ID, or `None` if it is unknown.
+    ///
+    /// The key is a DER-encoded `SubjectPublicKeyInfo`, as published in log lists.
+    fn lookup(&self, id: &[u8; 32]) -> Option<SubjectPublicKeyInfoDer<'_>>;
+}
+
+/// Confirmed-authentic data from a SCT verification.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ValidSct {
+    /// Which log issued, and when.
+    pub inclusion: LogIdAndTimestamp,
+
+    /// The value of the SCT's `leaf_index` extension (if present).
+    pub leaf_index: Option<u64>,
 }
 
 /// The certificate transparency log ID and associated inclusion timestamp.

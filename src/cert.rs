@@ -263,7 +263,6 @@ impl<'a> Cert<'a> {
     ///
     /// [RFC 6962 section 3.2]: https://www.rfc-editor.org/rfc/rfc6962.html#section-3.2
     #[cfg(feature = "alloc")]
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn precert_tbs(&self) -> Result<Option<Vec<u8>>, Error> {
         if self.scts.is_none() {
             return Ok(None);
