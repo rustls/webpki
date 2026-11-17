@@ -152,7 +152,7 @@ impl SignedCertificateTimestamp<'_> {
                 log_id: self.log_id,
                 timestamp_ms: self.timestamp_ms,
             },
-            leaf_index: None,
+            leaf_index: read_leaf_index_extension(self.extensions),
         }
     }
 
@@ -273,7 +273,13 @@ pub struct ValidSct {
     /// Which log issued, and when.
     pub inclusion: LogIdAndTimestamp,
 
-    /// The value of the SCT's `leaf_index` extension (if present).
+    /// The value of the SCT's `leaf_index` extension, as defined by the [static-ct-api].
+    ///
+    /// This is `None` unless the SCT's extensions are well-formed and contain exactly one
+    /// `leaf_index` extension, whose value is exactly 5 bytes. SCTs from static-ct-api logs
+    /// must have one; SCTs from RFC 6962 logs have no extensions.
+    ///
+    /// [static-ct-api]: https://c2sp.org/static-ct-api
     pub leaf_index: Option<u64>,
 }
 
@@ -285,6 +291,61 @@ pub struct LogIdAndTimestamp {
     /// Inclusion timestamp in milliseconds.
     pub timestamp_ms: u64,
 }
+
+/// Parses an SCT's `extensions` according to [`static-ct-api`]
+///
+/// ```text
+/// enum {
+///     leaf_index(0), (255)
+/// } ExtensionType;
+///
+/// struct {
+///     ExtensionType extension_type;
+///     opaque extension_data<0..2^16-1>;
+/// } Extension;
+///
+/// Extension CtExtensions<0..2^16-1>;
+///
+/// uint8 uint40[5];
+/// uint40 LeafIndex;
+/// ```
+///
+/// Because RFC 6962 does not supply a format for the `extensions` field,
+/// this function makes the assumption that the entirety of the field is
+/// for [`static-ct-api`].  Unknown extensions in this format are ignored.
+/// Duplicate `leaf_index` extensions are invalid and cause the entire process
+/// to parse nothing.
+///
+/// [`static-ct-api`]: https://c2sp.org/static-ct-api@v1.1.0#sct-extension
+#[cfg(feature = "alloc")]
+fn read_leaf_index_extension(extensions: &[u8]) -> Option<u64> {
+    Input::from(extensions)
+        .read_all(Error::MalformedSct, |rd| {
+            let mut leaf_index = None;
+
+            while !rd.at_end() {
+                let [typ] = read_array(rd)?;
+                let body = read_field(rd, any_u16_len)?;
+
+                if typ != LEAF_INDEX {
+                    continue;
+                }
+
+                if let (None, [a, b, c, d, e]) = (leaf_index, body.as_slice_less_safe()) {
+                    leaf_index = Some(u64::from_be_bytes([0, 0, 0, *a, *b, *c, *d, *e]))
+                } else {
+                    return Err(Error::MalformedSct);
+                }
+            }
+
+            Ok(leaf_index)
+        })
+        .ok()
+        .flatten()
+}
+
+#[cfg(feature = "alloc")]
+const LEAF_INDEX: u8 = 0;
 
 /// Read a length-prefixed field from `rd`.
 ///
@@ -677,6 +738,63 @@ mod tests {
         fn signature_alg_id(&self) -> pki_types::AlgorithmIdentifier {
             alg_id::ECDSA_SHA256
         }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn leaf_index_extension() {
+        // A `leaf_index` extension, as issued by Let's Encrypt's Willow2027h1 log.
+        const WILLOW: &[u8] = &[0x00, 0x00, 0x05, 0x00, 0x47, 0xaf, 0x4c, 0x9d];
+        // An extension of some other type.
+        const OTHER: &[u8] = &[0x01, 0x00, 0x02, 0xaa, 0xbb];
+
+        for (extensions, expected) in [
+            (&[][..], None),
+            (WILLOW, Some(0x00_47af_4c9d)),
+            (&[0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00], Some(0)),
+            (
+                &[0x00, 0x00, 0x05, 0xff, 0xff, 0xff, 0xff, 0xff],
+                Some(0xff_ffff_ffff),
+            ),
+            (&[WILLOW, WILLOW].concat(), None),
+            // Other extension types are ignored, wherever they are.
+            (OTHER, None),
+            (&[WILLOW, OTHER].concat(), Some(0x00_47af_4c9d)),
+            (&[OTHER, WILLOW].concat(), Some(0x00_47af_4c9d)),
+            (&[OTHER, WILLOW, OTHER].concat(), Some(0x00_47af_4c9d)),
+            // The value is not exactly 5 bytes.
+            (&[0x00, 0x00, 0x04, 0x47, 0xaf, 0x4c, 0x9d], None),
+            (
+                &[0x00, 0x00, 0x06, 0x00, 0x00, 0x47, 0xaf, 0x4c, 0x9d],
+                None,
+            ),
+            (&[0x00, 0x00, 0x00], None),
+            // Malformed extensions.
+            (&[0x00], None),
+            (&[0x00, 0x00], None),
+            (&WILLOW[..7], None),
+            (&[WILLOW, &[0x01]].concat(), None),
+            (&[WILLOW, &OTHER[..4]].concat(), None),
+        ] {
+            assert_eq!(
+                read_leaf_index_extension(extensions),
+                expected,
+                "{extensions:02x?}"
+            );
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn sct_with_leaf_index() {
+        let bytes = TestSct {
+            extensions: vec![0x00, 0x00, 0x05, 0x00, 0x47, 0xaf, 0x4c, 0x9d],
+            ..Default::default()
+        }
+        .encode();
+
+        let sct = SignedCertificateTimestamp::try_from(&bytes[..]).unwrap();
+        assert_eq!(sct.valid_sct().leaf_index, Some(0x00_47af_4c9d));
     }
 
     struct TestSct {

@@ -31,8 +31,8 @@ fn letsencrypt_org() {
         include_bytes!("sct/letsencrypt.org/ee.der"),
         include_bytes!("sct/letsencrypt.org/inter.der"),
         &[
-            (CLOUDFLARE_NIMBUS2027, 1_793_716_984_256), // 2026-11-03T14:43:04.256Z
-            (DIGICERT_SPHINX2027H1, 1_793_716_986_252), // 2026-11-03T14:43:06.252Z
+            (CLOUDFLARE_NIMBUS2027, 1_793_716_984_256, None), // 2026-11-03T14:43:04.256Z
+            (DIGICERT_SPHINX2027H1, 1_793_716_986_252, None), // 2026-11-03T14:43:06.252Z
         ],
     );
 }
@@ -43,8 +43,12 @@ fn www_cloudflare_com() {
         include_bytes!("sct/www.cloudflare.com/ee.der"),
         include_bytes!("sct/www.cloudflare.com/inter.der"),
         &[
-            (CLOUDFLARE_NIMBUS2027, 1_794_852_368_336), // 2026-11-16T18:06:08.336Z
-            (LETSENCRYPT_WILLOW2027H1, 1_794_852_368_533), // 2026-11-16T18:06:08.533Z
+            (CLOUDFLARE_NIMBUS2027, 1_794_852_368_336, None), // 2026-11-16T18:06:08.336Z
+            (
+                LETSENCRYPT_WILLOW2027H1,
+                1_794_852_368_533, // 2026-11-16T18:06:08.533Z
+                Some(0x00_47af_4c9d),
+            ),
         ],
     );
 }
@@ -55,15 +59,19 @@ fn github_com() {
         include_bytes!("sct/github.com/ee.der"),
         include_bytes!("sct/github.com/inter.der"),
         &[
-            (DIGICERT_SPHINX2027H1, 1_793_319_667_488), // 2026-10-30T00:21:07.488Z
-            (LETSENCRYPT_WILLOW2027H1, 1_793_319_667_750), // 2026-10-30T00:21:07.750Z
+            (DIGICERT_SPHINX2027H1, 1_793_319_667_488, None), // 2026-10-30T00:21:07.488Z
+            (
+                LETSENCRYPT_WILLOW2027H1,
+                1_793_319_667_750, // 2026-10-30T00:21:07.750Z
+                Some(0x00_321e_e8f2),
+            ),
         ],
     );
 }
 
 /// Check that every SCT in `ee` verifies, and yields `expected`; then check the ways
 /// verification can fail or be skipped.
-fn check(ee: &[u8], inter: &[u8], expected: &[(&[u8], u64)]) {
+fn check(ee: &[u8], inter: &[u8], expected: &[(&[u8], u64, Option<u64>)]) {
     let ee = CertificateDer::from(ee);
     let inter = CertificateDer::from(inter);
     let anchors = [anchor_from_trusted_cert(&inter).unwrap()];
@@ -83,11 +91,14 @@ fn check(ee: &[u8], inter: &[u8], expected: &[(&[u8], u64)]) {
     // All SCTs are authentic.
     let expected = expected
         .iter()
-        .map(|(log, timestamp_ms)| {
-            Ok(LogIdAndTimestamp {
-                log_id: sha256(log),
-                timestamp_ms: *timestamp_ms,
-            })
+        .map(|(log, timestamp_ms, leaf_index)| {
+            Ok((
+                LogIdAndTimestamp {
+                    log_id: sha256(log),
+                    timestamp_ms: *timestamp_ms,
+                },
+                *leaf_index,
+            ))
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -124,10 +135,10 @@ fn verify(
     issuer_spki_sha256: [u8; 32],
     logs: &dyn LogLookup,
     signature_algorithms: &[&'static dyn SignatureVerificationAlgorithm],
-) -> Vec<Result<LogIdAndTimestamp, Error>> {
+) -> Vec<Result<(LogIdAndTimestamp, Option<u64>), Error>> {
     path.verify_scts(issuer_spki_sha256, logs, signature_algorithms)
         .unwrap()
-        .map(|sct| sct.map(|sct| sct.inclusion))
+        .map(|sct| sct.map(|sct| (sct.inclusion, sct.leaf_index)))
         .collect()
 }
 
@@ -166,9 +177,9 @@ fn sha256(data: &[u8]) -> [u8; 32] {
     digest(&SHA256, data).as_ref().try_into().unwrap()
 }
 
-const INVALID: Result<LogIdAndTimestamp, Error> = Err(Error::SignedCertificateTimestampError(
-    sct::Error::InvalidSctSignature,
-));
+const INVALID: Result<(LogIdAndTimestamp, Option<u64>), Error> = Err(
+    Error::SignedCertificateTimestampError(sct::Error::InvalidSctSignature),
+);
 
 const LOGS: &[&[u8]] = &[
     CLOUDFLARE_NIMBUS2027,
