@@ -66,6 +66,7 @@ pki-types = { package = "rustls-pki-types", version = "1.13", default-features =
 untrusted = "0.9"
 
 [dev-dependencies]
+aws-lc-rs = "1"
 base64 = "0.23"
 bencher = "0.1.5"
 chrono = "0.4"
