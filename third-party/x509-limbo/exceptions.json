@@ -39,11 +39,6 @@
     "actual": "SUCCESS",
     "reason": "webpki does not reject duplicated serials"
   },
-  "crl::temporal::this-update-in-future": {
-    "expected": "FAILURE",
-    "actual": "SUCCESS",
-    "reason": "webpki parses thisUpdate but does not compare it against the current time, so future CRLs are consulted anyway"
-  },
   "rfc5280::aki::critical-aki": {
     "expected": "FAILURE",
     "actual": "SUCCESS",
