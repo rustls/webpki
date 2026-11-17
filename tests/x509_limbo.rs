@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use limbo_harness_support::LIMBO_JSON;
 use limbo_harness_support::models::{ExpectedResult, Feature, Limbo, Testcase, ValidationKind};
 use pki_types::pem::PemObject;
@@ -151,8 +151,10 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
         EndEntityCert::try_from(&leaf_der).map_err(|e| format!("leaf cert parse failed: {e}"))?;
 
     let validation_time = UnixTime::since_unix_epoch(
-        (tc.validation_time.unwrap_or_else(Utc::now) - DateTime::UNIX_EPOCH)
-            .to_std()
+        tc.validation_time
+            .unwrap_or_else(Timestamp::now)
+            .duration_since(Timestamp::UNIX_EPOCH)
+            .try_into()
             .expect("invalid validation time!"),
     );
 
