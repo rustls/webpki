@@ -270,6 +270,48 @@ impl<'p> VerifiedPath<'p> {
     /// multiple SCTs being signed by one log, or the same SCT being included many times.  So the
     /// caller will likely want to collate and de-duplicate the elements produced and (perhaps)
     /// count the number of unique contributing logs, rather than the number of SCTs.
+    ///
+    /// # Implementing a minimal CT policy
+    ///
+    /// The policy here is:
+    ///
+    /// - at least two logs by different operators contributing a valid SCT,
+    /// - if a contributing log uses static-ct, the SCT has to include the `leaf_index` extension,
+    /// - the log was qualified or usable when the SCT was issued,
+    /// - an SCT cannot be issued in the future.
+    ///
+    /// In pseudocode:
+    ///
+    /// ```text
+    /// let mut contributing_log_operators = HashSet::new();
+    /// let too_new = now_in_milliseconds() + 60_000;
+    ///
+    /// for sct in verified_path.verify_scts(issuer_spki_sha256, logs, signature_algorithms)? {
+    ///     let Ok(sct) = sct else {
+    ///         continue;
+    ///     };
+    ///
+    ///     let Some(log_metadata) = logs.metadata_for(sct.inclusion.log_id) else {
+    ///         continue;
+    ///     };
+    ///
+    ///     if log_metadata.uses_static_ct && sct.leaf_index.is_none() {
+    ///         continue;
+    ///     }
+    ///
+    ///     if !log_metadata.ok_to_sign_sct_at(sct.inclusion.timestamp_ms) {
+    ///         continue;
+    ///     }
+    ///
+    ///     if sct.inclusion.timestamp_ms >= too_new {
+    ///         continue;
+    ///     }
+    ///
+    ///     contributing_log_operators.insert(log_metadata.operator);
+    /// }
+    ///
+    /// assert!(contributing_log_operators.len() >= 2);
+    /// ```
     #[cfg(feature = "alloc")]
     pub fn verify_scts<'i>(
         &self,
