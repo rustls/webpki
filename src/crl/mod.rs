@@ -247,13 +247,16 @@ pub enum UnknownStatusPolicy {
     Deny,
 }
 
-/// Describes how to handle the nextUpdate field of the CRL (i.e. expiration).
+/// Describes how to handle the validity period of a CRL (`thisUpdate` and `nextUpdate`)
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum ExpirationPolicy {
-    /// Enforce the verification time is before the time in the nextUpdate field.
-    /// Treats an expired CRL as an error condition yielding [Error::CrlExpired].
+    /// Enforce the verification time is not before the time in the `thisUpdate` field,
+    /// and is before the time in the `nextUpdate` field.
+    ///
+    /// Treats an expired CRL as an error condition yielding [`Error::CrlExpired`], and
+    /// a CRL that is not yet valid as an error condition yielding [`Error::CrlNotValidYet`].
     Enforce,
-    /// Ignore the CRL nextUpdate field.
+    /// Ignore the CRL `thisUpdate` and `nextUpdate` fields.
     Ignore,
 }
 

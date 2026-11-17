@@ -143,13 +143,18 @@ impl CertRevocationList<'_> {
         .map_err(crl_signature_err)
     }
 
-    /// Checks the verification time is before the time in the CRL nextUpdate field.
+    /// Checks the verification time is not before the time in the CRL `thisUpdate` field,
+    /// and is before the time in the CRL `nextUpdate` field.
     pub(crate) fn check_expiration(&self, time: UnixTime) -> Result<(), Error> {
-        let next_update = match self {
+        let (this_update, next_update) = match self {
             #[cfg(feature = "alloc")]
-            CertRevocationList::Owned(crl) => crl.next_update,
-            CertRevocationList::Borrowed(crl) => crl.next_update,
+            CertRevocationList::Owned(crl) => (crl.this_update, crl.next_update),
+            CertRevocationList::Borrowed(crl) => (crl.this_update, crl.next_update),
         };
+
+        if time < this_update {
+            return Err(Error::CrlNotValidYet { time, this_update });
+        }
 
         if time >= next_update {
             return Err(Error::CrlExpired { time, next_update });
@@ -205,6 +210,8 @@ pub struct OwnedCertRevocationList {
 
     signed_data: OwnedSignedData,
 
+    this_update: UnixTime,
+
     next_update: UnixTime,
 
     crl_number: Vec<u8>,
@@ -257,6 +264,8 @@ pub struct BorrowedCertRevocationList<'a> {
     /// List of certificates revoked by the issuer in this CRL.
     revoked_certs: untrusted::Input<'a>,
 
+    this_update: UnixTime,
+
     next_update: UnixTime,
 
     crl_number: untrusted::Input<'a>,
@@ -297,6 +306,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
                 .issuing_distribution_point
                 .map(|idp| idp.as_slice_less_safe().to_vec()),
             revoked_certs,
+            this_update: self.this_update,
             next_update: self.next_update,
             crl_number: self.crl_number.as_slice_less_safe().to_vec(),
         })
@@ -416,7 +426,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
             //    encoded as UTCTime or GeneralizedTime.
             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
             // whether the date is post 2050.
-            UnixTime::from_der(tbs_cert_list)?;
+            let this_update = UnixTime::from_der(tbs_cert_list)?;
 
             // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
             //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
@@ -443,6 +453,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
                 issuer,
                 revoked_certs,
                 issuing_distribution_point: None,
+                this_update,
                 next_update,
                 crl_number: untrusted::Input::from(&[]),
             };
@@ -516,6 +527,7 @@ impl core::hash::Hash for BorrowedCertRevocationList<'_> {
             issuer,
             issuing_distribution_point,
             revoked_certs,
+            this_update,
             next_update,
             crl_number,
         } = self;
@@ -525,6 +537,7 @@ impl core::hash::Hash for BorrowedCertRevocationList<'_> {
             .map(|i| i.as_slice_less_safe())
             .hash(state);
         revoked_certs.as_slice_less_safe().hash(state);
+        this_update.hash(state);
         next_update.hash(state);
         crl_number.as_slice_less_safe().hash(state);
     }
@@ -1356,6 +1369,23 @@ mod tests {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(expiration_time - 1000));
 
         assert!(matches!(crl.check_expiration(time), Ok(())));
+    }
+
+    #[test]
+    fn test_crl_not_valid_yet() {
+        let crl = include_bytes!("../../tests/crls/crl.valid.der");
+        let crl = BorrowedCertRevocationList::from_der(&crl[..]).unwrap();
+        let this_update = crl.this_update;
+        let crl = CertRevocationList::from(crl);
+
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(this_update.as_secs() - 1));
+        assert_eq!(
+            crl.check_expiration(time),
+            Err(Error::CrlNotValidYet { time, this_update })
+        );
+
+        // Exactly at thisUpdate is valid.
+        assert_eq!(crl.check_expiration(this_update), Ok(()));
     }
 
     #[test]
