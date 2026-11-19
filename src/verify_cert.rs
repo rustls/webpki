@@ -90,10 +90,22 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
         time: UnixTime,
     ) -> Result<VerifiedPath<'p>, Error> {
         let mut path = PartialPath::new(end_entity);
-        match self.build_chain_inner(&mut path, time, 0, &mut Budget::default()) {
+        match self.build_chain(&mut path, time, &mut Budget::default()) {
             Ok(anchor) => Ok(VerifiedPath::new(end_entity, anchor, path)),
             Err(ControlFlow::Break(err)) | Err(ControlFlow::Continue(err)) => Err(err),
         }
+    }
+
+    fn build_chain(
+        &self,
+        path: &mut PartialPath<'p>,
+        time: UnixTime,
+        budget: &mut Budget,
+    ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
+        // Decode each intermediate once. `Budget` does not include this work.
+        // The budget limits path-building calls and signature checks.
+        let intermediates = ParsedIntermediates::new(self.intermediate_certs);
+        self.build_chain_inner(path, time, 0, budget, &intermediates)
     }
 
     fn build_chain_inner(
@@ -102,6 +114,7 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
         time: UnixTime,
         sub_ca_count: usize,
         budget: &mut Budget,
+        intermediates: &ParsedIntermediates<'p>,
     ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
         if self
             .distrusted_spkis
@@ -160,34 +173,87 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
             Err(ControlFlow::Continue(err)) => err,
         };
 
-        loop_while_non_fatal_error(err, self.intermediate_certs, |cert_der| {
-            let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
-            if !public_values_eq(potential_issuer.subject, path.head().issuer) {
-                return Err(Error::UnknownIssuer.into());
-            }
+        self.consider_intermediates(err, path, time, sub_ca_count, budget, intermediates)
+    }
 
-            // Prevent loops; see RFC 4158 section 5.2.
-            if path.node().iter().any(|prev| {
-                public_values_eq(potential_issuer.spki, prev.cert.spki)
-                    && public_values_eq(potential_issuer.subject, prev.cert.subject)
-            }) {
-                return Err(Error::UnknownIssuer.into());
-            }
+    fn consider_intermediates(
+        &self,
+        err: Error,
+        path: &mut PartialPath<'p>,
+        time: UnixTime,
+        sub_ca_count: usize,
+        budget: &mut Budget,
+        intermediates: &ParsedIntermediates<'p>,
+    ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
+        // Visit certificates in input order. Report a stored parse error at the
+        // same point as `Cert::from_der` did, so error ranking does not change.
+        #[cfg(feature = "alloc")]
+        {
+            loop_while_non_fatal_error(err, intermediates.certs.iter(), |candidate| {
+                let potential_issuer = match candidate {
+                    Ok(cert) => cert,
+                    Err(error) => return Err(error.clone().into()),
+                };
+                self.link_issuer(
+                    potential_issuer,
+                    path,
+                    time,
+                    sub_ca_count,
+                    budget,
+                    intermediates,
+                )
+            })
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            loop_while_non_fatal_error(err, intermediates.certs, |cert_der| {
+                let potential_issuer = parse_intermediate(cert_der)?;
+                self.link_issuer(
+                    &potential_issuer,
+                    path,
+                    time,
+                    sub_ca_count,
+                    budget,
+                    intermediates,
+                )
+            })
+        }
+    }
 
-            let next_sub_ca_count = match role {
-                Role::EndEntity => sub_ca_count,
-                Role::Issuer => sub_ca_count + 1,
-            };
+    fn link_issuer(
+        &self,
+        potential_issuer: &Cert<'p>,
+        path: &mut PartialPath<'p>,
+        time: UnixTime,
+        sub_ca_count: usize,
+        budget: &mut Budget,
+        intermediates: &ParsedIntermediates<'p>,
+    ) -> Result<&'p TrustAnchor<'p>, ControlFlow<Error, Error>> {
+        if !public_values_eq(potential_issuer.subject, path.head().issuer) {
+            return Err(Error::UnknownIssuer.into());
+        }
 
-            budget.consume_build_chain_call()?;
-            path.push(potential_issuer)?;
-            let result = self.build_chain_inner(path, time, next_sub_ca_count, budget);
-            if result.is_err() {
-                path.pop();
-            }
+        // Prevent loops; see RFC 4158 section 5.2.
+        if path.node().iter().any(|prev| {
+            public_values_eq(potential_issuer.spki, prev.cert.spki)
+                && public_values_eq(potential_issuer.subject, prev.cert.subject)
+        }) {
+            return Err(Error::UnknownIssuer.into());
+        }
 
-            result
-        })
+        let next_sub_ca_count = match path.node().role() {
+            Role::EndEntity => sub_ca_count,
+            Role::Issuer => sub_ca_count + 1,
+        };
+
+        budget.consume_build_chain_call()?;
+        path.push(potential_issuer.copied())?;
+        let result = self.build_chain_inner(path, time, next_sub_ca_count, budget, intermediates);
+        if result.is_err() {
+            path.pop();
+        }
+
+        result
     }
 
     fn check_signed_chain(
@@ -837,7 +903,43 @@ impl Iterator for OidDecoder<'_> {
     }
 }
 
-fn loop_while_non_fatal_error<'a, V: IntoIterator + 'a>(
+/// Peer intermediates for one path search.
+///
+/// With `alloc`, each certificate is parsed once before the search. A certificate
+/// that fails to parse keeps that error. The search reports the error when it
+/// visits the certificate.
+///
+/// Without `alloc` there is no heap storage for parsed certificates. Each visit
+/// parses the certificate again.
+struct ParsedIntermediates<'a> {
+    #[cfg(feature = "alloc")]
+    certs: Vec<Result<Cert<'a>, Error>>,
+    #[cfg(not(feature = "alloc"))]
+    certs: &'a [CertificateDer<'a>],
+}
+
+impl<'a> ParsedIntermediates<'a> {
+    fn new(certs: &'a [CertificateDer<'a>]) -> Self {
+        #[cfg(feature = "alloc")]
+        {
+            Self {
+                certs: certs.iter().map(parse_intermediate).collect(),
+            }
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            Self { certs }
+        }
+    }
+}
+
+fn parse_intermediate<'a>(cert_der: &'a CertificateDer<'a>) -> Result<Cert<'a>, Error> {
+    #[cfg(test)]
+    INTERMEDIATE_PARSE_COUNT.with(|count| count.set(count.get() + 1));
+    Cert::from_der(untrusted::Input::from(cert_der.as_ref()))
+}
+
+fn loop_while_non_fatal_error<'a, V: IntoIterator>(
     default_error: Error,
     values: V,
     mut f: impl FnMut(V::Item) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>>,
@@ -995,6 +1097,11 @@ const DISTRUSTED_SPKIS: &[&[u8]] = &[
     include_bytes!("data/distrusted/EMOVCSCAG3C.spki.der"),
 ];
 
+#[cfg(test)]
+std::thread_local! {
+    static INTERMEDIATE_PARSE_COUNT: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
     use alloc::borrow::ToOwned;
@@ -1004,7 +1111,7 @@ mod tests {
 
     use rcgen::{CertifiedIssuer, Issuer, KeyPair, SigningKey};
 
-    use super::*;
+    use super::{INTERMEDIATE_PARSE_COUNT, *};
     use crate::test_utils;
     use crate::test_utils::{issuer_params, make_end_entity, make_issuer};
     use crate::trust_anchor::anchor_from_trusted_cert;
@@ -1092,6 +1199,97 @@ mod tests {
             )),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
         ));
+    }
+
+    #[test]
+    fn intermediates_are_parsed_once() {
+        // Same shape as `test_too_many_path_calls`. The search visits every
+        // intermediate many times. The decode count stays equal to the input length.
+        let ca = make_issuer("Bogus Subject");
+        let mut intermediate_chain = IntermediateChain::new(10, true, &ca);
+        let verify_trust_anchor = make_issuer("Bogus Trust Anchor");
+        let ee = make_end_entity(&intermediate_chain.last_issuer);
+        let ee_cert = EndEntityCert::try_from(ee.cert.der()).unwrap();
+        let anchor = anchor_from_trusted_cert(verify_trust_anchor.der()).unwrap();
+        let anchors = slice::from_ref(&anchor);
+        intermediate_chain
+            .chain
+            .insert(0, verify_trust_anchor.der().to_owned());
+
+        reset_intermediate_parses();
+        let result = verify_chain(anchors, &intermediate_chain.chain, &ee_cert, None, None);
+        assert!(matches!(
+            result,
+            Err(ControlFlow::Break(Error::MaximumPathBuildCallsExceeded))
+        ));
+        assert_eq!(intermediate_parses(), intermediate_chain.chain.len());
+    }
+
+    #[test]
+    fn linear_chain_parses_each_intermediate_once() {
+        reset_intermediate_parses();
+        assert!(build_and_verify_linear_chain(4).is_ok());
+        assert_eq!(intermediate_parses(), 4);
+    }
+
+    #[test]
+    fn invalid_intermediate_keeps_previous_result() {
+        let trust_anchor = make_issuer("Trust Anchor");
+        let anchors = &[anchor_from_trusted_cert(trust_anchor.der()).unwrap()];
+        let intermediate = make_intermediate("Intermediate", &trust_anchor);
+        let ee = make_end_entity(&intermediate);
+        let ee_cert = EndEntityCert::try_from(ee.cert.der()).unwrap();
+        let good = intermediate.der().clone();
+        let junk_bytes = [0x30u8, 0x00];
+        let junk = CertificateDer::from(&junk_bytes[..]);
+        let Err(parse_error) = Cert::from_der(untrusted::Input::from(junk.as_ref())) else {
+            panic!("invalid certificate parsed");
+        };
+
+        // A bad certificate before or after the real issuer does not hide a valid path.
+        for intermediates in [
+            vec![junk.clone(), good.clone()],
+            vec![good.clone(), junk.clone()],
+        ] {
+            reset_intermediate_parses();
+            let path = verify_chain(anchors, &intermediates, &ee_cert, None, None).unwrap();
+            assert_eq!(path.intermediate_certificates().count(), 1);
+            assert_eq!(intermediate_parses(), intermediates.len());
+        }
+
+        // The end entity is issued by the trust anchor. The bad intermediate is not an issuer.
+        // Parsing it must not turn a valid path into a parse error.
+        let ee = make_end_entity(&trust_anchor);
+        let ee_cert = EndEntityCert::try_from(ee.cert.der()).unwrap();
+        let intermediates = [junk.clone()];
+        reset_intermediate_parses();
+        assert!(verify_chain(anchors, &intermediates, &ee_cert, None, None).is_ok());
+        assert_eq!(intermediate_parses(), 1);
+
+        // No path reaches a trust anchor. The parse error outranks `UnknownIssuer`.
+        // Order must not change which error is returned.
+        let other = make_intermediate("Other", &trust_anchor);
+        let ee = make_end_entity(&intermediate);
+        let ee_cert = EndEntityCert::try_from(ee.cert.der()).unwrap();
+        for intermediates in [
+            vec![junk.clone(), other.der().clone()],
+            vec![other.der().clone(), junk.clone()],
+        ] {
+            reset_intermediate_parses();
+            assert!(matches!(
+                verify_chain(anchors, &intermediates, &ee_cert, None, None),
+                Err(ControlFlow::Continue(err)) if err == parse_error
+            ));
+            assert_eq!(intermediate_parses(), intermediates.len());
+        }
+    }
+
+    fn reset_intermediate_parses() {
+        INTERMEDIATE_PARSE_COUNT.with(|count| count.set(0));
+    }
+
+    fn intermediate_parses() -> usize {
+        INTERMEDIATE_PARSE_COUNT.with(|count| count.get())
     }
 
     #[test]
@@ -1651,7 +1849,7 @@ mod tests {
             None => builder,
         };
 
-        match builder.build_chain_inner(&mut path, time, 0, &mut budget.unwrap_or_default()) {
+        match builder.build_chain(&mut path, time, &mut budget.unwrap_or_default()) {
             Ok(anchor) => Ok(VerifiedPath::new(ee_cert, anchor, path)),
             Err(err) => Err(err),
         }
