@@ -27,3 +27,7 @@ path = "fuzzers/cert.rs"
 [[bin]]
 name = "anchor"
 path = "fuzzers/anchor.rs"
+
+[[bin]]
+name = "mtc_proof"
+path = "fuzzers/mtc_proof.rs"

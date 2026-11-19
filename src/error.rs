@@ -85,6 +85,9 @@ pub enum Error {
     /// A CRL number extension was missing from a CRL.
     MissingCrlNumber,
 
+    /// A Merkle Tree Certificate's inclusion proof or cosignatures do not verify.
+    InvalidMtcProof,
+
     /// A iPAddress name constraint was invalid:
     /// - it had a sparse network mask (ie, cannot be written in CIDR form).
     /// - it was too long or short
@@ -135,6 +138,9 @@ pub enum Error {
     /// extension as required by the CA/Browser Forum Baseline Requirements
     /// and as recommended by RFC6125.
     MalformedExtensions,
+
+    /// A Merkle Tree Certificate's proof or serial number is misencoded.
+    MalformedMtcProof,
 
     /// A name constraint was malformed, potentially containing invalid characters,
     /// invalid labels, or an empty sequence where at least one item is required.
@@ -258,7 +264,10 @@ impl Error {
             | Self::CertRevoked
             | Self::UnknownRevocationStatus
             | Self::CrlExpired { .. } => 270,
-            Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
+            Self::InvalidCrlSignatureForPublicKey
+            | Self::InvalidSignatureForPublicKey
+            | Self::InvalidMtcProof
+            | Self::MalformedMtcProof => 260,
             Self::SignatureAlgorithmMismatch => 250,
             Self::EmptyEkuExtension => 245,
             Self::RequiredEkuNotFound(_) => 240,

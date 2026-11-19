@@ -50,5 +50,9 @@ jobs:
         working-directory: ./tests/crl_distrib_point/
         run: python3 make_testcerts.py
 
+      - name: Generate Merkle Tree Certificate test files
+        working-directory: ./tests/mtc/
+        run: python3 make_mtc_testcerts.py
+
       - name: Enforce no diff
         run: git diff --exit-code

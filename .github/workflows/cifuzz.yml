@@ -51,3 +51,9 @@ jobs:
         run: |
           mkdir -p corpus/anchor
           cargo fuzz run anchor corpus/anchor seed-certs -- -max_total_time=60
+
+      - name: Fuzz Merkle Tree Certificate proofs
+        working-directory: fuzz
+        run: |
+          mkdir -p corpus/mtc_proof
+          cargo fuzz run mtc_proof corpus/mtc_proof seed-certs -- -max_total_time=60
