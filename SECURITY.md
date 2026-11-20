@@ -8,7 +8,7 @@ original semver-compatible release was published less than 2 years ago.
 For example, as of 2026-03-24 the latest release is 0.104.0-alpha.5.
 
 * 0.104.0 is yet to be released.
-* 0.103.0 was released in Febrary 2025
+* 0.103.0 was released in February 2025
 * 0.102.0 was released in November 2023
 * 0.101.0 was released in July 2023
 * 0.100.0 was released in March 2023
