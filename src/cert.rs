@@ -340,6 +340,15 @@ fn remember_cert_extension<'a>(
                     // signedCertificateTimestampList is an OCTET STRING
                     SignedCertificateTimestampList => der::expect_tag(value, Tag::OctetString),
 
+                    // CRLDistributionPoints is defined as a SEQUENCE SIZE (1..MAX).
+                    Standard(31) => {
+                        let dps = der::expect_tag(value, Tag::Sequence)?;
+                        if dps.is_empty() {
+                            return Err(Error::MalformedExtensions);
+                        }
+                        Ok(dps)
+                    }
+
                     // All other remembered certificate extensions are wrapped in a Sequence.
                     _ => der::expect_tag(value, Tag::Sequence),
                 },
