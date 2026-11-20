@@ -599,26 +599,13 @@ fn ip46_mixed_address_san_allowed() {
     );
 }
 
-// RFC 5280 § 4.2.1.10: URI constraints apply to the host part of the name,
-// matched using the same rules as dNSName constraints. The constraint is a
-// bare host/domain (`allowed.example.com` or `.example.com`), not a full URI.
 #[test]
 fn uri_san_matches_uri_permitted_subtree() {
-    // As with dNSName constraints (and Go's matchDomainConstraint, which backs
-    // both), a bare constraint matches the exact host and any subdomain of it.
     assert_eq!(
         check_uri_constraint(
             b"allowed.example.com",
             PERMITTED_SUBTREES_TAG,
             "https://allowed.example.com"
-        ),
-        Ok(()),
-    );
-    assert_eq!(
-        check_uri_constraint(
-            b"allowed.example.com",
-            PERMITTED_SUBTREES_TAG,
-            "https://sub.allowed.example.com",
         ),
         Ok(()),
     );
@@ -699,9 +686,9 @@ fn uri_san_matches_nested_hostname() {
         check_uri_constraint(
             b"allowed.example.com",
             PERMITTED_SUBTREES_TAG,
-            "https://allowed.example.com",
+            "https://host.allowed.example.com",
         ),
-        Ok(()),
+        Err(webpki::Error::NameConstraintViolation),
     );
     assert_eq!(
         check_uri_constraint(
@@ -709,7 +696,7 @@ fn uri_san_matches_nested_hostname() {
             EXCLUDED_SUBTREES_TAG,
             "https://host.allowed.example.com",
         ),
-        Err(webpki::Error::NameConstraintViolation),
+        Ok(()),
     );
 }
 

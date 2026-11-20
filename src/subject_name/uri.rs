@@ -1,7 +1,7 @@
 /// Returns the fully qualified domain name authority component of `uri`.
 ///
 /// RFC 5280 § 4.2.1.10 defines `uniformResourceIdentifier` name constraints in terms of the host
-/// part of the URI, matched using the same rules as `dNSName` constraints.
+/// part of the URI.
 ///
 /// Parsing follows the generic RFC 3986 authority syntax and is intentionally minimal: anything
 /// ambiguous fails closed (returns `None`).

@@ -171,7 +171,13 @@ fn check_presented_id_conforms_to_constraints(
                         host,
                         IdRole::NameConstraint(subtrees),
                         base,
-                    ),
+                    )
+                    .map(|matches| {
+                        // Without a leading period, a URI constraint names a single host.
+                        matches
+                            && (host.len() == base.len()
+                                || matches!(base.as_slice_less_safe(), [] | [b'.', ..]))
+                    }),
                     None => Err(Error::NameConstraintViolation),
                 },
                 (GeneralName::UniformResourceIdentifier(_), _) => continue,
