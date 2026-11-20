@@ -1236,6 +1236,38 @@ fn ee_revoked_nofullname_dp_then_valid_dp() {
     );
 }
 
+// Cert has a present but empty CRL DPs extension, CRL has an IDP and revokes the EE.
+// An empty extension names no other CRL source, so it must be treated like an absent one,
+// and the CRL must be authoritative even when unknown status is allowed.
+#[test]
+fn ee_revoked_empty_dps_crl_idp_allow_unknown() {
+    let chain = CertChain::no_key_usages("empty_dps");
+    let (ee_cert, ee_serial) = chain.generate_ee_with_custom_crl_dps(build_crl_dps_extension(&[]));
+    let ee_crl = chain
+        .int_a
+        .generate_crl(ee_serial, Some(matching_idp()), None);
+
+    let crls = &[&CertRevocationList::Borrowed(
+        BorrowedCertRevocationList::from_der(&ee_crl).unwrap(),
+    )];
+
+    let revocation = RevocationOptionsBuilder::new(crls)
+        .unwrap()
+        .with_depth(RevocationCheckDepth::EndEntity)
+        .with_status_policy(UnknownStatusPolicy::Allow)
+        .build();
+
+    assert_eq!(
+        check_cert(
+            ee_cert.der(),
+            &chain.intermediates(),
+            chain.root.der(),
+            Some(revocation),
+        ),
+        Err(webpki::Error::CertRevoked)
+    );
+}
+
 struct CertChain {
     root: CertifiedIssuer<'static, KeyPair>,
     int_b: Intermediate,

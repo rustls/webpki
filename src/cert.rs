@@ -245,10 +245,15 @@ impl<'a> Cert<'a> {
     }
 
     /// Returns an iterator over the certificate's cRLDistributionPoints extension values, if any.
+    ///
+    /// An empty extension is not legal (RFC 5280 requires `SIZE (1..MAX)`), but since it
+    /// describes no distribution points, we treat it the same as an absent extension.
     pub(crate) fn crl_distribution_points(
         &self,
     ) -> Option<impl Iterator<Item = Result<CrlDistributionPoint<'a>, Error>>> {
-        self.crl_distribution_points.map(DerIterator::new)
+        self.crl_distribution_points
+            .filter(|dps| !dps.is_empty())
+            .map(DerIterator::new)
     }
 
     /// Raw DER-encoded representation of the certificate.
