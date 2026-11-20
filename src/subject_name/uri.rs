@@ -1,3 +1,38 @@
+use super::Subtrees;
+use super::dns_name::{self, IdRole};
+use crate::error::Error;
+
+/// Returns true if the URI `name` is within `constraint`, or an error if it has no host to match.
+///
+/// [RFC 5280 §4.2.1.10] says:
+/// > For URIs, the constraint applies to the host part of the name.  The
+/// > constraint MUST be specified as a fully qualified domain name and MAY
+/// > specify a host or a domain.  Examples would be "host.example.com" and
+/// > ".example.com".  When the constraint begins with a period, it MAY be
+/// > expanded with one or more labels.  That is, the constraint
+/// > ".example.com" is satisfied by both host.example.com and
+/// > my.host.example.com.  However, the constraint ".example.com" is not
+/// > satisfied by "example.com".  When the constraint does not begin with
+/// > a period, it specifies a host.
+///
+/// [RFC 5280 §4.2.1.10]: <https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.10>
+pub(super) fn presented_id_matches_constraint(
+    name: untrusted::Input<'_>,
+    constraint: untrusted::Input<'_>,
+    subtrees: Subtrees,
+) -> Result<bool, Error> {
+    let Some(host) = host_of(name) else {
+        return Err(Error::NameConstraintViolation);
+    };
+
+    Ok(dns_name::presented_id_matches_reference_id(
+        host,
+        IdRole::NameConstraint(subtrees),
+        constraint,
+    )? && (host.len() == constraint.len()
+        || matches!(constraint.as_slice_less_safe(), [] | [b'.', ..])))
+}
+
 /// Returns the fully qualified domain name authority component of `uri`.
 ///
 /// RFC 5280 § 4.2.1.10 defines `uniformResourceIdentifier` name constraints in terms of the host
@@ -5,7 +40,7 @@
 ///
 /// Parsing follows the generic RFC 3986 authority syntax and is intentionally minimal: anything
 /// ambiguous fails closed (returns `None`).
-pub(super) fn host_of(uri: untrusted::Input<'_>) -> Option<untrusted::Input<'_>> {
+fn host_of(uri: untrusted::Input<'_>) -> Option<untrusted::Input<'_>> {
     let uri = uri.as_slice_less_safe();
 
     // RFC 3986: URI = scheme ":" hier-part [ "?" query ] [ "#" fragment ].

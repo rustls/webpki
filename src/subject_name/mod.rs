@@ -161,25 +161,10 @@ fn check_presented_id_conforms_to_constraints(
                 }
                 (GeneralName::IpAddress(_), _) => continue,
 
-                // For URI constraints, use the DNS name matching for the host part of the URI
-                // https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.10
                 (
                     GeneralName::UniformResourceIdentifier(name),
                     GeneralName::UniformResourceIdentifier(base),
-                ) => match uri::host_of(name) {
-                    Some(host) => dns_name::presented_id_matches_reference_id(
-                        host,
-                        IdRole::NameConstraint(subtrees),
-                        base,
-                    )
-                    .map(|matches| {
-                        // Without a leading period, a URI constraint names a single host.
-                        matches
-                            && (host.len() == base.len()
-                                || matches!(base.as_slice_less_safe(), [] | [b'.', ..]))
-                    }),
-                    None => Err(Error::NameConstraintViolation),
-                },
+                ) => uri::presented_id_matches_constraint(name, base, subtrees),
                 (GeneralName::UniformResourceIdentifier(_), _) => continue,
 
                 // RFC 5280 says "If a name constraints extension that is marked as
