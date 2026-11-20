@@ -139,8 +139,8 @@ mod tests {
     use std::string::String;
     use std::{format, str};
 
+    use iri_string::types::UriStr;
     use proptest::prelude::*;
-    use url::{Host, Url};
 
     use super::*;
 
@@ -210,40 +210,40 @@ mod tests {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(4096))]
 
-        // Cross-check against the `url` crate on URIs where RFC 3986 and the WHATWG URL
-        // standard agree. The generator avoids inputs the two standards parse differently:
-        // hosts with a numeric or "xn--" last label, percent-encoding, IPv4 literals with
-        // non-special schemes, out-of-range ports, and raw "@" or "\" in the authority.
+        // `host_of` only finds hosts that `iri-string`'s RFC 3986 parser also finds. It rejects
+        // more, as RFC 5280 requires a fully qualified domain name.
         #[test]
-        fn consistent_with_url_crate(uri in uri_strategy()) {
-            let expected = match Url::parse(&uri) {
-                Ok(url) => match url.host() {
-                    Some(Host::Domain(host)) if !host.is_empty() => {
-                        Some(host.to_ascii_lowercase())
-                    }
-                    Some(Host::Domain(_)) | Some(Host::Ipv4(_)) | Some(Host::Ipv6(_)) | None => {
-                        None
-                    }
-                },
-                Err(_) => None,
+        fn consistent_with_rfc3986(uri in uri_strategy()) {
+            let Some(host) = host(uri.as_bytes()) else {
+                return Ok(());
             };
-
-            let actual = host(uri.as_bytes())
-                .map(|host| str::from_utf8(host).unwrap().to_ascii_lowercase());
-            prop_assert_eq!(actual, expected, "uri = {:?}", uri);
+            let parsed = UriStr::new(&uri);
+            prop_assert!(parsed.is_ok(), "uri = {:?}: {:?}", uri, parsed);
+            prop_assert_eq!(
+                parsed.unwrap().authority_components().map(|authority| authority.host()),
+                Some(str::from_utf8(host).unwrap()),
+                "uri = {:?}",
+                uri
+            );
         }
     }
 
     fn uri_strategy() -> impl Strategy<Value = String> {
-        let special = prop::sample::select(&["http", "https", "ws", "wss", "ftp"][..]);
-        let non_special = prop::sample::select(&["coap", "git", "spiffe", "ldap"][..]);
-        let scheme_and_host = prop_oneof![
-            (special, prop_oneof![domain(), ipv4_quad(), ipv6_literal()]),
-            (non_special, prop_oneof![domain(), ipv6_literal()]),
+        let scheme = prop::sample::select(
+            &[
+                "http", "https", "ws", "wss", "ftp", "coap", "git", "spiffe", "ldap",
+            ][..],
+        );
+        let host = prop_oneof![
+            4 => domain(),
+            1 => reg_name(),
+            1 => ipv4_quad(),
+            1 => ipv6_literal(),
+            1 => junk(),
         ];
 
-        (scheme_and_host, userinfo(), port(), tail()).prop_map(
-            |((scheme, host), userinfo, port, tail)| {
+        (scheme, userinfo(), host, port(), tail()).prop_map(
+            |(scheme, userinfo, host, port, tail)| {
                 format!("{scheme}://{userinfo}{host}{port}{tail}")
             },
         )
@@ -251,18 +251,12 @@ mod tests {
 
     fn domain() -> impl Strategy<Value = String> {
         let label = proptest::string::string_regex("[A-Za-z0-9_-]{1,8}").unwrap();
-        let last = proptest::string::string_regex("[A-Za-z][A-Za-z0-9_-]{0,7}").unwrap();
-        (prop::collection::vec(label, 0..=3), last)
-            .prop_map(|(mut labels, last)| {
-                labels.push(last);
-                labels.join(".")
-            })
-            .prop_filter("xn-- labels trigger punycode decoding", |host| {
-                !host
-                    .to_ascii_lowercase()
-                    .split('.')
-                    .any(|label| label.starts_with("xn--"))
-            })
+        prop::collection::vec(label, 1..=4).prop_map(|labels| labels.join("."))
+    }
+
+    /// Hosts that RFC 3986 allows but are mostly not DNS names.
+    fn reg_name() -> impl Strategy<Value = String> {
+        proptest::string::string_regex("([A-Za-z0-9._~!$&'()*+,;=-]|%[0-9A-F]{2}){0,8}").unwrap()
     }
 
     fn ipv4_quad() -> impl Strategy<Value = String> {
@@ -275,16 +269,33 @@ mod tests {
     }
 
     fn userinfo() -> impl Strategy<Value = String> {
-        let userinfo = proptest::string::string_regex("[a-z0-9:]{0,8}@").unwrap();
-        prop_oneof![Just(String::new()), userinfo]
+        let userinfo =
+            proptest::string::string_regex("([A-Za-z0-9._~!$&'()*+,;=:-]|%[0-9A-F]{2}){0,8}@")
+                .unwrap();
+        prop_oneof![
+            4 => Just(String::new()),
+            2 => userinfo,
+            1 => junk().prop_map(|junk| format!("{junk}@")),
+        ]
     }
 
     fn port() -> impl Strategy<Value = String> {
         prop_oneof![
-            Just(String::new()),
-            Just(String::from(":")),
-            (0..=0xffffu32).prop_map(|port| format!(":{port}")),
+            4 => Just(String::new()),
+            1 => Just(String::from(":")),
+            2 => (0..=0xffffu32).prop_map(|port| format!(":{port}")),
+            1 => junk().prop_map(|junk| format!(":{junk}")),
         ]
+    }
+
+    /// Up to 8 ASCII characters that may not be valid in an authority, but don't end it.
+    fn junk() -> impl Strategy<Value = String> {
+        let special =
+            prop::sample::select(&['\\', '@', ':', '[', ']', '%', ' ', '"', '*', '.'][..]);
+        let any = (0u8..0x80)
+            .prop_filter("ends the authority", |b| !matches!(b, b'/' | b'?' | b'#'))
+            .prop_map(char::from);
+        prop::collection::vec(prop_oneof![special, any], 0..=8).prop_map(String::from_iter)
     }
 
     fn tail() -> impl Strategy<Value = String> {
