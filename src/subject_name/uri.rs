@@ -33,13 +33,10 @@ pub(super) fn presented_id_matches_constraint(
         || matches!(constraint.as_slice_less_safe(), [] | [b'.', ..])))
 }
 
-/// Returns the fully qualified domain name authority component of `uri`.
+/// Returns the host in `uri`'s authority component, parsed as RFC 3986 specifies.
 ///
-/// RFC 5280 § 4.2.1.10 defines `uniformResourceIdentifier` name constraints in terms of the host
-/// part of the URI.
-///
-/// Parsing follows the generic RFC 3986 authority syntax and is intentionally minimal: anything
-/// ambiguous fails closed (returns `None`).
+/// Returns `None` if there is no authority, it isn't valid, or its host can't be a fully qualified
+/// domain name, which RFC 5280 §4.2.1.10 requires.
 fn host_of(uri: untrusted::Input<'_>) -> Option<untrusted::Input<'_>> {
     let uri = uri.as_slice_less_safe();
 
@@ -55,24 +52,39 @@ fn host_of(uri: untrusted::Input<'_>) -> Option<untrusted::Input<'_>> {
         None => rest,
     };
 
-    // Drop any userinfo ("user:pass@"); it ends at the last "@".
-    let host_port = match split_once(authority, |&b| b == b'@') {
-        Some((_, host_port)) => host_port,
-        None => authority,
+    // authority = [ userinfo "@" ] host [ ":" port ]
+    // userinfo can't contain "@", so it ends at the first one.
+    let (userinfo, host_port) = match split_once(authority, |&b| b == b'@') {
+        Some((userinfo, host_port)) => (userinfo, host_port),
+        None => (&b""[..], authority),
     };
+    // userinfo = *( unreserved / pct-encoded / sub-delims / ":" )
+    if !is_encoded(userinfo, b":") {
+        return None;
+    }
 
     // An IPv6 (or IP-future) literal is bracketed; per RFC 5280 IP hosts are not allowed.
     if host_port.first() == Some(&b'[') {
         return None;
     }
 
-    // Strip a trailing ":port". Since we've excluded bracketed literals above, the only
-    // remaining colon is the port separator.
-    let host = match split_once(host_port, |&b| b == b':') {
-        Some((host, _)) => host,
-        None => host_port,
+    // Since we've excluded bracketed literals above, the only remaining colon is the port
+    // separator.
+    let (host, port) = match split_once(host_port, |&b| b == b':') {
+        Some((host, port)) => (host, port),
+        None => (host_port, &b""[..]),
     };
-    if host.is_empty() {
+    // reg-name = *( unreserved / pct-encoded / sub-delims )
+    if host.is_empty() || !is_encoded(host, b"") {
+        return None;
+    }
+    // port = *DIGIT
+    if !port.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+
+    // RFC 5280 requires a fully qualified domain name, so a wildcard can't match.
+    if host.contains(&b'*') {
         return None;
     }
 
@@ -89,6 +101,31 @@ fn host_of(uri: untrusted::Input<'_>) -> Option<untrusted::Input<'_>> {
         4 => None, // IPv4 literal
         _ => Some(untrusted::Input::from(host)),
     }
+}
+
+/// Returns true if `bytes` is made of unreserved characters, sub-delims, percent-encoded octets
+/// and `extra`, as RFC 3986 defines them:
+///
+/// ```text
+/// unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
+/// sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+/// pct-encoded = "%" HEXDIG HEXDIG
+/// ```
+fn is_encoded(bytes: &[u8], extra: &[u8]) -> bool {
+    let mut bytes = bytes.iter();
+    while let Some(&b) = bytes.next() {
+        let valid = match b {
+            b'%' => matches!(
+                (bytes.next(), bytes.next()),
+                (Some(hi), Some(lo)) if hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()
+            ),
+            _ => b.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=".contains(&b) || extra.contains(&b),
+        };
+        if !valid {
+            return false;
+        }
+    }
+    true
 }
 
 /// `slice::split_once()` is not stable yet
@@ -159,6 +196,11 @@ mod tests {
         assert_eq!(host(b"https://1.2.3"), Some(&b"1.2.3"[..]));
         assert_eq!(host(b"https://1.2.3.4.5"), Some(&b"1.2.3.4.5"[..]));
         assert_eq!(host(b"https://1234.2.3.4"), Some(&b"1234.2.3.4"[..]));
+    }
+
+    #[test]
+    fn wildcard_host() {
+        assert_eq!(host(b"https://*.example.com/"), None);
     }
 
     fn host(uri: &[u8]) -> Option<&[u8]> {
