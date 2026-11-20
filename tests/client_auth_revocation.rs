@@ -1236,6 +1236,19 @@ fn ee_revoked_nofullname_dp_then_valid_dp() {
     );
 }
 
+// Cert has a present but empty CRL DPs extension. RFC 5280 requires at least one DP, and
+// accepting it would let the cert evade an otherwise authoritative CRL with an IDP.
+#[test]
+fn ee_empty_dps_rejected() {
+    let chain = CertChain::no_key_usages("empty_dps");
+    let (ee_cert, _) = chain.generate_ee_with_custom_crl_dps(build_crl_dps_extension(&[]));
+
+    assert_eq!(
+        webpki::EndEntityCert::try_from(ee_cert.der()).err(),
+        Some(webpki::Error::MalformedExtensions)
+    );
+}
+
 struct CertChain {
     root: CertifiedIssuer<'static, KeyPair>,
     int_b: Intermediate,
