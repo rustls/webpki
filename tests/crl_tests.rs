@@ -275,7 +275,7 @@ fn parse_entry_invalidity_date_crl() {
 
 #[test]
 fn parse_entry_indirect_issuer_crl() {
-    // Parsing a CRL that includes a revoked entry that has a issuer certificate extension
+    // Parsing a CRL that includes a revoked entry that has an issuer certificate extension
     // shouldn't error up-front - we expect the error to be surfaced when we iterate the revoked
     // certs.
     let crl = include_bytes!("crls/crl.entry.issuer.ext.der");
