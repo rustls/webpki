@@ -14,6 +14,8 @@ pub(crate) use dns_name::{WildcardDnsNameRef, verify_dns_names};
 mod ip_address;
 pub(crate) use ip_address::verify_ip_address_names;
 
+mod uri;
+
 // https://www.rfc-editor.org/info/rfc5280/#section-4.2.1.10
 pub(crate) fn check_name_constraints(
     constraints: Option<&mut untrusted::Reader<'_>>,
@@ -159,17 +161,10 @@ fn check_presented_id_conforms_to_constraints(
                 }
                 (GeneralName::IpAddress(_), _) => continue,
 
-                // We currently don't support URI constraints -- fail closed for now.
-                //
-                // Rejection is achieved by not matching any PermittedSubtrees, and matching all
-                // ExcludedSubtrees.
                 (
-                    GeneralName::UniformResourceIdentifier(_),
-                    GeneralName::UniformResourceIdentifier(_),
-                ) => Ok(match subtrees {
-                    Subtrees::Permitted => false,
-                    Subtrees::Excluded => true,
-                }),
+                    GeneralName::UniformResourceIdentifier(name),
+                    GeneralName::UniformResourceIdentifier(base),
+                ) => uri::presented_id_matches_constraint(name, base, subtrees),
                 (GeneralName::UniformResourceIdentifier(_), _) => continue,
 
                 // RFC 5280 says "If a name constraints extension that is marked as
