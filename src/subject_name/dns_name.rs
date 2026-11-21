@@ -115,7 +115,7 @@ impl core::fmt::Debug for WildcardDnsNameRef<'_> {
 // wildcards only of the form *.<DNSID>, i.e. a wildcard label that consists
 // solely of '*' (both <x> and <y> empty).
 //
-// An relative presented DNS ID matches both an absolute reference ID and a
+// A relative presented DNS ID matches both an absolute reference ID and a
 // relative reference ID. Absolute presented DNS IDs are not supported:
 //
 //      Presented ID   Reference ID  Result
