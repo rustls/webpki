@@ -218,7 +218,7 @@ impl core::fmt::Debug for WildcardDnsNameRef<'_> {
 // [3] Proposal to add such support to OpenSSL:
 //     http://www.mail-archive.com/openssl-dev%40openssl.org/msg36204.html
 //     https://rt.openssl.org/Ticket/Display.html?id=3562
-// [4] Feedback on the lack of clarify in the definition that never got
+// [4] Feedback on the lack of clarity in the definition that never got
 //     incorporated into the spec:
 //     https://www.ietf.org/mail-archive/web/pkix/current/msg21192.html
 pub(super) fn presented_id_matches_reference_id(
