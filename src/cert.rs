@@ -703,7 +703,7 @@ mod tests {
             .first()
             .expect("missing distribution point");
 
-        // Parsing the distrubition point names should fail due to the unknown name tag.
+        // Parsing the distribution point names should fail due to the unknown name tag.
         let result = crl_distribution_point.names();
         assert!(matches!(result, Err(Error::BadDer)))
     }
