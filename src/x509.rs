@@ -105,7 +105,7 @@ pub(crate) enum ExtensionOid {
 }
 
 impl ExtensionOid {
-    fn lookup(id: untrusted::Input<'_>) -> Option<Self> {
+    pub(crate) fn lookup(id: untrusted::Input<'_>) -> Option<Self> {
         match id.as_slice_less_safe() {
             v if v == SCT_LIST_OID => Some(Self::SignedCertificateTimestampList),
             [first, second, x] if [*first, *second] == ID_CE => Some(Self::Standard(*x)),

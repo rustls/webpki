@@ -523,6 +523,7 @@ dependencies = [
 name = "rustls-webpki"
 version = "0.104.0-alpha.8"
 dependencies = [
+ "aws-lc-rs",
  "base64",
  "bencher",
  "jiff",
