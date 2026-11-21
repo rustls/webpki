@@ -195,7 +195,7 @@ impl PartialOrd for CrlNumber<'_> {
 #[cfg(feature = "alloc")]
 #[derive(Debug, Clone, Hash)]
 pub struct OwnedCertRevocationList {
-    /// A map of the revoked certificates contained in then CRL, keyed by the DER encoding
+    /// A map of the revoked certificates contained in the CRL, keyed by the DER encoding
     /// of the revoked cert's serial number.
     revoked_certs: BTreeMap<Vec<u8>, OwnedRevokedCert>,
 
