@@ -116,7 +116,7 @@ fn check_presented_id_conforms_to_constraints(
             //
             // Since the default value isn't allowed to be encoded according to the
             // DER encoding rules for DEFAULT, this is equivalent to saying that
-            // neither minimum or maximum must be encoded.
+            // neither minimum nor maximum must be encoded.
             let base = match general_subtree(&mut constraints) {
                 Ok(base) => base,
                 Err(err) => return Some(Err(err)),
