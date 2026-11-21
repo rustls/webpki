@@ -32,7 +32,7 @@ use crate::{DerTypeId, cert, der, sct, signed_data};
 /// Although it would be less error-prone to combine all these steps into a
 /// single function call, some significant optimizations are possible if the
 /// three steps are processed separately (in parallel). It does not matter much
-/// which order the steps are done in, but **all of these steps must completed
+/// which order the steps are done in, but **all of these steps must be completed
 /// before application data is sent and before received application data is
 /// processed**. The [`TryFrom`] conversion from `&CertificateDer<'_>` is an
 /// inexpensive operation and is deterministic, so if these tasks are done in
