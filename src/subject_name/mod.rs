@@ -136,7 +136,7 @@ fn check_presented_id_conforms_to_constraints(
                 (GeneralName::DirectoryName, GeneralName::DirectoryName) => Ok(
                     // Reject any uses of directory name constraints; we don't implement this.
                     //
-                    // Rejecting everything technically confirms to RFC5280:
+                    // Rejecting everything technically conforms to RFC5280:
                     //
                     //   "If a name constraints extension that is marked as critical imposes constraints
                     //    on a particular name form, and an instance of that name form appears in the
