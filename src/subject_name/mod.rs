@@ -179,7 +179,7 @@ fn check_presented_id_conforms_to_constraints(
                 // application MUST either process the constraint or reject the
                 // certificate." Later, the CABForum agreed to support non-critical
                 // constraints, so it is important to reject the cert without
-                // considering whether the name constraint it critical.
+                // considering whether the name constraint is critical.
                 (GeneralName::Unsupported(name_tag), GeneralName::Unsupported(base_tag))
                     if name_tag == base_tag =>
                 {
