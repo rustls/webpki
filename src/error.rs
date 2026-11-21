@@ -85,7 +85,7 @@ pub enum Error {
     /// A CRL number extension was missing from a CRL.
     MissingCrlNumber,
 
-    /// A iPAddress name constraint was invalid:
+    /// An iPAddress name constraint was invalid:
     /// - it had a sparse network mask (ie, cannot be written in CIDR form).
     /// - it was too long or short
     InvalidNetworkMaskConstraint,
