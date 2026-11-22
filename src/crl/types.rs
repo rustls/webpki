@@ -86,7 +86,7 @@ impl CertRevocationList<'_> {
     ///   * The certificate issuer matches the CRL issuer and,
     ///     * The certificate has no CRL distribution points, and the CRL has no issuing distribution
     ///       point extension.
-    ///     * Or, the certificate has no CRL distribution points, but the the CRL has an issuing
+    ///     * Or, the certificate has no CRL distribution points, but the CRL has an issuing
     ///       distribution point extension with a scope that includes the certificate.
     ///     * Or, the certificate has CRL distribution points, and the CRL has an issuing
     ///       distribution point extension with a scope that includes the certificate, and at least
