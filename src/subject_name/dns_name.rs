@@ -307,6 +307,14 @@ pub(super) fn presented_id_matches_reference_id(
     // reach into an excluded subtree is rejected (see CVE-2025-61727).
     if presented.peek(b'*') && reference_dns_id_role != IdRole::NameConstraint(Subtrees::Permitted)
     {
+        // A wildcard `*.T` can only intersect a leading-dot constraint `.C` if `C` is a suffix
+        // of `T`, in which case the presented ID is longer than the constraint and the
+        // prefix-skipping logic above has already moved us past the wildcard label. If we get
+        // here, the wildcard label can't expand to cover the leading-dot label(s) in `.C`.
+        if reference.peek(b'.') {
+            return Ok(false);
+        }
+
         if presented.skip(1).is_err() {
             unreachable!();
         }
@@ -1031,6 +1039,14 @@ mod tests {
         // The wildcard cannot reach two labels deep, so it does not
         // intersect a more specific excluded subtree.
         (b"*.example.com", b"a.b.example.com", Ok(false)),
+        // `.admin.example.com` only matches strict subdomains of `admin.example.com`,
+        // which a single-label wildcard `*.example.com` cannot reach.
+        (b"*.example.com", b".admin.example.com", Ok(false)),
+        (b"*.example.com", b".a.example.com", Ok(false)),
+        (b"*.example.com", b".www.other.com", Ok(false)),
+        // Leading-dot constraints at or above the wildcard's parent do intersect.
+        (b"*.a.example.com", b".a.example.com", Ok(true)),
+        (b"*.a.example.com", b".example.com", Ok(true)),
         // Disjoint parent labels never intersect.
         (b"*.example.com", b"www.other.com", Ok(false)),
     ];
