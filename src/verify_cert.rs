@@ -2,6 +2,7 @@
 use alloc::vec::Vec;
 use core::fmt;
 use core::ops::ControlFlow;
+use core::time::Duration;
 
 #[cfg(feature = "alloc")]
 use pki_types::SubjectPublicKeyInfoDer;
@@ -249,6 +250,25 @@ impl<'p> VerifiedPath<'p> {
         }
     }
 
+    /// Yields the last moment at which this path is valid.
+    ///
+    /// This is the earliest `notAfter` of the end-entity and intermediate certificates in
+    /// the path: the path is valid up to and including this time, and invalid afterwards.
+    /// Trust anchors carry no validity period, so do not contribute.
+    ///
+    /// There is no guarantee that the same verification after this time will fail, as
+    /// there may be other valid paths that could be found instead.
+    ///
+    /// This only considers certificate validity periods: it does not account for the
+    /// freshness of any revocation information that was used during verification.
+    pub fn not_after(&self) -> UnixTime {
+        let mut earliest = cert_not_after(self.end_entity);
+        for cert in self.intermediate_certificates() {
+            earliest = earliest.min(cert_not_after(cert));
+        }
+        earliest
+    }
+
     /// Yields a (double-ended) iterator over the intermediate certificates in this path.
     pub fn intermediate_certificates(&'p self) -> IntermediateIterator<'p> {
         IntermediateIterator {
@@ -274,6 +294,20 @@ impl<'p> VerifiedPath<'p> {
             None => spki_for_anchor(self.anchor),
         }
     }
+}
+
+/// Returns the `notAfter` of `cert`.
+///
+/// The validity of every certificate in a [`VerifiedPath`] has already been checked
+/// by [`check_validity()`], so parsing cannot fail here; if it somehow did, we
+/// conservatively treat the certificate as already expired.
+fn cert_not_after(cert: &Cert<'_>) -> UnixTime {
+    cert.validity
+        .read_all(Error::BadDer, |input| {
+            let _not_before = UnixTime::from_der(input)?;
+            UnixTime::from_der(input)
+        })
+        .unwrap_or(UnixTime::since_unix_epoch(Duration::ZERO))
 }
 
 /// Iterator over a path's intermediate certificates.
@@ -999,7 +1033,6 @@ const DISTRUSTED_SPKIS: &[&[u8]] = &[
 mod tests {
     use alloc::borrow::ToOwned;
     use alloc::string::{String, ToString};
-    use core::time::Duration;
     use std::{dbg, slice};
 
     use rcgen::{CertifiedIssuer, Issuer, KeyPair, SigningKey};
@@ -1626,6 +1659,61 @@ mod tests {
                 chain,
             }
         }
+    }
+
+    #[test]
+    fn verified_path_not_after() {
+        // 2025-01-01T00:00:00Z
+        const NOW: u64 = 1_735_689_600;
+        const DAY: u64 = 86_400;
+        let time = UnixTime::since_unix_epoch(Duration::from_secs(NOW));
+
+        let check = |intermediate_days: u64, ee_days: u64| -> UnixTime {
+            // Trust anchor validity is irrelevant, so use a short one to prove that.
+            let mut root_params = issuer_params("Root");
+            root_params.not_before = rcgen::date_time_ymd(2024, 1, 1);
+            root_params.not_after = rcgen::date_time_ymd(2025, 1, 2);
+            let root_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+            let root = CertifiedIssuer::self_signed(root_params, root_key).unwrap();
+
+            let mut int_params = issuer_params("Intermediate");
+            int_params.not_before = rcgen::date_time_ymd(2024, 1, 1);
+            int_params.not_after =
+                rcgen::date_time_ymd(2025, 1, 1) + Duration::from_secs(intermediate_days * DAY);
+            let int_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+            let int_cert = int_params.signed_by(&int_key, &root).unwrap();
+            let intermediate = Issuer::new(int_params, int_key);
+
+            let mut ee_params = test_utils::end_entity_params(vec!["example.com".into()]);
+            ee_params.not_before = rcgen::date_time_ymd(2024, 1, 1);
+            ee_params.not_after =
+                rcgen::date_time_ymd(2025, 1, 1) + Duration::from_secs(ee_days * DAY);
+            let ee_key = KeyPair::generate_for(test_utils::RCGEN_SIGNATURE_ALG).unwrap();
+            let ee = ee_params.signed_by(&ee_key, &intermediate).unwrap();
+
+            let trust_anchors = &[anchor_from_trusted_cert(root.der()).unwrap()];
+            let intermediates = &[int_cert.der().clone()];
+            let ee_cert = EndEntityCert::try_from(ee.der()).unwrap();
+            PathBuilder::new(
+                intermediates,
+                None,
+                &ExtendedKeyUsage::SERVER_AUTH,
+                rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+                trust_anchors,
+            )
+            .build(&ee_cert, time)
+            .unwrap()
+            .not_after()
+        };
+        let days_from_now =
+            |days: u64| UnixTime::since_unix_epoch(Duration::from_secs(NOW + days * DAY));
+
+        // End-entity expires first.
+        assert_eq!(check(200, 90), days_from_now(90));
+        // Intermediate expires first.
+        assert_eq!(check(30, 90), days_from_now(30));
+        // Expires exactly at the verification time.
+        assert_eq!(check(30, 0), days_from_now(0));
     }
 
     #[expect(clippy::type_complexity)]
