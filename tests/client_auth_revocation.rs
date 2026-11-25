@@ -36,8 +36,9 @@ fn check_cert(
         .map(|cert| CertificateDer::from(*cert))
         .collect::<Vec<_>>();
 
+    let sources = [&intermediates[..]];
     let builder = PathBuilder::new(
-        &intermediates,
+        &sources,
         revocation,
         &ExtendedKeyUsage::CLIENT_AUTH,
         ALGS,

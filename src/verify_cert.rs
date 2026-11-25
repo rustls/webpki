@@ -24,7 +24,7 @@ pub struct PathBuilder<'a, 'p> {
     pub(crate) eku: &'a dyn ExtendedKeyUsageValidator,
     pub(crate) supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
     pub(crate) trust_anchors: &'p [TrustAnchor<'p>],
-    pub(crate) intermediate_certs: &'p [CertificateDer<'p>],
+    pub(crate) intermediate_certs: &'a [&'p [CertificateDer<'p>]],
     pub(crate) revocation: Option<RevocationOptions<'a>>,
     #[expect(clippy::type_complexity)]
     pub(crate) verify_path: Option<&'a dyn Fn(&VerifiedPath<'_>) -> Result<(), Error>>,
@@ -34,9 +34,9 @@ pub struct PathBuilder<'a, 'p> {
 impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     /// Build a new [`PathBuilder`] with the given parameters.
     ///
-    /// * `intermediate_certs` is the list of intermediate certificates to use for path building.
-    ///   These certificates should be sent by the peer. They are not trusted, but can be used to
-    ///   build a path to a trusted root.
+    /// * `intermediate_certs` is a list of lists of intermediate certificates to use for path
+    ///   building. These are typically sent by the peer, and may be supplemented by other
+    ///   sources. They are not trusted, but can be used to build a path to a trusted root.
     /// * `revocation` provides the revocation options to use for path building. If `None`, no
     ///   revocation checks will be performed.
     /// * `eku` is the intended usage of the certificate, indicating what kind
@@ -47,7 +47,7 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
     ///   public key is not validated against this list.
     /// * `trust_anchors` is the list of root CAs to trust in the built path.
     pub fn new(
-        intermediate_certs: &'p [CertificateDer<'p>],
+        intermediate_certs: &'a [&'p [CertificateDer<'p>]],
         revocation: Option<RevocationOptions<'a>>,
         eku: &'p dyn ExtendedKeyUsageValidator,
         supported_sig_algs: &'a [&'a dyn SignatureVerificationAlgorithm],
@@ -161,7 +161,8 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
             Err(ControlFlow::Continue(err)) => err,
         };
 
-        loop_while_non_fatal_error(err, self.intermediate_certs, |cert_der| {
+        let candidates = self.intermediate_certs.iter().copied().flatten();
+        loop_while_non_fatal_error(err, candidates, |cert_der| {
             let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
             if !public_values_eq(potential_issuer.subject, path.head().issuer) {
                 return Err(Error::UnknownIssuer.into());
@@ -871,7 +872,7 @@ impl Iterator for OidDecoder<'_> {
     }
 }
 
-fn loop_while_non_fatal_error<'a, V: IntoIterator + 'a>(
+fn loop_while_non_fatal_error<'a, V: IntoIterator>(
     default_error: Error,
     values: V,
     mut f: impl FnMut(V::Item) -> Result<&'a TrustAnchor<'a>, ControlFlow<Error, Error>>,
@@ -1345,6 +1346,47 @@ mod tests {
     }
 
     #[test]
+    fn intermediates_from_multiple_lists() {
+        let root = make_issuer("Root");
+        let trust_anchors = &[anchor_from_trusted_cert(root.der()).unwrap()];
+        let upper = make_intermediate("Upper", &root);
+        let lower = make_intermediate("Lower", &upper);
+        let ee = make_end_entity(&lower);
+        let ee_cert = EndEntityCert::try_from(ee.cert.der()).unwrap();
+
+        // The path needs one certificate from each list, and lists may be empty.
+        let sources: [&[CertificateDer<'_>]; 3] = [
+            slice::from_ref(lower.der()),
+            &[],
+            slice::from_ref(upper.der()),
+        ];
+        let path = PathBuilder::new(
+            &sources,
+            None,
+            &ExtendedKeyUsage::SERVER_AUTH,
+            rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
+            trust_anchors,
+        )
+        .build(
+            &ee_cert,
+            UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d)),
+        )
+        .unwrap();
+
+        let subjects = path
+            .intermediate_certificates()
+            .map(|cert| cert.subject().to_vec())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            subjects,
+            [lower.der(), upper.der()].map(|der| Cert::from_der(untrusted::Input::from(der))
+                .unwrap()
+                .subject()
+                .to_vec())
+        );
+    }
+
+    #[test]
     fn distrusted_spki() {
         fn verify(
             ee_cert: &EndEntityCert<'_>,
@@ -1352,8 +1394,9 @@ mod tests {
             trust_anchors: &[TrustAnchor<'_>],
             distrusted_spkis: &[&[u8]],
         ) -> Result<usize, Error> {
+            let sources = [intermediates];
             let mut builder = PathBuilder::new(
-                intermediates,
+                &sources,
                 None,
                 &ExtendedKeyUsage::SERVER_AUTH,
                 rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,
@@ -1692,7 +1735,7 @@ mod tests {
             let ee = ee_params.signed_by(&ee_key, &intermediate).unwrap();
 
             let trust_anchors = &[anchor_from_trusted_cert(root.der()).unwrap()];
-            let intermediates = &[int_cert.der().clone()];
+            let intermediates = &[&[int_cert.der().clone()][..]];
             let ee_cert = EndEntityCert::try_from(ee.der()).unwrap();
             PathBuilder::new(
                 intermediates,
@@ -1727,8 +1770,9 @@ mod tests {
         let time = UnixTime::since_unix_epoch(Duration::from_secs(0x1fed_f00d));
         let mut path = PartialPath::new(ee_cert);
 
+        let sources = [intermediate_certs];
         let builder = PathBuilder::new(
-            intermediate_certs,
+            &sources,
             None,
             &ExtendedKeyUsage::SERVER_AUTH,
             rustls_aws_lc_rs::ALL_VERIFICATION_ALGS,

@@ -18,8 +18,9 @@ fn netflix() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
+    let sources = [&intermediates[..]];
     let builder = PathBuilder::new(
-        intermediates,
+        &sources,
         None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
@@ -42,8 +43,9 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
+    let sources = [&intermediates[..]];
     let builder = PathBuilder::new(
-        intermediates,
+        &sources,
         None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
@@ -68,8 +70,9 @@ fn cloudflare_dns() {
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
     let intermediates = &[inter];
+    let sources = [&intermediates[..]];
     let builder = PathBuilder::new(
-        intermediates,
+        &sources,
         None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
@@ -159,8 +162,9 @@ fn critical_extensions() {
 
     let anchors = [anchor_from_trusted_cert(&root).unwrap()];
     let intermediates = &[ca];
+    let sources = [&intermediates[..]];
     let builder = PathBuilder::new(
-        intermediates,
+        &sources,
         None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
@@ -375,8 +379,9 @@ fn cert_time_validity() {
     let ca = CertificateDer::from(&include_bytes!("netflix/ca.der")[..]);
 
     let anchors = [anchor_from_trusted_cert(&ca).unwrap()];
+    let sources = [slice::from_ref(&inter)];
     let builder = PathBuilder::new(
-        slice::from_ref(&inter),
+        &sources,
         None,
         &ExtendedKeyUsage::SERVER_AUTH,
         ALL_VERIFICATION_ALGS,
