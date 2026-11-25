@@ -131,8 +131,9 @@ fn run_validation(tc: &Testcase) -> Result<(), String> {
     let mut algs = rustls_aws_lc_rs::ALL_VERIFICATION_ALGS.to_vec();
     algs.extend_from_slice(&[ML_DSA_44, ML_DSA_65, ML_DSA_87]);
 
+    let sources = [&intermediates[..]];
     let builder = PathBuilder::new(
-        &intermediates,
+        &sources,
         (!crls.is_empty()).then(|| {
             RevocationOptionsBuilder::new(crls.as_slice())
                 .unwrap()
