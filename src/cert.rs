@@ -38,16 +38,24 @@ pub struct Cert<'a> {
 
 impl<'a> Cert<'a> {
     pub(crate) fn for_trust_anchor(cert_der: untrusted::Input<'a>) -> Result<Self, Error> {
-        Self::from_input(cert_der, UnknownExtensionPolicy::IgnoreCritical)
+        Self::from_input(cert_der, UnknownExtensionPolicy::IgnoreCritical, None)
     }
 
     pub(crate) fn from_der(cert_der: untrusted::Input<'a>) -> Result<Self, Error> {
-        Self::from_input(cert_der, UnknownExtensionPolicy::default())
+        Self::from_input(cert_der, UnknownExtensionPolicy::default(), None)
+    }
+
+    pub(crate) fn from_der_for_subject(
+        cert_der: untrusted::Input<'a>,
+        subject: untrusted::Input<'_>,
+    ) -> Result<Self, Error> {
+        Self::from_input(cert_der, UnknownExtensionPolicy::default(), Some(subject))
     }
 
     fn from_input(
         cert_der: untrusted::Input<'a>,
         ext_policy: UnknownExtensionPolicy,
+        desired_subject: Option<untrusted::Input<'_>>,
     ) -> Result<Self, Error> {
         let (tbs, signed_data) =
             cert_der.read_all(Error::TrailingData(DerTypeId::Certificate), |cert_der| {
@@ -80,6 +88,12 @@ impl<'a> Cert<'a> {
                 let issuer = der::expect_tag(tbs, Tag::Sequence)?;
                 let validity = der::expect_tag(tbs, Tag::Sequence)?;
                 let subject = der::expect_tag(tbs, Tag::Sequence)?;
+                if let Some(desired_subject) = desired_subject {
+                    if !public_values_eq(subject, desired_subject) {
+                        return Err(Error::UnknownIssuer);
+                    }
+                }
+
                 let spki = der::expect_tag(tbs, Tag::Sequence)?;
 
                 // In theory there could be fields [1] issuerUniqueID and [2]
