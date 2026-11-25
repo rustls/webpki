@@ -163,6 +163,7 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
 
         let candidates = self.intermediate_certs.iter().copied().flatten();
         loop_while_non_fatal_error(err, candidates, |cert_der| {
+            budget.consume_intermediate_examination()?;
             let potential_issuer =
                 Cert::from_der_for_subject(untrusted::Input::from(cert_der), path.head().issuer)?;
 
@@ -386,6 +387,7 @@ pub(crate) struct Budget {
     signatures: usize,
     build_chain_calls: usize,
     name_constraint_comparisons: usize,
+    intermediates: usize,
 }
 
 impl Budget {
@@ -404,6 +406,15 @@ impl Budget {
             .build_chain_calls
             .checked_sub(1)
             .ok_or(Error::MaximumPathBuildCallsExceeded)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn consume_intermediate_examination(&mut self) -> Result<(), Error> {
+        self.intermediates = self
+            .intermediates
+            .checked_sub(1)
+            .ok_or(Error::MaximumIntermediatesExamined)?;
         Ok(())
     }
 
@@ -433,6 +444,20 @@ impl Default for Budget {
             // This limit is taken from golang crypto/x509's default, see:
             // <https://github.com/golang/go/blob/ac17bb6f13979f2ab9fcd45f0758b43ed72d0973/src/crypto/x509/verify.go#L588-L592>
             name_constraint_comparisons: 250_000,
+
+            // This bounds the total number of intermediates examined (and at least partly
+            // parsed) across the whole search.  Without it, the cost of a search is up to
+            // `build_chain_calls * (number of intermediates)`, and the intermediates may be
+            // attacker-supplied padding that matches nothing.
+            //
+            // A search that finds a path without backtracking scans the list at most once per
+            // issuer it adds, so examines at most `MAX_SUB_CA_COUNT * (number of intermediates)`.
+            // This limit therefore allows a direct path through about 80,000 intermediates, or
+            // through 10,000 intermediates while abandoning about 40 dead-end branches.
+            //
+            // An examination costs roughly 60ns (subject mismatch) to 160ns (full parse) on a
+            // 2023 laptop CPU, so exhausting this budget takes under 100ms.
+            intermediates: 500_000,
         }
     }
 }
@@ -1108,7 +1133,7 @@ mod tests {
     #[test]
     fn test_too_many_signatures() {
         assert!(matches!(
-            build_and_verify_degenerate_chain(5, ChainTrustAnchor::NotInChain),
+            build_and_verify_degenerate_chain(5, ChainTrustAnchor::NotInChain, None),
             ControlFlow::Break(Error::MaximumSignatureChecksExceeded)
         ));
     }
@@ -1118,9 +1143,22 @@ mod tests {
         assert!(matches!(
             dbg!(build_and_verify_degenerate_chain(
                 10,
-                ChainTrustAnchor::InChain
+                ChainTrustAnchor::InChain,
+                // Isolate the build chain call budget from the memory bandwidth budget.
+                Some(Budget {
+                    intermediates: usize::MAX,
+                    ..Budget::default()
+                }),
             )),
             ControlFlow::Break(Error::MaximumPathBuildCallsExceeded)
+        ));
+    }
+
+    #[test]
+    fn test_too_many_intermediates_examined() {
+        assert!(matches!(
+            build_and_verify_degenerate_chain(10, ChainTrustAnchor::InChain, None),
+            ControlFlow::Break(Error::MaximumIntermediatesExamined)
         ));
     }
 
@@ -1577,6 +1615,7 @@ mod tests {
     fn build_and_verify_degenerate_chain(
         intermediate_count: usize,
         trust_anchor: ChainTrustAnchor,
+        budget: Option<Budget>,
     ) -> ControlFlow<Error, Error> {
         let ca = make_issuer("Bogus Subject");
         let mut intermediate_chain = IntermediateChain::new(intermediate_count, true, &ca);
@@ -1602,7 +1641,7 @@ mod tests {
             &intermediate_chain.chain,
             &ee_cert,
             None,
-            None,
+            budget,
         )
         .map(|_| ())
         .unwrap_err()
