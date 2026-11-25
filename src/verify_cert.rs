@@ -163,10 +163,8 @@ impl<'a, 'p: 'a> PathBuilder<'a, 'p> {
 
         let candidates = self.intermediate_certs.iter().copied().flatten();
         loop_while_non_fatal_error(err, candidates, |cert_der| {
-            let potential_issuer = Cert::from_der(untrusted::Input::from(cert_der))?;
-            if !public_values_eq(potential_issuer.subject, path.head().issuer) {
-                return Err(Error::UnknownIssuer.into());
-            }
+            let potential_issuer =
+                Cert::from_der_for_subject(untrusted::Input::from(cert_der), path.head().issuer)?;
 
             // Prevent loops; see RFC 4158 section 5.2.
             if path.node().iter().any(|prev| {
