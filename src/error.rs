@@ -9,7 +9,7 @@ use pki_types::UnixTime;
 #[cfg(feature = "alloc")]
 use pki_types::{AlgorithmIdentifier, ServerName};
 
-use crate::verify_cert::RequiredEkuNotFoundContext;
+use crate::{sct, verify_cert::RequiredEkuNotFoundContext};
 
 /// An error that occurs during certificate validation or name validation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -236,6 +236,9 @@ pub enum Error {
     /// algorithm and the signature algorithm simply don't match (e.g.
     /// verifying an RSA signature with an ECC public key).
     UnsupportedSignatureAlgorithmForPublicKey(UnsupportedSignatureAlgorithmForPublicKeyContext),
+
+    /// Errors specific to SCT validation.
+    SignedCertificateTimestampError(sct::Error),
 }
 
 impl Error {
@@ -307,6 +310,7 @@ impl Error {
             Self::MaximumSignatureChecksExceeded => 0,
             Self::MaximumPathBuildCallsExceeded => 0,
             Self::MaximumNameConstraintComparisonsExceeded => 0,
+            Self::SignedCertificateTimestampError(_) => 0,
 
             // Default catch all error - should be renamed in the future.
             Self::UnknownIssuer => 0,
@@ -334,6 +338,12 @@ impl From<Error> for ControlFlow<Error, Error> {
             // Otherwise we've rejected one candidate chain, but may continue to search for others.
             err => Self::Continue(err),
         }
+    }
+}
+
+impl From<sct::Error> for Error {
+    fn from(value: sct::Error) -> Self {
+        Self::SignedCertificateTimestampError(value)
     }
 }
 
