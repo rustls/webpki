@@ -140,6 +140,9 @@ pub enum Error {
     /// invalid labels, or an empty sequence where at least one item is required.
     MalformedNameConstraint,
 
+    /// The maximum number of intermediate certificates examined during path building.
+    MaximumIntermediatesExamined,
+
     /// The maximum number of name constraint comparisons has been reached.
     MaximumNameConstraintComparisonsExceeded,
 
@@ -307,6 +310,7 @@ impl Error {
             Self::MaximumSignatureChecksExceeded => 0,
             Self::MaximumPathBuildCallsExceeded => 0,
             Self::MaximumNameConstraintComparisonsExceeded => 0,
+            Self::MaximumIntermediatesExamined => 0,
 
             // Default catch all error - should be renamed in the future.
             Self::UnknownIssuer => 0,
@@ -322,6 +326,7 @@ impl Error {
             Self::MaximumSignatureChecksExceeded
                 | Self::MaximumPathBuildCallsExceeded
                 | Self::MaximumNameConstraintComparisonsExceeded
+                | Self::MaximumIntermediatesExamined
         )
     }
 }
