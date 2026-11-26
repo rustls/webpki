@@ -528,7 +528,6 @@ fn test_ecdsa_prime256v1_sha256_spki_inside_spki() {
     );
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn test_signature_algorithms() {
     use super::super::{
@@ -643,7 +642,6 @@ fn test_signature_algorithms() {
     }
 }
 
-#[cfg(feature = "alloc")]
 fn der2text(rd: &mut untrusted::Reader<'_>) -> String {
     let mut items = Vec::new();
 
@@ -691,7 +689,6 @@ fn der2text(rd: &mut untrusted::Reader<'_>) -> String {
     items.join(", ")
 }
 
-#[cfg(feature = "alloc")]
 const TAG_NULL: u8 = 0x05;
 
 struct TestSignedData {
