@@ -1,5 +1,3 @@
-#![cfg(feature = "alloc")]
-
 use pki_types::{CertificateDer, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
 use rcgen::{
     Certificate, CertificateParams, DnType, IsCa, KeyPair, KeyUsagePurpose, SignatureAlgorithm,

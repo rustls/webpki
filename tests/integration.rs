@@ -9,7 +9,6 @@ use webpki::{ExtendedKeyUsage, PathBuilder, anchor_from_trusted_cert};
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
-#[cfg(feature = "alloc")]
 #[test]
 fn netflix() {
     let ee: &[u8] = include_bytes!("netflix/ee.der");
@@ -34,7 +33,6 @@ fn netflix() {
 }
 
 /// See also https://github.com/rustls/rustls/issues/2448
-#[cfg(feature = "alloc")]
 #[test]
 fn sanofi_rsa_signature_with_absent_algorithm_params() {
     let ee: &[u8] = include_bytes!("sanofi/ee.der");
@@ -59,7 +57,6 @@ fn sanofi_rsa_signature_with_absent_algorithm_params() {
 }
 
 /* This is notable because it is a popular use of IP address subjectAltNames. */
-#[cfg(feature = "alloc")]
 #[test]
 fn cloudflare_dns() {
     use pki_types::ServerName;
@@ -115,7 +112,6 @@ fn cloudflare_dns() {
     check_addr("2606:4700:4700:0000:0000:0000:0000:6400");
 }
 
-#[cfg(feature = "alloc")]
 #[test]
 fn wpt() {
     let ee = CertificateDer::from(&include_bytes!("wpt/ee.der")[..]);
@@ -155,7 +151,6 @@ fn ed25519() {
 }
 
 #[test]
-#[cfg(feature = "alloc")]
 fn critical_extensions() {
     let root = CertificateDer::from(&include_bytes!("critical_extensions/root-cert.der")[..]);
     let ca = CertificateDer::from(&include_bytes!("critical_extensions/ca-cert.der")[..]);
@@ -206,7 +201,6 @@ fn read_root_with_neg_serial() {
 }
 
 #[test]
-#[cfg(feature = "alloc")]
 fn read_ee_with_neg_serial() {
     let ca = CertificateDer::from(&include_bytes!("misc/serial_neg_ca.der")[..]);
     let ee = CertificateDer::from(&include_bytes!("misc/serial_neg_ee.der")[..]);
@@ -226,7 +220,6 @@ fn read_ee_with_neg_serial() {
 }
 
 #[test]
-#[cfg(feature = "alloc")]
 fn read_ee_with_large_pos_serial() {
     let ee = CertificateDer::from(&include_bytes!("misc/serial_large_positive.der")[..]);
 
@@ -234,7 +227,6 @@ fn read_ee_with_large_pos_serial() {
 }
 
 #[test]
-#[cfg(feature = "alloc")]
 fn read_ee_with_issuer_and_subject_unique_ids() {
     let ee = CertificateDer::from(&include_bytes!("misc/issuer_and_subject_unique_id.der")[..]);
 
