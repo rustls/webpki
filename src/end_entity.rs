@@ -149,7 +149,6 @@ impl<'a> Deref for EndEntityCert<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 #[cfg(test)]
 mod tests {
     use alloc::string::ToString;

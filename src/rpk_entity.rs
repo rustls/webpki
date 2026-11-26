@@ -50,7 +50,6 @@ impl RawPublicKeyEntity<'_> {
     }
 }
 
-#[cfg(feature = "alloc")]
 #[cfg(test)]
 mod tests {
     use super::*;

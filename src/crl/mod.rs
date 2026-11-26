@@ -278,18 +278,14 @@ mod tests {
     use super::*;
 
     #[test]
-    // redundant clone, clone_on_copy allowed to verify derived traits.
-    #[cfg_attr(feature = "alloc", allow(clippy::redundant_clone))]
     fn test_revocation_opts_builder() {
         // Trying to build a RevocationOptionsBuilder w/o CRLs should err.
         let result = RevocationOptionsBuilder::new(&[]);
         assert!(matches!(result, Err(CrlsRequired(_))));
 
-        // The CrlsRequired error should be debug and clone when alloc is enabled.
-        {
-            let err = result.unwrap_err();
-            std::println!("{:?}", err.clone());
-        }
+        // The CrlsRequired error should be debug and clone.
+        let err = result.unwrap_err();
+        std::println!("{:?}", err.clone());
 
         // It should be possible to build a revocation options builder with defaults.
         let crl = include_bytes!("../../tests/crls/crl.valid.der");
@@ -298,10 +294,9 @@ mod tests {
             .into();
         let crls = [&crl];
         let builder = RevocationOptionsBuilder::new(&crls).unwrap();
-        #[cfg(feature = "alloc")]
         #[allow(clippy::clone_on_copy)]
         {
-            // The builder should be debug, and clone when alloc is enabled
+            // The builder should be debug, and clone
             std::println!("{builder:?}");
             _ = builder.clone();
         }
@@ -366,10 +361,7 @@ mod tests {
         assert_eq!(opts.expiration_policy, ExpirationPolicy::Enforce);
         assert_eq!(opts.crls.len(), 1);
 
-        // Built revocation options should be debug and clone when alloc is enabled.
-        #[cfg(feature = "alloc")]
-        {
-            std::println!("{:?}", opts.clone());
-        }
+        // Built revocation options should be debug and clone.
+        std::println!("{:?}", opts.clone());
     }
 }
