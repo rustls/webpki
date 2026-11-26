@@ -1010,7 +1010,6 @@ mod tests {
             .issuing_distribution_point
             .expect("missing crl distribution point DER");
 
-        #[cfg(feature = "alloc")]
         {
             // We should also be able to find the distribution point extensions bytes from
             // an owned representation of the CRL.
@@ -1228,7 +1227,6 @@ mod tests {
             let actual = <u8 as TryInto<RevocationReason>>::try_into(*id)
                 .expect("unexpected reason code conversion error");
             assert_eq!(actual, *expected);
-            #[cfg(feature = "alloc")]
             {
                 // revocation reasons should be Debug.
                 println!("{actual:?}");

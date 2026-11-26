@@ -1083,9 +1083,7 @@ mod tests {
         assert_eq!(
             err,
             Error::RequiredEkuNotFound(RequiredEkuNotFoundContext {
-                #[cfg(feature = "alloc")]
                 required: dbg!(ExtendedKeyUsage::required(EKU_SERVER_AUTH)), // Cover Debug impl
-                #[cfg(feature = "alloc")]
                 present: Vec::new(),
             })
         );
@@ -1612,7 +1610,6 @@ mod tests {
         .unwrap_err()
     }
 
-    #[cfg(feature = "alloc")]
     enum ChainTrustAnchor {
         NotInChain,
         InChain,
