@@ -11,28 +11,22 @@ use rustls_ring::{
 #[cfg(test)]
 #[path = "."]
 mod tests {
-    #[cfg(feature = "alloc")]
-    use crate::error::UnsupportedSignatureAlgorithmForPublicKeyContext;
-    use crate::error::{Error, UnsupportedSignatureAlgorithmContext};
+    use crate::error::{
+        Error, UnsupportedSignatureAlgorithmContext,
+        UnsupportedSignatureAlgorithmForPublicKeyContext,
+    };
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&dyn super::SignatureVerificationAlgorithm] = &[
         // Reasonable algorithms.
         super::ECDSA_P256_SHA256,
         super::ECDSA_P384_SHA384,
         super::ED25519,
-        #[cfg(feature = "alloc")]
         super::RSA_PKCS1_2048_8192_SHA256,
-        #[cfg(feature = "alloc")]
         super::RSA_PKCS1_2048_8192_SHA384,
-        #[cfg(feature = "alloc")]
         super::RSA_PKCS1_2048_8192_SHA512,
-        #[cfg(feature = "alloc")]
         super::RSA_PKCS1_3072_8192_SHA384,
-        #[cfg(feature = "alloc")]
         super::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-        #[cfg(feature = "alloc")]
         super::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-        #[cfg(feature = "alloc")]
         super::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
         // Algorithms deprecated because they are nonsensical combinations.
         super::ECDSA_P256_SHA384, // Truncates digest.
@@ -46,41 +40,22 @@ mod tests {
     mod alg_tests;
 
     fn maybe_rsa() -> Result<(), Error> {
-        #[cfg(feature = "alloc")]
-        {
-            Ok(())
-        }
-        #[cfg(not(feature = "alloc"))]
-        {
-            Err(unsupported(&[]))
-        }
+        Ok(())
     }
 
-    fn unsupported_for_rsa(sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
-        #[cfg(feature = "alloc")]
-        {
-            Error::UnsupportedSignatureAlgorithmForPublicKey(
-                UnsupportedSignatureAlgorithmForPublicKeyContext {
-                    signature_algorithm_id: sig_alg_id.to_vec(),
-                    public_key_algorithm_id: _public_key_alg_id.to_vec(),
-                },
-            )
-        }
-        #[cfg(not(feature = "alloc"))]
-        {
-            unsupported(sig_alg_id)
-        }
+    fn unsupported_for_rsa(_sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
+        Error::UnsupportedSignatureAlgorithmForPublicKey(
+            UnsupportedSignatureAlgorithmForPublicKeyContext {
+                #[cfg(feature = "alloc")]
+                signature_algorithm_id: _sig_alg_id.to_vec(),
+                #[cfg(feature = "alloc")]
+                public_key_algorithm_id: _public_key_alg_id.to_vec(),
+            },
+        )
     }
 
     fn invalid_rsa_signature() -> Error {
-        #[cfg(feature = "alloc")]
-        {
-            Error::InvalidSignatureForPublicKey
-        }
-        #[cfg(not(feature = "alloc"))]
-        {
-            unsupported(&[])
-        }
+        Error::InvalidSignatureForPublicKey
     }
 
     fn unsupported_for_ecdsa(sig_alg_id: &[u8], _public_key_alg_id: &[u8]) -> Error {
