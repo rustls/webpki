@@ -31,6 +31,7 @@ include = [
     "src/subject_name/mod.rs",
     "src/subject_name/name.rs",
     "src/subject_name/verify.rs",
+    "src/subject_name/uri.rs",
     "src/name/verify.rs",
     "src/name/name.rs",
     "src/signed_data.rs",
@@ -68,9 +69,11 @@ untrusted = "0.9"
 [dev-dependencies]
 base64 = "0.23"
 bencher = "0.1.5"
+iri-string = "0.7"
 jiff = "1"
 limbo-harness-support = { git = "https://github.com/C2SP/x509-limbo", rev = "b12423782a88abead01141fa6582254e3eb49e74" }
 once_cell = "1.17.2"
+proptest = "1"
 rcgen = { version = "0.14.7", default-features = false, features = ["aws_lc_rs"] }
 rustls-aws-lc-rs = { version = "0.24.0-dev.2" }
 rustls-ring = { version = "0.24.0-dev.2" }
